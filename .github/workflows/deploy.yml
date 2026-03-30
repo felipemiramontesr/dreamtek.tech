@@ -1,0 +1,61 @@
+name: Build and Deploy to Hostinger FTP
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  qa_audit_and_build:
+    name: 🧪 QA Audit & 🏗️ Build
+    runs-on: ubuntu-latest
+    steps:
+      - name: 📥 Checkout Code
+        uses: actions/checkout@v4
+
+      - name: ⚙️ Setup Node.js 24
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24.x'
+          cache: 'npm'
+
+      - name: 📦 Install Dependencies
+        run: npm ci
+
+      - name: 🧹 Sniffers & Linter
+        run: npm run lint
+
+      - name: 🧪 Unit Testing (Vitest)
+        run: npm run test -- --watch=false
+
+      - name: 🏭 Build Next.js Static Export
+        run: npm run build
+
+      - name: 📦 Upload Build Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: out-build-artifact
+          path: out/
+          retention-days: 1
+
+  deploy_hostinger:
+    name: 🚀 Deploy to Hostinger FTP
+    needs: qa_audit_and_build
+    runs-on: ubuntu-latest
+    steps:
+      - name: 📥 Download Build Artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: out-build-artifact
+          path: out/
+
+      - name: 🔄 Sync to public_html via FTP
+        uses: SamKirkland/FTP-Deploy-Action@v4.3.4
+        with:
+          server: ${{ secrets.FTP_SERVER }}
+          username: ${{ secrets.FTP_USER }}
+          password: ${{ secrets.FTP_PASSWORD }}
+          local-dir: ./out/
+          # Apuntamos a la raíz remota sin anidar (depende si el user FTP ya cae en public_html)
+          server-dir: ./ 
