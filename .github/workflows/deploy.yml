@@ -41,6 +41,8 @@ jobs:
           server: ${{ secrets.FTP_SERVER }}
           username: ${{ secrets.FTP_USER }}
           password: ${{ secrets.FTP_PASSWORD }}
+          protocol: ftps
+          port: 21
+          timeout: 120000
           local-dir: ./out/
-          # Apuntamos a la raíz remota sin anidar (depende si el user FTP ya cae en public_html)
           server-dir: ./
