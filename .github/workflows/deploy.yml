@@ -6,19 +6,16 @@ on:
       - main
   workflow_dispatch:
 
-env:
-  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
-
 jobs:
   qa_audit_and_build:
     name: 🧪 QA Audit & 🏗️ Build
     runs-on: ubuntu-latest
     steps:
       - name: 📥 Checkout Code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: ⚙️ Setup Node.js 24
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
           node-version: '24.x'
           cache: 'npm'
@@ -36,7 +33,7 @@ jobs:
         run: npm run build
 
       - name: 📦 Upload Build Artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: out-build-artifact
           path: out/
@@ -48,13 +45,13 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: 📥 Download Build Artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         with:
           name: out-build-artifact
           path: out/
 
       - name: 🔄 Sync to public_html via FTP
-        uses: SamKirkland/FTP-Deploy-Action@v4.3.4
+        uses: SamKirkland/FTP-Deploy-Action@v4.3.6
         with:
           server: ${{ secrets.FTP_SERVER }}
           username: ${{ secrets.FTP_USER }}
