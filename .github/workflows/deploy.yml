@@ -32,6 +32,24 @@ jobs:
       - name: 🏭 Build Next.js Static Export
         run: npm run build
 
+      - name: 📦 Upload Build Artifacts
+        uses: actions/upload-artifact@v6
+        with:
+          name: out-build-artifact
+          path: out/
+          retention-days: 1
+
+  deploy_hostinger:
+    name: 🚀 Deploy to Hostinger FTP
+    needs: qa_audit_and_build
+    runs-on: ubuntu-latest
+    steps:
+      - name: 📥 Download Build Artifacts
+        uses: actions/download-artifact@v6
+        with:
+          name: out-build-artifact
+          path: out/
+
       - name: 🚀 Deploy to Hostinger FTP (Native LFTP)
         env:
           FTP_SERVER: ${{ secrets.FTP_SERVER }}
