@@ -1,0 +1,33 @@
+name: Backend Check (PHP CI)
+
+on:
+  push:
+    branches:
+      - '**'
+    paths:
+      - '**.php'
+      - '.github/workflows/backend.yml'
+  pull_request:
+    branches:
+      - '**'
+    paths:
+      - '**.php'
+      - '.github/workflows/backend.yml'
+
+jobs:
+  backend_ci:
+    name: ⚙️ Backend Validation
+    runs-on: ubuntu-latest
+    steps:
+      - name: 📥 Checkout Code
+        uses: actions/checkout@v5
+
+      - name: 🛠️ Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          coverage: none
+
+      - name: 🧹 Lint PHP syntax
+        run: |
+          find . -type f -name "*.php" -not -path "*/node_modules/*" -exec php -l {} \;

@@ -1,0 +1,35 @@
+name: Frontend Check (Next.js CI)
+
+on:
+  push:
+    branches:
+      - '**'
+  pull_request:
+    branches:
+      - '**'
+
+jobs:
+  frontend_ci:
+    name: 💻 Frontend Validation
+    runs-on: ubuntu-latest
+    steps:
+      - name: 📥 Checkout Code
+        uses: actions/checkout@v5
+
+      - name: ⚙️ Setup Node.js 24
+        uses: actions/setup-node@v5
+        with:
+          node-version: '24.x'
+          cache: 'npm'
+
+      - name: 📦 Install Dependencies
+        run: npm ci
+
+      - name: 🧹 Sniffers & Linter
+        run: npm run lint
+
+      - name: 🧪 Unit Testing (Vitest)
+        run: npm run test -- --watch=false
+
+      - name: 🏭 Build Next.js Static Export
+        run: npm run build

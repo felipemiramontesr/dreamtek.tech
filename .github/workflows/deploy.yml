@@ -1,4 +1,4 @@
-name: Build and Deploy to Hostinger FTP
+name: Deploy to Hostinger (CD)
 
 on:
   push:
@@ -7,8 +7,8 @@ on:
   workflow_dispatch:
 
 jobs:
-  build_deploy:
-    name: 🏗️ Compilación y 🚀 Deploy
+  deploy:
+    name: 🚀 Build and FTP Deploy
     runs-on: ubuntu-latest
     steps:
       - name: 📥 Checkout Code
@@ -23,12 +23,6 @@ jobs:
       - name: 📦 Install Dependencies
         run: npm ci
 
-      - name: 🧹 Sniffers & Linter
-        run: npm run lint
-
-      - name: 🧪 Unit Testing (Vitest)
-        run: npm run test -- --watch=false
-
       - name: 🏭 Build Next.js Static Export
         run: npm run build
 
@@ -42,10 +36,7 @@ jobs:
           sudo apt-get install -y lftp > /dev/null
           echo "=== Directorios en el servidor FTP ==="
           lftp -c "set ftp:ssl-allow yes; set ftp:ssl-force true; set ssl:verify-certificate no; open -u $FTP_USER,$FTP_PASSWORD $FTP_SERVER; ls; quit"
-          echo "=== Eliminando carpeta out residual ==="
+          echo "=== Eliminando carpeta out residual y archivos obsoletos ==="
           lftp -c "set ftp:ssl-allow yes; set ftp:ssl-force true; set ssl:verify-certificate no; open -u $FTP_USER,$FTP_PASSWORD $FTP_SERVER; rm -rf out privacidad.html privacidad.txt terminos.html terminos.txt; quit"
           echo "=== Iniciando Mirroring del contenido ==="
           lftp -c "set ftp:ssl-allow yes; set ftp:ssl-force true; set ssl:verify-certificate no; open -u $FTP_USER,$FTP_PASSWORD $FTP_SERVER; lcd ./out; mirror -R --parallel=10 --ignore-time; quit"
-
-
-
