@@ -1,4 +1,4 @@
-name: Deploy to Hostinger (CD)
+name: CI/CD Pipeline (Dreamtek)
 
 on:
   push:
@@ -7,15 +7,58 @@ on:
   workflow_dispatch:
 
 jobs:
-  deploy:
-    name: 🚀 Build and FTP Deploy
+  frontend:
+    name: 💻 Frontend Validation
     runs-on: ubuntu-latest
     steps:
       - name: 📥 Checkout Code
-        uses: actions/checkout@v5
+        uses: actions/checkout@v4
 
       - name: ⚙️ Setup Node.js 24
-        uses: actions/setup-node@v5
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24.x'
+          cache: 'npm'
+
+      - name: 📦 Install Dependencies
+        run: npm ci
+
+      - name: 🧹 Sniffers & Linter
+        run: npm run lint
+
+      - name: 🧪 Unit Testing (Vitest)
+        run: npm run test -- --watch=false
+
+      - name: 🏭 Build Next.js Static Export
+        run: npm run build
+
+  backend:
+    name: ⚙️ Backend Validation
+    runs-on: ubuntu-latest
+    steps:
+      - name: 📥 Checkout Code
+        uses: actions/checkout@v4
+
+      - name: 🛠️ Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          coverage: none
+
+      - name: 🧹 Lint PHP syntax
+        run: |
+          find . -type f -name "*.php" -not -path "*/node_modules/*" -exec php -l {} \;
+
+  deploy:
+    name: 🚀 Deploy to Hostinger FTP
+    needs: [frontend, backend]
+    runs-on: ubuntu-latest
+    steps:
+      - name: 📥 Checkout Code
+        uses: actions/checkout@v4
+
+      - name: ⚙️ Setup Node.js 24
+        uses: actions/setup-node@v4
         with:
           node-version: '24.x'
           cache: 'npm'
