@@ -2,14 +2,10 @@ name: Backend Check (PHP CI)
 
 on:
   push:
-    branches:
-      - '**'
     paths:
       - '**.php'
       - '.github/workflows/backend.yml'
   pull_request:
-    branches:
-      - '**'
     paths:
       - '**.php'
       - '.github/workflows/backend.yml'
