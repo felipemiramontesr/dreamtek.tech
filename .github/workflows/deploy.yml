@@ -43,7 +43,7 @@ jobs:
           echo "=== Directorios en el servidor FTP ==="
           lftp -c "set ftp:ssl-allow yes; set ftp:ssl-force true; set ssl:verify-certificate no; open -u $FTP_USER,$FTP_PASSWORD $FTP_SERVER; ls; quit"
           echo "=== Eliminando carpeta out residual ==="
-          lftp -c "set ftp:ssl-allow yes; set ftp:ssl-force true; set ssl:verify-certificate no; open -u $FTP_USER,$FTP_PASSWORD $FTP_SERVER; rm -rf out; quit"
+          lftp -c "set ftp:ssl-allow yes; set ftp:ssl-force true; set ssl:verify-certificate no; open -u $FTP_USER,$FTP_PASSWORD $FTP_SERVER; rm -rf out privacidad.html privacidad.txt terminos.html terminos.txt; quit"
           echo "=== Iniciando Mirroring del contenido ==="
           lftp -c "set ftp:ssl-allow yes; set ftp:ssl-force true; set ssl:verify-certificate no; open -u $FTP_USER,$FTP_PASSWORD $FTP_SERVER; lcd ./out; mirror -R --parallel=10 --ignore-time; quit"
 
