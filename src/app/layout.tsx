@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import localFont from 'next/font/local';
 import './globals.css';
+import { CookieBanner } from '@/components/ui/CookieBanner';
 
 const neueMontreal = localFont({
   src: [
@@ -91,7 +92,10 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="es" className={`${neueMontreal.variable} antialiased h-full scroll-smooth`}>
-      <body className="min-h-full flex flex-col">{children}</body>
+      <body className="min-h-full flex flex-col bg-deep-space text-off-white">
+        {children}
+        <CookieBanner />
+      </body>
     </html>
   );
 }
