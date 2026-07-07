@@ -10,6 +10,15 @@ header("Access-Control-Allow-Headers: Content-Type");
 header("Access-Control-Allow-Methods: POST, OPTIONS");
 header("Content-Type: application/json; charset=UTF-8");
 
+// Load PHPMailer classes
+use PHPMailer\PHPMailer\PHPMailer;
+use PHPMailer\PHPMailer\Exception;
+use PHPMailer\PHPMailer\SMTP;
+
+require __DIR__ . '/PHPMailer/Exception.php';
+require __DIR__ . '/PHPMailer/PHPMailer.php';
+require __DIR__ . '/PHPMailer/SMTP.php';
+
 // Handle preflight OPTIONS request
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     http_response_code(200);
@@ -118,27 +127,51 @@ $emailContent = "
 </html>
 ";
 
-// Headers
-$headers = "MIME-Version: 1.0" . "\r\n";
-$headers .= "Content-type:text/html;charset=UTF-8" . "\r\n";
-// From must be an email of the domain in Hostinger to avoid spam/rejection
-$headers .= "From: no-reply@dreamtek.tech" . "\r\n";
-$headers .= "Reply-To: {$email}" . "\r\n";
-$headers .= "X-Mailer: PHP/" . phpversion();
+// Load SMTP configuration
+$smtp_host = 'smtp.hostinger.com';
+$smtp_user = 'contacto@dreamtek.tech';
+$smtp_pass = ''; // Leave blank or define here if not using smtp_config.php
+$smtp_port = 465;
 
-// Send Email
-if (mail($to, $subject, $emailContent, $headers)) {
+if (file_exists(__DIR__ . '/smtp_config.php')) {
+    include __DIR__ . '/smtp_config.php';
+}
+
+$mail = new PHPMailer(true);
+
+try {
+    // Server settings
+    $mail->isSMTP();
+    $mail->Host       = $smtp_host;
+    $mail->SMTPAuth   = !empty($smtp_pass); // authenticate only if password is set
+    $mail->Username   = $smtp_user;
+    $mail->Password   = $smtp_pass;
+    $mail->SMTPSecure = PHPMailer::ENCRYPTION_SMTPS; // SSL/TLS
+    $mail->Port       = $smtp_port;
+    $mail->CharSet    = 'UTF-8';
+
+    // Recipients
+    $mail->setFrom($smtp_user, 'Dreamtek Contacto');
+    $mail->addAddress($to);
+    $mail->addReplyTo($email, $name);
+
+    // Content
+    $mail->isHTML(true);
+    $mail->Subject = $subject;
+    $mail->Body    = $emailContent;
+
+    $mail->send();
+
     http_response_code(200);
     echo json_encode([
         "success" => true,
         "message" => "Mensaje enviado con éxito."
     ]);
-} else {
-    // If local mail fails, provide failure code
+} catch (Exception $e) {
     http_response_code(500);
     echo json_encode([
         "success" => false,
-        "message" => "Error del servidor: No se pudo enviar el correo electrónico."
+        "message" => "Error al enviar el correo: " . $mail->ErrorInfo
     ]);
 }
 ?>

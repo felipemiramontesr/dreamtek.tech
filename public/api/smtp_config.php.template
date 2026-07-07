@@ -1,0 +1,9 @@
+<?php
+// Dreamtek.tech - SMTP Mailer Configuration
+// Copy this file to public/api/smtp_config.php and add your credentials.
+// Do NOT commit smtp_config.php to version control.
+
+$smtp_host = 'smtp.hostinger.com';     // Hostinger SMTP host
+$smtp_user = 'contacto@dreamtek.tech'; // Hostinger email account
+$smtp_pass = 'TU_CONTRASEÑA_AQUÍ';     // Hostinger email password
+$smtp_port = 465;                      // SMTP port (usually 465 for SSL)
