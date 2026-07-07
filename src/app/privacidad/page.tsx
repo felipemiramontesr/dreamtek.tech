@@ -10,7 +10,7 @@ export default function Privacidad() {
         {/* Background graphic effect */}
         <div className="absolute inset-0 z-0 pointer-events-none opacity-10 bg-[radial-gradient(circle_at_center,rgba(255,45,0,0.15)_0%,transparent_60%)]" />
 
-        <div className="relative z-10 max-w-[900px] mx-auto px-6">
+        <div className="relative z-10 max-w-[1800px] mx-auto px-6">
           <span className="text-[#FF2D00] text-xs font-bold uppercase tracking-widest block mb-4">
             Documento Legal
           </span>
