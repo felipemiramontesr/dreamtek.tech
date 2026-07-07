@@ -27,7 +27,7 @@ jobs:
         run: npm run lint
 
       - name: 🧪 Unit Testing (Vitest)
-        run: npm run test -- --watch=false
+        run: npx vitest run --reporter=verbose --reporter=github-actions
 
       - name: 🏭 Build Next.js Static Export
         run: npm run build
