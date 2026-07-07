@@ -3,11 +3,11 @@ name: Backend Check (PHP CI)
 on:
   push:
     paths:
-      - '**.php'
+      - '**/*.php'
       - '.github/workflows/backend.yml'
   pull_request:
     paths:
-      - '**.php'
+      - '**/*.php'
       - '.github/workflows/backend.yml'
 
 jobs:
