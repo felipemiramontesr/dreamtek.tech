@@ -43,5 +43,6 @@ jobs:
           echo "=== Directorios en el servidor FTP ==="
           lftp -c "set ftp:ssl-allow yes; set ftp:ssl-force true; set ssl:verify-certificate no; open -u $FTP_USER,$FTP_PASSWORD $FTP_SERVER; ls; quit"
           echo "=== Iniciando Mirroring ==="
-          lftp -c "set ftp:ssl-allow yes; set ftp:ssl-force true; set ssl:verify-certificate no; open -u $FTP_USER,$FTP_PASSWORD $FTP_SERVER; mirror -R ./out ./ --parallel=10 --ignore-time; quit"
+          lftp -c "set ftp:ssl-allow yes; set ftp:ssl-force true; set ssl:verify-certificate no; open -u $FTP_USER,$FTP_PASSWORD $FTP_SERVER; lcd ./out; mirror -R ./ ./ --parallel=10 --ignore-time; quit"
+
 
