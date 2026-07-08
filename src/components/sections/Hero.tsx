@@ -48,9 +48,10 @@ export function Hero() {
       stars.push({
         x: Math.random() * width,
         y: Math.random() * height,
-        size: isSparkling ? Math.random() * 0.7 + 1.2 : Math.random() * 1.5 + 0.4, // Sparkling stars are slightly larger
+        // Sparkling stars are made larger (2.0px to 2.8px) so they are clearly visible
+        size: isSparkling ? Math.random() * 0.8 + 2.0 : Math.random() * 1.5 + 0.4,
         baseSpeedY: -(Math.random() * 0.12 + 0.04), // Drift slowly upwards
-        opacity: isSparkling ? Math.random() * 0.4 + 0.4 : Math.random() * 0.5 + 0.15, // Sparkling stars are a bit brighter
+        opacity: isSparkling ? Math.random() * 0.4 + 0.45 : Math.random() * 0.5 + 0.15, // Sparkling stars are brighter
         pulseSpeed: isSparkling ? Math.random() * 0.035 + 0.02 : Math.random() * 0.015 + 0.005, // Sparkle/pulse faster
         pulsePhase: Math.random() * Math.PI * 2,
         isSparkling,
@@ -116,18 +117,18 @@ export function Hero() {
         }
         ctx.fill();
 
-        // Draw subtle, elegant 4-point cross flare around sparkling stars
+        // Draw a double-sized (star.size * 7), highly distinct 4-point cross flare around sparkling stars
         if (star.isSparkling) {
           ctx.save();
           ctx.beginPath();
-          ctx.strokeStyle = `rgba(255, 255, 255, ${clampedOpacity * 0.45})`;
+          ctx.strokeStyle = `rgba(255, 255, 255, ${clampedOpacity * 0.6})`;
           ctx.lineWidth = 0.5;
-          // Horizontal line
-          ctx.moveTo(renderX - star.size * 3.5, renderY);
-          ctx.lineTo(renderX + star.size * 3.5, renderY);
-          // Vertical line
-          ctx.moveTo(renderX, renderY - star.size * 3.5);
-          ctx.lineTo(renderX, renderY + star.size * 3.5);
+          // Horizontal line - length factor is 7x star.size (twice the previous size)
+          ctx.moveTo(renderX - star.size * 7, renderY);
+          ctx.lineTo(renderX + star.size * 7, renderY);
+          // Vertical line - length factor is 7x star.size
+          ctx.moveTo(renderX, renderY - star.size * 7);
+          ctx.lineTo(renderX, renderY + star.size * 7);
           ctx.stroke();
           ctx.restore();
         }
