@@ -1,6 +1,6 @@
 <?php
 /**
- * Dreamtek.tech - Contact Form Mailer
+ * Dreamtek.tech - Contact Form Mailer (SMTP Secret Configured)
  * Handles form submissions and sends notifications using PHP.
  */
 
