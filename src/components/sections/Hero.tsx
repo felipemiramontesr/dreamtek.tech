@@ -11,6 +11,7 @@ interface Star {
   opacity: number;
   pulseSpeed: number;
   pulsePhase: number;
+  isSparkling?: boolean;
 }
 
 interface Meteor {
@@ -42,14 +43,17 @@ export function Hero() {
     const starCount = 60;
     const stars: Star[] = [];
     for (let i = 0; i < starCount; i++) {
+      // Make exactly 6 stars sparkle/shimmer with elegant cross lens flares
+      const isSparkling = i < 6;
       stars.push({
         x: Math.random() * width,
         y: Math.random() * height,
-        size: Math.random() * 1.5 + 0.4, // 0.4px to 1.9px
+        size: isSparkling ? Math.random() * 0.7 + 1.2 : Math.random() * 1.5 + 0.4, // Sparkling stars are slightly larger
         baseSpeedY: -(Math.random() * 0.12 + 0.04), // Drift slowly upwards
-        opacity: Math.random() * 0.5 + 0.15, // 0.15 to 0.65
-        pulseSpeed: Math.random() * 0.015 + 0.005,
+        opacity: isSparkling ? Math.random() * 0.4 + 0.4 : Math.random() * 0.5 + 0.15, // Sparkling stars are a bit brighter
+        pulseSpeed: isSparkling ? Math.random() * 0.035 + 0.02 : Math.random() * 0.015 + 0.005, // Sparkle/pulse faster
         pulsePhase: Math.random() * Math.PI * 2,
+        isSparkling,
       });
     }
 
@@ -99,18 +103,34 @@ export function Hero() {
         const renderX = star.x - mouse.x * (star.size * 0.6);
         const renderY = star.y - mouse.y * (star.size * 0.6);
 
-        // Draw star
+        // Draw star core
         ctx.beginPath();
         ctx.arc(renderX, renderY, star.size, 0, Math.PI * 2);
         ctx.fillStyle = `rgba(255, 255, 255, ${clampedOpacity})`;
         // Only larger stars get a soft bloom/shadow
-        if (star.size > 1.3) {
+        if (star.size > 1.3 && !star.isSparkling) {
           ctx.shadowBlur = 3;
           ctx.shadowColor = '#ffffff';
         } else {
           ctx.shadowBlur = 0;
         }
         ctx.fill();
+
+        // Draw subtle, elegant 4-point cross flare around sparkling stars
+        if (star.isSparkling) {
+          ctx.save();
+          ctx.beginPath();
+          ctx.strokeStyle = `rgba(255, 255, 255, ${clampedOpacity * 0.45})`;
+          ctx.lineWidth = 0.5;
+          // Horizontal line
+          ctx.moveTo(renderX - star.size * 3.5, renderY);
+          ctx.lineTo(renderX + star.size * 3.5, renderY);
+          // Vertical line
+          ctx.moveTo(renderX, renderY - star.size * 3.5);
+          ctx.lineTo(renderX, renderY + star.size * 3.5);
+          ctx.stroke();
+          ctx.restore();
+        }
       });
 
       // Spawn new meteors occasionally (~1 meteor every ~8-15 seconds at 60fps)
