@@ -11,6 +11,8 @@ export function Contact() {
     message: '',
   });
 
+  const [step, setStep] = useState<'form' | 'code'>('form');
+  const [code, setCode] = useState('');
   const [status, setStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
   const [errorMessage, setErrorMessage] = useState('');
 
@@ -26,28 +28,83 @@ export function Contact() {
     setStatus('loading');
     setErrorMessage('');
 
+    if (step === 'form') {
+      try {
+        const response = await fetch('/api/send_code.php', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ email: formData.email, name: formData.name }),
+        });
+
+        const data = await response.json();
+
+        if (response.ok && data.success) {
+          setStatus('idle');
+          setStep('code');
+        } else {
+          setStatus('error');
+          setErrorMessage(data.message || 'Ocurrió un error al enviar el código de verificación.');
+        }
+      } catch (error) {
+        console.error(error);
+        setStatus('error');
+        setErrorMessage('No se pudo conectar con el servidor para enviar el código.');
+      }
+    } else {
+      try {
+        const response = await fetch('/api/contact.php', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ ...formData, code }),
+        });
+
+        const data = await response.json();
+
+        if (response.ok && data.success) {
+          setStatus('success');
+          setStep('form');
+          setCode('');
+          setFormData({ name: '', email: '', service: 'web-starter', message: '' });
+        } else {
+          setStatus('error');
+          setErrorMessage(data.message || 'Ocurrió un error al verificar el código.');
+        }
+      } catch (error) {
+        console.error(error);
+        setStatus('error');
+        setErrorMessage('No se pudo conectar con el servidor de correos.');
+      }
+    }
+  };
+
+  const handleResend = async () => {
+    setStatus('loading');
+    setErrorMessage('');
     try {
-      const response = await fetch('/api/contact.php', {
+      const response = await fetch('/api/send_code.php', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(formData),
+        body: JSON.stringify({ email: formData.email, name: formData.name }),
       });
-
       const data = await response.json();
-
       if (response.ok && data.success) {
-        setStatus('success');
-        setFormData({ name: '', email: '', service: 'web-starter', message: '' });
+        setStatus('idle');
+        setCode('');
+        setErrorMessage('');
+        alert('Se ha reenviado un nuevo código a tu correo.');
       } else {
         setStatus('error');
-        setErrorMessage(data.message || 'Ocurrió un error al enviar el mensaje.');
+        setErrorMessage(data.message || 'Error al reenviar el código.');
       }
-    } catch (error) {
-      console.error(error);
+    } catch {
       setStatus('error');
-      setErrorMessage('No se pudo conectar con el servidor de correos.');
+      setErrorMessage('Error de conexión al intentar reenviar el código.');
     }
   };
 
@@ -140,8 +197,8 @@ export function Contact() {
                   </div>
                   <h3 className="text-2xl font-bold text-white mb-2">¡Solicitud Recibida!</h3>
                   <p className="text-white/60 font-light max-w-sm mb-8 text-sm">
-                    Tu ticket ha sido registrado. Un ingeniero de Dreamtek se pondrá en contacto
-                    contigo a la brevedad.
+                    Tu ticket ha sido registrado y verificado. Un ingeniero de Dreamtek se pondrá en
+                    contacto contigo a la brevedad.
                   </p>
                   <Button variant="outline" onClick={() => setStatus('idle')}>
                     Enviar otro mensaje
@@ -163,7 +220,7 @@ export function Contact() {
                       required
                       value={formData.name}
                       onChange={handleChange}
-                      disabled={status === 'loading'}
+                      disabled={status === 'loading' || step === 'code'}
                       className="w-full bg-white/5 border border-white/10 rounded-sm px-4 py-3 text-white outline-none focus:border-[#FF2D00] focus:ring-1 focus:ring-[#FF2D00] transition-all disabled:opacity-50 text-sm"
                       placeholder="Ej. Felipe Miramontes"
                     />
@@ -183,7 +240,7 @@ export function Contact() {
                       required
                       value={formData.email}
                       onChange={handleChange}
-                      disabled={status === 'loading'}
+                      disabled={status === 'loading' || step === 'code'}
                       className="w-full bg-white/5 border border-white/10 rounded-sm px-4 py-3 text-white outline-none focus:border-[#FF2D00] focus:ring-1 focus:ring-[#FF2D00] transition-all disabled:opacity-50 text-sm"
                       placeholder="ejemplo@correo.com"
                     />
@@ -202,7 +259,7 @@ export function Contact() {
                         name="service"
                         value={formData.service}
                         onChange={handleChange}
-                        disabled={status === 'loading'}
+                        disabled={status === 'loading' || step === 'code'}
                         className="w-full bg-white/5 border border-white/10 rounded-sm px-4 py-3 text-white outline-none focus:border-[#FF2D00] focus:ring-1 focus:ring-[#FF2D00] transition-all disabled:opacity-50 appearance-none text-sm cursor-pointer"
                       >
                         <option value="web-starter" className="bg-[#00213D]">
@@ -243,11 +300,50 @@ export function Contact() {
                       rows={4}
                       value={formData.message}
                       onChange={handleChange}
-                      disabled={status === 'loading'}
+                      disabled={status === 'loading' || step === 'code'}
                       className="w-full bg-white/5 border border-white/10 rounded-sm px-4 py-3 text-white outline-none focus:border-[#FF2D00] focus:ring-1 focus:ring-[#FF2D00] transition-all disabled:opacity-50 text-sm resize-none"
                       placeholder="Platícanos acerca de tu idea, retos y fechas límites..."
                     />
                   </div>
+
+                  {step === 'code' && (
+                    <div className="space-y-3 pt-2 border-t border-white/10 animate-fade-in">
+                      <label
+                        htmlFor="code"
+                        className="block text-xs uppercase tracking-widest text-[#FF2D00] font-bold"
+                      >
+                        Código de Verificación (6 dígitos)
+                      </label>
+                      <p className="text-xs text-white/60 font-light">
+                        Hemos enviado un código temporal a{' '}
+                        <strong className="text-white font-medium">{formData.email}</strong>. Por
+                        favor ingrésalo abajo para completar la validación anti-spam.
+                      </p>
+                      <input
+                        type="text"
+                        id="code"
+                        name="code"
+                        required
+                        maxLength={6}
+                        pattern="\d{6}"
+                        value={code}
+                        onChange={(e) => setCode(e.target.value.replace(/\D/g, ''))}
+                        disabled={status === 'loading'}
+                        className="w-full bg-white/5 border border-white/15 rounded-sm px-4 py-3 text-white outline-none focus:border-[#FF2D00] focus:ring-1 focus:ring-[#FF2D00] transition-all disabled:opacity-50 text-center tracking-[0.5em] text-lg font-bold placeholder-white/20"
+                        placeholder="000000"
+                      />
+                      <div className="text-right">
+                        <button
+                          type="button"
+                          onClick={handleResend}
+                          disabled={status === 'loading'}
+                          className="text-xs text-white/40 hover:text-white transition-colors cursor-pointer outline-none focus:underline"
+                        >
+                          ¿No recibiste el código? Reenviar código
+                        </button>
+                      </div>
+                    </div>
+                  )}
 
                   {status === 'error' && (
                     <div className="text-xs text-red-500 bg-red-500/10 border border-red-500/20 p-3 rounded-sm">
@@ -284,6 +380,8 @@ export function Contact() {
                         </svg>
                         Procesando...
                       </span>
+                    ) : step === 'code' ? (
+                      'Verificar Código y Enviar'
                     ) : (
                       'Enviar Solicitud'
                     )}

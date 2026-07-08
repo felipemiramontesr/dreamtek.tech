@@ -44,13 +44,14 @@ $name = isset($input['name']) ? strip_tags(trim($input['name'])) : '';
 $email = isset($input['email']) ? filter_var(trim($input['email']), FILTER_SANITIZE_EMAIL) : '';
 $service = isset($input['service']) ? strip_tags(trim($input['service'])) : 'web-starter';
 $message = isset($input['message']) ? htmlspecialchars(trim($input['message'])) : '';
+$code = isset($input['code']) ? trim($input['code']) : '';
 
 // Validation
-if (empty($name) || empty($email) || empty($message)) {
+if (empty($name) || empty($email) || empty($message) || empty($code)) {
     http_response_code(400);
     echo json_encode([
         "success" => false,
-        "message" => "Por favor, completa todos los campos requeridos."
+        "message" => "Por favor, completa todos los campos requeridos, incluyendo el código de verificación."
     ]);
     exit();
 }
@@ -60,6 +61,67 @@ if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
     echo json_encode([
         "success" => false,
         "message" => "Dirección de correo electrónico inválida."
+    ]);
+    exit();
+}
+
+// Validate 2FA code against SQLite database
+try {
+    $dbPath = __DIR__ . '/verify.db';
+    if (!file_exists($dbPath)) {
+        http_response_code(400);
+        echo json_encode([
+            "success" => false,
+            "message" => "No se encontró ningún código de verificación activo para este correo."
+        ]);
+        exit();
+    }
+
+    $db = new PDO("sqlite:$dbPath");
+    $db->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+
+    // Fetch active verification code
+    $stmt = $db->prepare("SELECT code, expires_at FROM verifications WHERE email = :email");
+    $stmt->execute([':email' => $email]);
+    $record = $stmt->fetch(PDO::FETCH_ASSOC);
+
+    if (!$record) {
+        http_response_code(400);
+        echo json_encode([
+            "success" => false,
+            "message" => "No se encontró ningún código de verificación activo para este correo."
+        ]);
+        exit();
+    }
+
+    // Check code and expiration
+    if ($record['code'] !== $code) {
+        http_response_code(400);
+        echo json_encode([
+            "success" => false,
+            "message" => "El código de verificación ingresado es incorrecto."
+        ]);
+        exit();
+    }
+
+    if ($record['expires_at'] < time()) {
+        http_response_code(400);
+        echo json_encode([
+            "success" => false,
+            "message" => "El código de verificación ha expirado. Por favor, solicita uno nuevo."
+        ]);
+        exit();
+    }
+
+    // Delete verified code to prevent replay/reuse attacks
+    $stmtDelete = $db->prepare("DELETE FROM verifications WHERE email = :email");
+    $stmtDelete->execute([':email' => $email]);
+
+} catch (PDOException $e) {
+    http_response_code(500);
+    echo json_encode([
+        "success" => false,
+        "message" => "Error de validación en la base de datos: " . $e->getMessage()
     ]);
     exit();
 }
