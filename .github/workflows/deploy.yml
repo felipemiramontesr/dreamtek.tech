@@ -66,6 +66,17 @@ jobs:
       - name: 📦 Install Dependencies
         run: npm ci
 
+      - name: ⚙️ Create SMTP Config File
+        env:
+          SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}
+        run: |
+          mkdir -p public/api
+          echo "<?php" > public/api/smtp_config.php
+          echo "\$smtp_host = 'smtp.hostinger.com';" >> public/api/smtp_config.php
+          echo "\$smtp_user = 'contacto@dreamtek.tech';" >> public/api/smtp_config.php
+          echo "\$smtp_pass = '${SMTP_PASSWORD}';" >> public/api/smtp_config.php
+          echo "\$smtp_port = 465;" >> public/api/smtp_config.php
+
       - name: 🏭 Build Next.js Static Export
         run: npm run build
 
