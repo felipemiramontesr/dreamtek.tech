@@ -3,81 +3,68 @@
 import { useState } from 'react';
 import { GlassCard } from '../ui/GlassCard';
 import { Button } from '../ui/Button';
+import type { es } from '@/i18n/dictionaries/es';
 
-export function Products() {
+type Dictionary = typeof es;
+
+export function Products({ dict }: { dict: Dictionary }) {
   const [isAnnual, setIsAnnual] = useState(false);
 
   const plans = [
     {
-      id: 'web-starter',
-      title: 'Web Starter',
-      price: '$1,200',
-      annualPrice: '$960',
-      annualTotal: '$11,520',
-      period: 'proyecto',
-      description:
-        'Lanzamiento rápido de alto impacto. Ideal para startups y validación de mercado.',
-      features: [
-        'Desarrollo en Next.js (App Router)',
-        'Diseño UI Premium responsivo',
-        'Optimización de carga ultra-rápida',
-        'SEO inicial integrado',
-        'Formulario de contacto funcional',
-      ],
+      id: 'starterkit',
+      title: dict.products.plans[0].title,
+      price: dict.products.plans[0].price,
+      annualPrice: dict.products.plans[0].annualPrice,
+      annualTotal: dict.products.plans[0].annualTotal,
+      period: dict.products.plans[0].period,
+      description: dict.products.plans[0].description,
+      features: dict.products.plans[0].features,
       featured: false,
-      ctaText: 'Iniciar Proyecto',
+      ctaText: dict.products.plans[0].ctaText,
     },
     {
-      id: 'custom-app',
-      title: 'Custom App',
-      price: '$3,500',
-      annualPrice: '$2,800',
-      annualTotal: '$33,600',
-      period: 'proyecto',
-      description: 'Plataformas complejas a la medida con integraciones y bases de datos robustas.',
-      features: [
-        'Arquitectura escalable a la medida',
-        'E-commerce o tableros de control',
-        'Integración completa de APIs',
-        'Sincronización con Mobile Apps (opcional)',
-        'Base de datos segura y encriptada',
-      ],
+      id: 'archon-fleet',
+      title: dict.products.plans[1].title,
+      price: dict.products.plans[1].price,
+      annualPrice: dict.products.plans[1].annualPrice,
+      annualTotal: dict.products.plans[1].annualTotal,
+      period: dict.products.plans[1].period,
+      description: dict.products.plans[1].description,
+      features: dict.products.plans[1].features,
       featured: true,
-      ctaText: 'Solicitar Cotización',
+      ctaText: dict.products.plans[1].ctaText,
     },
     {
       id: 'cyber-audit',
-      title: 'Cyber Audit',
-      price: '$1,800',
-      annualPrice: '$1,440',
-      annualTotal: '$17,280',
-      period: 'auditoría',
-      description:
-        'Análisis profundo de ciberseguridad para mitigar vulnerabilidades y fugas de datos.',
-      features: [
-        'Auditoría Security by Design',
-        'Penetration Testing inicial',
-        'Análisis de código y dependencias',
-        'Políticas CSP y hardening de servidor',
-        'Reporte detallado y plan de mitigación',
-      ],
+      title: dict.products.plans[2].title,
+      price: dict.products.plans[2].price,
+      annualPrice: dict.products.plans[2].annualPrice,
+      annualTotal: dict.products.plans[2].annualTotal,
+      period: dict.products.plans[2].period,
+      description: dict.products.plans[2].description,
+      features: dict.products.plans[2].features,
       featured: false,
-      ctaText: 'Agendar Auditoría',
+      ctaText: dict.products.plans[2].ctaText,
     },
   ];
 
   return (
-    <section id="productos" className="py-24 relative overflow-hidden bg-black/20 scroll-mt-20">
+    <section
+      id="productos"
+      className="min-h-screen flex flex-col justify-center pt-28 pb-12 relative overflow-hidden bg-black/20"
+    >
       {/* Decorative gradient blob */}
       <div className="absolute top-1/2 left-0 -translate-y-1/2 -translate-x-1/2 w-[600px] h-[600px] bg-[#FF2D00]/5 rounded-full blur-[100px] pointer-events-none" />
 
       <div className="max-w-[1440px] px-6 mx-auto w-full relative z-10">
-        <div className="text-center mb-16">
+        <div className="text-center mb-10">
           <h2 className="text-3xl md:text-5xl font-bold text-white mb-4">
-            Planes y <span className="text-[#FF2D00]">Productos</span>
+            {dict.products.heading1}
+            <span className="text-[#FF2D00]">{dict.products.heading2}</span>
           </h2>
           <p className="text-white/60 max-w-xl mx-auto text-lg font-light mb-8">
-            Estructuras transparentes adaptadas a la escala de tus retos digitales.
+            {dict.products.subtitle}
           </p>
 
           {/* Billing Toggle Switch */}
@@ -85,7 +72,7 @@ export function Products() {
             <span
               className={`text-sm font-medium transition-colors duration-200 ${!isAnnual ? 'text-white' : 'text-white/40'}`}
             >
-              Mensual
+              {dict.products.monthly}
             </span>
             <label className="relative inline-flex items-center cursor-pointer select-none">
               <input
@@ -101,11 +88,11 @@ export function Products() {
               <span
                 className={`text-sm font-medium transition-colors duration-200 ${isAnnual ? 'text-white' : 'text-white/40'}`}
               >
-                Anual
+                {dict.products.annual}
               </span>
               {isAnnual && (
                 <span className="text-[10px] sm:text-xs bg-[#FF2D00] text-white px-2 py-0.5 rounded-full font-bold shadow-[0_0_10px_rgba(255,45,0,0.4)] animate-pulse">
-                  Ahorra 20%
+                  {dict.products.save}
                 </span>
               )}
             </div>
@@ -122,12 +109,6 @@ export function Products() {
               }`}
             >
               <div>
-                {plan.featured && (
-                  <span className="absolute top-4 right-4 bg-[#FF2D00] text-white text-xs font-bold uppercase tracking-widest px-3 py-1 rounded-sm shadow-[0_0_10px_rgba(255,45,0,0.4)]">
-                    Recomendado
-                  </span>
-                )}
-
                 <h3 className="text-2xl font-bold text-white mb-2">{plan.title}</h3>
                 <p className="text-white/50 text-sm font-light mb-6 min-h-[48px]">
                   {plan.description}
@@ -140,13 +121,15 @@ export function Products() {
                     </span>
                     <div className="flex flex-col">
                       <span className="text-white/60 text-xs sm:text-sm font-light uppercase tracking-wider">
-                        USD / {isAnnual ? 'mes' : plan.period}
+                        {dict.products.usdPer}
+                        {isAnnual ? dict.products.month : plan.period}
                       </span>
                     </div>
                   </div>
                   {isAnnual && (
                     <span className="text-xs text-[#FF2D00] font-medium tracking-wide mt-2 animate-fade-in block">
-                      Facturado al año: {plan.annualTotal}
+                      {dict.products.billedAnnually}
+                      {plan.annualTotal}
                     </span>
                   )}
                 </div>

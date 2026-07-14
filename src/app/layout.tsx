@@ -1,7 +1,6 @@
 import type { Metadata } from 'next';
 import localFont from 'next/font/local';
 import './globals.css';
-import { CookieBanner } from '@/components/ui/CookieBanner';
 
 const neueMontreal = localFont({
   src: [
@@ -33,22 +32,23 @@ const neueMontreal = localFont({
 export const metadata: Metadata = {
   metadataBase: new URL('https://dreamtek.tech'),
   title: {
-    default: 'Dreamtek. | Desarrollo Web & Ciberseguridad Premium',
+    default: 'Dreamtek.',
     template: '%s | Dreamtek.',
   },
 
   description:
-    'Convertimos visiones complejas en infraestructura digital robusta. Ingeniería, aplicaciones móviles y ciberseguridad de clase mundial con metodología Security by Design.',
+    'Convertimos visiones complejas en infraestructura digital robusta. Creadores del ERP modular y mutable ARCHON Fleet Manager, StarterKit Digital y ciberseguridad ofensiva bajo estándar Security by Design.',
   keywords: [
-    'Desarrollo Web Zacatecas',
-    'Ciberseguridad México',
+    'ERP mutable',
+    'Software gestion de flotas',
+    'Fleet management corporativo',
+    'Ciberseguridad Mexico',
+    'Hacking etico empresas',
+    'Auditoria forense digital',
+    'Orquestacion de IA',
     'Desarrollo Next.js',
-    'React 19',
-    'Aplicaciones Móviles Premium',
     'Security by Design',
-    'Auditoría de Software',
-    'Páginas Web Guadalupe Zacatecas',
-    'Infraestructura Digital',
+    'Dreamtek tech',
   ],
   authors: [{ name: 'Dreamtek Team', url: 'https://dreamtek.tech' }],
   creator: 'Dreamtek',
@@ -70,20 +70,35 @@ export const metadata: Metadata = {
     type: 'website',
     locale: 'es_MX',
     url: 'https://dreamtek.tech',
-    title: 'Dreamtek. | Desarrollo Web & Ciberseguridad Premium',
+    title: 'Dreamtek.',
     description:
-      'Convertimos visiones complejas en infraestructura digital robusta con estándar global en desarrollo y seguridad.',
+      'Convertimos visiones complejas en infraestructura digital robusta. Creadores del ERP modular y mutable ARCHON Fleet Manager, StarterKit Digital y ciberseguridad ofensiva bajo estándar Security by Design.',
     siteName: 'Dreamtek',
     images: [
       {
-        url: '/svg/24_DREAMTEK_LOGO_LOGOTIPO_Teck Red.svg',
+        url: 'https://dreamtek.tech/svg/24_DREAMTEK_LOGO_LOGOTIPO_Teck%20Red.svg',
         width: 1200,
         height: 630,
         alt: 'Dreamtek Logo',
       },
     ],
   },
+  twitter: {
+    card: 'summary_large_image',
+    title: 'Dreamtek.',
+    description:
+      'Convertimos visiones complejas en infraestructura digital robusta. Creadores del ERP modular y mutable ARCHON Fleet Manager, StarterKit Digital y ciberseguridad ofensiva bajo estándar Security by Design.',
+    images: ['https://dreamtek.tech/svg/24_DREAMTEK_LOGO_LOGOTIPO_Teck%20Red.svg'],
+  },
+  alternates: {
+    languages: {
+      es: 'https://dreamtek.tech',
+      en: 'https://dreamtek.tech/en',
+    },
+  },
 };
+
+import { ClientWrapper } from '@/components/layout/ClientWrapper';
 
 export default function RootLayout({
   children,
@@ -92,9 +107,26 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="es" className={`${neueMontreal.variable} antialiased h-full scroll-smooth`}>
+      <head>
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `
+              try {
+                var pref = localStorage.getItem('dreamtek_lang_preference');
+                if (!pref && window.location.pathname === '/') {
+                  var browserLang = navigator.language.toLowerCase();
+                  if (browserLang.startsWith('en')) {
+                    localStorage.setItem('dreamtek_lang_preference', 'en');
+                    window.location.replace('/en');
+                  }
+                }
+              } catch (e) {}
+            `,
+          }}
+        />
+      </head>
       <body className="min-h-full flex flex-col bg-deep-space text-off-white">
-        {children}
-        <CookieBanner />
+        <ClientWrapper>{children}</ClientWrapper>
       </body>
     </html>
   );

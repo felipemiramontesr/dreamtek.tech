@@ -1,12 +1,7 @@
 /* src/app/cookieBanner.css */
 
 .cookie-banner {
-  position: fixed;
-  bottom: 1.5rem;
-  left: 50%;
-  transform: translateX(-50%);
-  width: calc(100% - 3rem); /* Matches px-6 margin/padding on both sides */
-  max-width: 1392px; /* Matches max-w-[1440px] minus px-6 padding (1440px - 48px = 1392px) */
+  width: 100%;
   padding: 1.25rem 1.5rem;
   z-index: 100;
   display: flex;
@@ -19,15 +14,25 @@
   border-radius: 16px; /* Matches rounded-2xl */
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
   animation: slide-up 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  transition:
+    background-color 0.3s ease,
+    border-color 0.3s ease,
+    box-shadow 0.3s ease;
+}
+
+.cookie-banner.solid-bg {
+  background-color: rgba(0, 33, 61, 0.95); /* Matches Navbar #00213D/95 */
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.8);
 }
 
 @keyframes slide-up {
   from {
-    transform: translate(-50%, 100%);
+    transform: translateY(100%);
     opacity: 0;
   }
   to {
-    transform: translate(-50%, 0);
+    transform: translateY(0);
     opacity: 1;
   }
 }
@@ -61,7 +66,8 @@
 }
 
 .cookie-actions {
-  display: flex;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
   gap: 0.75rem;
   flex-shrink: 0;
 }
@@ -77,22 +83,22 @@
 }
 
 .cookie-btn.accept {
-  background-color: #ff2d00;
+  background-color: #00bfff;
   color: #fff;
 }
 
 .cookie-btn.accept:hover {
-  background-color: #e02800;
+  background-color: #00aae6;
   transform: translateY(-1px);
 }
 
 .cookie-btn.reject {
-  background-color: rgba(255, 255, 255, 0.08);
-  color: #f8f9fa;
-  border: 1px solid rgba(255, 255, 255, 0.15);
+  background-color: #ff2d00;
+  color: #fff;
+  border: none;
 }
 
 .cookie-btn.reject:hover {
-  background-color: rgba(255, 255, 255, 0.15);
+  background-color: #e02800;
   transform: translateY(-1px);
 }

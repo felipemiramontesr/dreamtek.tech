@@ -1,30 +1,41 @@
-export function Differential() {
+import { SpaceBackground } from '../ui/SpaceBackground';
+import type { es } from '@/i18n/dictionaries/es';
+
+type Dictionary = typeof es;
+
+export function Differential({ dict }: { dict: Dictionary }) {
   return (
-    <section id="diferencial" className="py-24 relative overflow-hidden bg-black/40">
+    <section
+      id="diferencial"
+      className="min-h-screen flex flex-col justify-center pt-28 pb-12 relative overflow-hidden bg-gradient-to-br from-[#00213d] via-[#00172B] to-black"
+    >
+      <SpaceBackground />
+      <div className="absolute inset-0 z-0 pointer-events-none opacity-25 bg-[radial-gradient(circle_at_center,rgba(255,45,0,0.15)_0%,transparent_55%)]" />
       <div className="max-w-[1440px] px-6 mx-auto w-full relative z-10">
         <div className="flex flex-col lg:flex-row items-center gap-16">
           <div className="lg:w-1/2">
             <h2 className="text-3xl md:text-4xl font-bold text-white mb-8">
-              El Diferencial{' '}
+              {dict.differential.heading1}
               <span className="text-transparent bg-clip-text bg-gradient-to-r from-gray-400 to-white">
-                Dreamtek
+                {dict.differential.heading2}
               </span>
             </h2>
             <div className="space-y-8">
               <div className="relative pl-6 border-l border-white/20 hover:border-[#FF2D00] transition-colors duration-500">
-                <h4 className="text-xl font-medium text-white mb-2">Security by Design</h4>
+                <h4 className="text-xl font-medium text-white mb-2">
+                  {dict.differential.items[0].title}
+                </h4>
                 <p className="text-white/60 font-light leading-relaxed">
-                  No añadimos la seguridad al final. Cada línea de código, cada arquitectura de
-                  servidor y cada flujo de usuario se diseña contemplando prevenciones de amenaza
-                  clase A.
+                  {dict.differential.items[0].description}
                 </p>
               </div>
 
               <div className="relative pl-6 border-l border-white/20 hover:border-[#FF2D00] transition-colors duration-500">
-                <h4 className="text-xl font-medium text-white mb-2">Metodología Ágil Premium</h4>
+                <h4 className="text-xl font-medium text-white mb-2">
+                  {dict.differential.items[1].title}
+                </h4>
                 <p className="text-white/60 font-light leading-relaxed">
-                  Iteraciones comprobables, tableros transparentes y comunicación asertiva.
-                  Construimos infraestructura digital resiliente en semanas, no meses.
+                  {dict.differential.items[1].description}
                 </p>
               </div>
             </div>

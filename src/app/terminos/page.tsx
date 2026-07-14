@@ -1,12 +1,7 @@
-import { Navbar } from '@/components/layout/Navbar';
-import { Footer } from '@/components/layout/Footer';
-
 export default function Terminos() {
   return (
-    <main className="flex flex-col min-h-screen">
-      <Navbar />
-
-      <section className="relative flex-grow pt-32 pb-24 bg-gradient-to-br from-[#00213d] via-[#00172B] to-black">
+    <main className="flex flex-col min-h-screen pt-20">
+      <section className="relative flex-grow pt-12 pb-24 bg-gradient-to-br from-[#00213d] via-[#00172B] to-black">
         {/* Background graphic effect */}
         <div className="absolute inset-0 z-0 pointer-events-none opacity-10 bg-[radial-gradient(circle_at_center,rgba(255,45,0,0.15)_0%,transparent_60%)]" />
 
@@ -18,99 +13,152 @@ export default function Terminos() {
             Términos de Servicio
           </h1>
 
-          <div className="glass-panel p-8 sm:p-12 rounded-2xl space-y-8 text-white/80 font-light leading-relaxed text-base">
-            <p className="text-sm text-white/40">Última actualización: 6 de julio de 2026</p>
+          <div className="glass-panel p-8 sm:p-12 rounded-2xl space-y-8 text-white/80 font-light leading-relaxed text-base text-justify">
+            <h2 className="text-2xl font-bold text-white mb-2 text-left">
+              Términos de Servicio y Condiciones de Uso
+            </h2>
+            <p className="text-sm text-white/40 text-left">
+              Última actualización: 14 de julio de 2026
+            </p>
 
             <p>
-              Bienvenido a <strong>Dreamtek.tech</strong>. Al acceder y navegar en nuestro sitio
-              web, aceptas cumplir con los términos y condiciones descritos en este documento. Si no
-              estás de acuerdo con alguna de estas condiciones, te recomendamos abstenerte de
-              utilizar nuestro sitio y servicios.
+              Bienvenido al portal web de Dreamtek.tech (en adelante, el &quot;Sitio Web&quot;),
+              operado por Felipe de Jesús Miramontes Romero (en adelante, &ldquo;Dreamtek&rdquo;).
+              Los presentes Términos de Servicio regulan el acceso, navegación y uso del Sitio Web.
             </p>
 
             <hr className="border-white/10" />
 
             <div className="space-y-4">
-              <h3 className="text-xl font-bold text-white">1. Propiedad Intelectual</h3>
+              <h3 className="text-xl font-bold text-white text-left">
+                1. Aceptación de los Términos (Consentimiento Electrónico)
+              </h3>
               <p>
-                Todo el contenido disponible en este sitio, incluyendo pero no limitado a logotipos,
-                textos, gráficos, código de programación, iconos de interfaz, tipografía y
-                arquitectura visual es propiedad intelectual exclusiva de <strong>Dreamtek</strong>{' '}
-                o de sus respectivos licenciantes, y está protegido por las leyes de propiedad
-                intelectual internacionales y nacionales.
-              </p>
-              <p>
-                Se prohíbe la reproducción, copia, distribución o modificación de cualquier parte de
-                este sitio sin el consentimiento expreso y por escrito de nuestro equipo legal.
+                Al acceder, navegar o utilizar este Sitio Web, así como al enviar cualquier
+                información a través de nuestros formularios de contacto o validación, usted
+                manifiesta su consentimiento expreso y acepta obligarse legalmente por los presentes
+                Términos de Servicio, de conformidad con lo dispuesto en el artículo 80 del Código
+                de Comercio y el artículo 1803 del Código Civil Federal de los Estados Unidos
+                Mexicanos relativos al consentimiento otorgado por medios electrónicos. Si usted no
+                está de acuerdo con la totalidad de estas condiciones, deberá abstenerse
+                inmediatamente de utilizar este Sitio Web y sus servicios.
               </p>
             </div>
 
             <div className="space-y-4">
-              <h3 className="text-xl font-bold text-white">2. Uso Aceptable del Sitio</h3>
+              <h3 className="text-xl font-bold text-white text-left">
+                2. Propiedad Intelectual e Industrial y Reserva de Derechos
+              </h3>
               <p>
-                Como usuario, te comprometes a hacer un uso lícito y ético de la plataforma. Queda
-                estrictamente prohibido:
+                Todo el contenido alojado o disponible en este Sitio Web, incluyendo de manera
+                enunciativa más no limitativa: logotipos, isotipos, marcas comerciales, textos,
+                manuales, gráficos, arquitectura de información, layouts visuales, interfaces, hojas
+                de estilo de Tailwind CSS, tipografías y el código fuente subyacente (en adelante,
+                la &quot;Propiedad Intelectual&quot;) es titularidad exclusiva de Dreamtek o de sus
+                respectivos licenciantes, y se encuentra estrictamente protegido por la Ley Federal
+                de Protección a la Propiedad Industrial, la Ley Federal del Derecho de Autor, así
+                como por los tratados internacionales en la materia.
+              </p>
+              <p>
+                Queda estrictamente prohibida la reproducción, copia, distribución, comunicación
+                pública, modificación, licenciamiento, ingeniería inversa, descompilación o
+                explotación total o parcial de cualquier componente de este Sitio Web o de sus
+                productos de software (ARCHON, StarterKit Digital, MAPA-RD y arquitecturas
+                asociadas) sin la autorización previa, expresa y por escrito de Dreamtek.
+              </p>
+            </div>
+
+            <div className="space-y-4">
+              <h3 className="text-xl font-bold text-white text-left">
+                3. Uso Aceptable y Prohibiciones Técnicas (Delitos Informáticos)
+              </h3>
+              <p>
+                Como usuario, usted se obliga a interactuar con el Sitio Web de forma estrictamente
+                lícita, ética y de buena fe. Queda estrictamente prohibido realizar las siguientes
+                conductas, las cuales podrán ser consideradas conductas delictivas bajo el Código
+                Penal Federal mexicano y legislaciones internacionales:
               </p>
               <ul className="list-disc pl-6 space-y-2">
                 <li>
-                  Intentar vulnerar la seguridad, realizar escaneos no autorizados o ataques de
-                  denegación de servicio (DDoS) contra los servidores de la plataforma.
+                  Realizar escaneos de vulnerabilidades no autorizados, port scanning, inyecciones
+                  de código o ataques de Denegación de Servicio (DoS / DDoS) contra la
+                  infraestructura de Dreamtek o sus proveedores de hosting.
                 </li>
                 <li>
-                  Proporcionar información falsa, engañosa o malintencionada a través de nuestro
-                  formulario de contacto.
+                  Utilizar técnicas automatizadas de extracción de datos como web scraping, data
+                  mining o extracción de metadatos sin autorización expresa por escrito.
                 </li>
                 <li>
-                  Utilizar técnicas de scraping o extracción de datos automática sin autorización
-                  previa por escrito.
+                  Proporcionar información falsa, inexacta, suplantar identidades o utilizar correos
+                  electrónicos corporativos sin la debida titularidad en nuestros formularios.
+                </li>
+                <li>
+                  Manipular de cualquier forma el backend en PHP, bases de datos SQLite locales
+                  (verify.db) o desviar las peticiones SMTP del correo corporativo.
                 </li>
               </ul>
             </div>
 
             <div className="space-y-4">
-              <h3 className="text-xl font-bold text-white">
-                3. Prestación de Servicios de Consultoría
+              <h3 className="text-xl font-bold text-white text-left">
+                4. Naturaleza de la Información Comercial y Cotizaciones
               </h3>
               <p>
-                La información de costos, alcances e hitos detallada en la sección de planes es
-                estimativa e ilustrativa para guiar al usuario. Cada proyecto formalizado con
-                Dreamtek requiere la firma de un Contrato de Prestación de Servicios de Software o
-                Auditoría Técnica donde se pactarán las cláusulas contractuales definitivas, los
-                acuerdos de nivel de servicio (SLA) y los alcances definitivos.
+                El usuario reconoce y acepta que la información sobre características, hitos de
+                desarrollo, igualas de StarterKit y descripciones modulares del ERP ARCHON
+                contenidas en este Sitio Web poseen un carácter exclusivamente informativo,
+                ilustrativo y de prospección comercial.
+              </p>
+              <p>
+                La visualización de estos contenidos no constituye una oferta vinculante ni un
+                contrato de adhesión. La prestación formal de cualquier servicio de ingeniería de
+                software, consultoría en Inteligencia Artificial o auditorías de ciberseguridad
+                ofensiva se perfeccionará única y exclusivamente mediante la firma digital o física
+                de un Contrato de Prestación de Servicios Tecnológicos, donde se estipularán de
+                mutuo acuerdo las cláusulas definitivas, los Acuerdos de Nivel de Servicio (SLA) y
+                las matrices de responsabilidad correspondientes.
               </p>
             </div>
 
             <div className="space-y-4">
-              <h3 className="text-xl font-bold text-white">4. Limitación de Responsabilidad</h3>
+              <h3 className="text-xl font-bold text-white text-left">
+                5. Exclusión de Garantías y Limitación de Responsabilidad
+              </h3>
               <p>
-                Aunque aplicamos estrictos estándares de <strong>Security by Design</strong> y nos
-                esforzamos por garantizar la máxima disponibilidad y corrección de la información de
-                este sitio web, Dreamtek no se hace responsable por interrupciones temporales del
-                servicio debidas a fallas de red del hosting, mantenimientos del proveedor o ataques
-                externos de fuerza mayor.
+                Dreamtek aplica metodologías estrictas de Security by Design y despliegues atómicos
+                automatizados a través de integración continua (CI/CD) para garantizar la
+                disponibilidad y el correcto funcionamiento del Sitio Web. Sin embargo, en la máxima
+                medida permitida por las leyes aplicables, Dreamtek no otorga ninguna garantía
+                explícita o implícita sobre la infalibilidad, continuidad absoluta del servicio o la
+                total ausencia de interrupciones técnicas derivadas de fallas en los nodos de red
+                del proveedor de infraestructura (Hostinger), contingencias ajenas a nuestro control
+                o eventos de fuerza mayor.
               </p>
             </div>
 
             <div className="space-y-4">
-              <h3 className="text-xl font-bold text-white">5. Jurisdicción y Ley Aplicable</h3>
+              <h3 className="text-xl font-bold text-white text-left">
+                6. Jurisdicción y Legislación Aplicable
+              </h3>
               <p>
-                Para la resolución de cualquier conflicto derivado de la interpretación o ejecución
-                de estos términos de servicio, las partes acuerdan someterse expresamente a la
-                jurisdicción de los tribunales competentes y leyes aplicables del estado de{' '}
-                <strong>Zacatecas, México</strong>, renunciando a cualquier otro fuero que pudiera
-                corresponderles en razón de sus domicilios presentes o futuros.
+                Para todo lo relativo a la interpretación, cumplimiento o resolución de cualquier
+                controversia o disputa legal derivada del uso de este Sitio Web o de los presentes
+                Términos de Servicio, tanto el usuario como Dreamtek se someten de manera expresa e
+                irrevocable a las leyes federales de los Estados Unidos Mexicanos y a la
+                jurisdicción de los Tribunales Competentes con sede en la Ciudad de Zacatecas,
+                Estado de Zacatecas, México, renunciando expresamente a cualquier otro fuero o
+                jurisdicción que pudiera corresponderles en razón de sus domicilios presentes o
+                futuros.
               </p>
             </div>
 
             <div className="space-y-4">
-              <h3 className="text-xl font-bold text-white">6. Contacto</h3>
+              <h3 className="text-xl font-bold text-white text-left">7. Información de Contacto</h3>
               <p>
-                Si tienes preguntas sobre nuestros Términos de Servicio, puedes comunicarte
-                directamente con nuestra área de ingeniería en{' '}
-                <a
-                  href="mailto:contacto@dreamtek.tech"
-                  className="text-[#FF2D00] hover:underline font-medium"
-                >
+                Para cualquier aclaración de carácter legal, técnico o metodológico respecto a las
+                presentes condiciones, usted puede ponerse en contacto directo con nuestra área
+                jurídica e ingeniería a través de la dirección de correo electrónico institucional:{' '}
+                <a href="mailto:contacto@dreamtek.tech" className="text-[#FF2D00] hover:underline">
                   contacto@dreamtek.tech
                 </a>
                 .
@@ -119,8 +167,6 @@ export default function Terminos() {
           </div>
         </div>
       </section>
-
-      <Footer />
     </main>
   );
 }

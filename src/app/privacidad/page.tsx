@@ -1,12 +1,7 @@
-import { Navbar } from '@/components/layout/Navbar';
-import { Footer } from '@/components/layout/Footer';
-
 export default function Privacidad() {
   return (
-    <main className="flex flex-col min-h-screen">
-      <Navbar />
-
-      <section className="relative flex-grow pt-32 pb-24 bg-gradient-to-br from-[#00213d] via-[#00172B] to-black">
+    <main className="flex flex-col min-h-screen pt-20">
+      <section className="relative flex-grow pt-12 pb-24 bg-gradient-to-br from-[#00213d] via-[#00172B] to-black">
         {/* Background graphic effect */}
         <div className="absolute inset-0 z-0 pointer-events-none opacity-10 bg-[radial-gradient(circle_at_center,rgba(255,45,0,0.15)_0%,transparent_60%)]" />
 
@@ -18,136 +13,215 @@ export default function Privacidad() {
             Aviso de Privacidad
           </h1>
 
-          <div className="glass-panel p-8 sm:p-12 rounded-2xl space-y-8 text-white/80 font-light leading-relaxed text-base">
-            <p className="text-sm text-white/40">Última actualización: 6 de julio de 2026</p>
+          <div className="glass-panel p-8 sm:p-12 rounded-2xl space-y-8 text-white/80 font-light leading-relaxed text-base text-justify">
+            <h2 className="text-2xl font-bold text-white mb-2 text-left">
+              Aviso de Privacidad Integral
+            </h2>
+            <p className="text-sm text-white/40 text-left">
+              Última actualización: 14 de julio de 2026
+            </p>
 
             <p>
-              En <strong>Dreamtek.tech</strong> (en adelante, &ldquo;Dreamtek&rdquo;), nos tomamos
-              muy en serio la seguridad y la privacidad de tus datos. Este Aviso de Privacidad
-              describe cómo recopilamos, utilizamos, almacenamos y protegemos la información
-              personal que nos proporcionas a través de nuestro formulario de contacto en nuestro
-              sitio web.
+              Felipe de Jesús Miramontes Romero (en adelante comercialmente conocido como
+              &ldquo;Dreamtek&rdquo;), con domicilio para oír y recibir notificaciones en Guadalupe,
+              Zacatecas, México, y portal web{' '}
+              <a href="https://dreamtek.tech" className="text-[#FF2D00] hover:underline">
+                https://dreamtek.tech
+              </a>
+              , es el responsable del uso y protección de sus datos personales. Al respecto, le
+              informamos lo siguiente:
             </p>
 
             <hr className="border-white/10" />
 
             <div className="space-y-4">
-              <h3 className="text-xl font-bold text-white">
-                1. Identidad y Domicilio del Responsable
+              <h3 className="text-xl font-bold text-white text-left">
+                1. Datos Personales que Recopilamos
               </h3>
               <p>
-                Dreamtek, operando bajo las leyes vigentes y con sede de operaciones tecnológicas en{' '}
-                <strong>Guadalupe, Zacatecas, México</strong>, es el responsable del tratamiento de
-                tus datos personales recabados a través de esta plataforma.
+                Para llevar a cabo las finalidades descritas en el presente aviso de privacidad,
+                utilizaremos los siguientes datos personales, recabados a través de nuestro
+                formulario de contacto:
+              </p>
+              <ul className="list-disc pl-6 space-y-2">
+                <li>Nombre completo.</li>
+                <li>Dirección de correo electrónico corporativo o personal.</li>
+                <li>Servicio o plan de interés seleccionado.</li>
+                <li>
+                  Detalles técnicos e información del proyecto provistos voluntariamente en el
+                  mensaje.
+                </li>
+              </ul>
+              <p>
+                Le informamos que Dreamtek no solicita ni trata datos personales sensibles (tales
+                como origen racial, estado de salud, información genética, creencias religiosas,
+                filosóficas y morales, afiliación sindical, opiniones políticas o preferencia
+                sexual).
               </p>
             </div>
 
             <div className="space-y-4">
-              <h3 className="text-xl font-bold text-white">2. Datos Personales Recopilados</h3>
+              <h3 className="text-xl font-bold text-white text-left">
+                2. Finalidades del Tratamiento de los Datos
+              </h3>
               <p>
-                Para atender tus solicitudes de cotización, diagnóstico inicial o consultoría
-                técnica, recopilamos únicamente los siguientes datos esenciales:
+                Los datos personales que recabamos de usted los utilizaremos para las siguientes
+                finalidades primarias, las cuales son necesarias para el servicio o diagnóstico
+                técnico que solicita:
               </p>
               <ul className="list-disc pl-6 space-y-2">
+                <li>Identificarlo, autenticarlo y perfilar técnicamente su solicitud comercial.</li>
                 <li>
-                  <strong>Nombre Completo:</strong> Para dirigirnos de manera personalizada y
-                  profesional.
+                  Atender, procesar y responder a sus requerimientos de cotización, diagnóstico
+                  inicial o consultoría de ingeniería y ciberseguridad.
                 </li>
                 <li>
-                  <strong>Correo Electrónico:</strong> Como canal primario de comunicación y envío
-                  de reportes o propuestas comerciales.
+                  Establecer un canal de comunicación directo y seguro para discutir el alcance de
+                  los proyectos.
                 </li>
                 <li>
-                  <strong>Servicio de Interés:</strong> Para perfilar técnicamente tu solicitud.
+                  Elaborar y enviar propuestas económicas formales basadas en las necesidades
+                  planteadas.
                 </li>
+              </ul>
+              <p className="font-semibold text-white">Finalidades secundarias:</p>
+              <ul className="list-disc pl-6 space-y-2">
                 <li>
-                  <strong>Mensaje / Información del Proyecto:</strong> Detalles técnicos provistos
-                  voluntariamente para la cotización.
+                  Informarle sobre actualizaciones críticas de software, parches de seguridad o
+                  evoluciones de nuestros productos core (ARCHON y StarterKit), siempre y cuando no
+                  haya manifestado su oposición al respecto.
                 </li>
               </ul>
             </div>
 
             <div className="space-y-4">
-              <h3 className="text-xl font-bold text-white">
-                3. Finalidad del Tratamiento de Datos
+              <h3 className="text-xl font-bold text-white text-left">
+                3. Mecanismo para Negarse al Tratamiento de Finalidades Secundarias
               </h3>
               <p>
-                Tus datos serán tratados de manera confidencial y exclusivamente para los siguientes
-                fines primarios relacionados con nuestro servicio:
-              </p>
-              <ul className="list-disc pl-6 space-y-2">
-                <li>Procesar y responder a tu solicitud de cotización o diagnóstico técnico.</li>
-                <li>
-                  Establecer contacto directo para discutir el alcance de los proyectos de
-                  desarrollo o ciberseguridad.
-                </li>
-                <li>
-                  Enviar propuestas comerciales formales relativas a los servicios solicitados.
-                </li>
-              </ul>
-              <p className="text-sm text-white/60 mt-2">
-                * No realizamos campañas masivas de spam ni transferimos tus datos a terceros con
-                fines publicitarios.
-              </p>
-            </div>
-
-            <div className="space-y-4">
-              <h3 className="text-xl font-bold text-white">4. Seguridad y Retención de Datos</h3>
-              <p>
-                Aplicando nuestro principio de <strong>Security by Design</strong>, implementamos
-                medidas de seguridad administrativas, técnicas y físicas para salvaguardar tu
-                información contra daño, pérdida, alteración, destrucción o el uso, acceso o
-                tratamiento no autorizado.
-              </p>
-              <p>
-                Tus datos de contacto se almacenarán de forma cifrada en nuestros servidores de
-                correo y bases de datos seguros durante el tiempo estrictamente necesario para
-                cumplir con la relación comercial o legal respectiva.
-              </p>
-            </div>
-
-            <div className="space-y-4">
-              <h3 className="text-xl font-bold text-white">
-                5. Derechos ARCO (Acceso, Rectificación, Cancelación y Oposición)
-              </h3>
-              <p>
-                Tienes derecho a conocer qué datos personales tenemos de ti, para qué los utilizamos
-                y las condiciones del uso que les damos (Acceso). Asimismo, es tu derecho solicitar
-                la corrección de tu información personal en caso de que esté desactualizada o sea
-                inexacta (Rectificación); que la eliminemos de nuestros registros o bases de datos
-                (Cancelación); así como oponerte al uso de tus datos para fines específicos
-                (Oposición).
-              </p>
-              <p>
-                Para ejercer cualquiera de tus derechos ARCO, puedes redactar una solicitud formal
-                dirigida a nuestro correo corporativo:{' '}
-                <a
-                  href="mailto:contacto@dreamtek.tech"
-                  className="text-[#FF2D00] hover:underline font-medium"
-                >
+                En caso de que no desee que sus datos personales sean tratados para las finalidades
+                secundarias mencionadas, usted puede manifestar su negativa desde este momento
+                enviando un correo electrónico a{' '}
+                <a href="mailto:contacto@dreamtek.tech" className="text-[#FF2D00] hover:underline">
                   contacto@dreamtek.tech
                 </a>
-                , detallando el derecho que deseas ejercer y adjuntando una identificación oficial
-                para verificar tu titularidad.
+                . La negativa para el uso de sus datos personales para estas finalidades no podrá
+                ser un motivo para que le neguemos los servicios y productos que solicita con
+                nosotros.
               </p>
             </div>
 
             <div className="space-y-4">
-              <h3 className="text-xl font-bold text-white">
-                6. Modificaciones al Aviso de Privacidad
+              <h3 className="text-xl font-bold text-white text-left">
+                4. Transferencia de Datos Personales
               </h3>
               <p>
-                Nos reservamos el derecho de efectuar en cualquier momento modificaciones o
-                actualizaciones al presente aviso, para la atención de novedades legislativas o
-                jurisprudenciales, políticas internas o nuevos requerimientos en nuestros servicios.
-                Cualquier cambio estará disponible directamente en esta URL.
+                Dreamtek se compromete a no transferir, vender ni compartir su información personal
+                con terceros ajenos a la organización sin su consentimiento explícito, salvo por las
+                excepciones previstas en el artículo 37 de la LFPDPPP, así como a realizar dichas
+                transferencias en los términos que fija dicha ley, o ante requerimientos
+                obligatorios de autoridades judiciales o regulatorias competentes.
+              </p>
+            </div>
+
+            <div className="space-y-4">
+              <h3 className="text-xl font-bold text-white text-left">
+                5. Medidas de Seguridad Tecnológica (Security by Design)
+              </h3>
+              <p>
+                En concordancia con nuestra metodología interna Security by Design y protocolos
+                avanzados de criptografía aplicada, implementamos estrictas medidas de seguridad
+                técnicas, administrativas y físicas para proteger sus datos contra daño, pérdida,
+                alteración, destrucción o el uso, acceso o tratamiento no autorizado.
+              </p>
+              <p>
+                Los datos enviados a través del sitio web se transmiten de manera encriptada y se
+                resguardan utilizando infraestructura segura, con políticas estrictas de cifrado en
+                bases de datos y control de accesos restringido.
+              </p>
+            </div>
+
+            <div className="space-y-4">
+              <h3 className="text-xl font-bold text-white text-left">
+                6. Derechos ARCO y Revocación del Consentimiento
+              </h3>
+              <p>
+                Usted tiene derecho a conocer qué datos personales tenemos de usted, para qué los
+                utilizamos y las condiciones del uso que les damos (Acceso). Asimismo, es su derecho
+                solicitar la corrección de su información personal en caso de que esté
+                desactualizada, sea inexacta o esté incompleta (Rectificación); que la eliminemos de
+                nuestros registros o bases de datos cuando considere que la misma no está siendo
+                utilizada adecuadamente (Cancelación); así como oponerse al uso de sus datos
+                personales para fines específicos (Oposición). Estos derechos se conocen como
+                derechos ARCO.
+              </p>
+              <p>
+                Para el ejercicio de cualquiera de los derechos ARCO, así como para revocar el
+                consentimiento otorgado para el tratamiento de sus datos, usted deberá presentar la
+                solicitud respectiva vía correo electrónico a la dirección:{' '}
+                <a href="mailto:contacto@dreamtek.tech" className="text-[#FF2D00] hover:underline">
+                  contacto@dreamtek.tech
+                </a>
+              </p>
+              <p>La solicitud deberá contener y acompañar lo siguiente:</p>
+              <ul className="list-disc pl-6 space-y-2">
+                <li>Su nombre y dirección de correo electrónico para comunicarle la respuesta.</li>
+                <li>
+                  Los documentos que acrediten su identidad (copia de identificación oficial
+                  vigente).
+                </li>
+                <li>
+                  La descripción clara y precisa de los datos personales respecto de los que busca
+                  ejercer alguno de los derechos ARCO.
+                </li>
+                <li>
+                  Cualquier otro elemento que facilite la localización de los datos personales.
+                </li>
+              </ul>
+              <p>
+                El plazo para atender y resolver su solicitud será de un máximo de 20 días hábiles,
+                contados a partir de la fecha de su recepción conforme a la legislación aplicable.
+              </p>
+            </div>
+
+            <div className="space-y-4">
+              <h3 className="text-xl font-bold text-white text-left">
+                7. Uso de Tecnologías de Rastreo (Cookies y Web Beacons)
+              </h3>
+              <p>
+                Le informamos que en nuestra página de internet utilizamos cookies y otras
+                tecnologías a través de las cuales es posible monitorear su comportamiento como
+                usuario de internet, con el único fin de brindarle una mejor experiencia y
+                rendimiento de navegación (optimización extrema de velocidad).
+              </p>
+              <p>
+                Los datos que se obtienen de estas tecnologías de rastreo son de carácter técnico
+                (direcciones IP anonimizadas, tipos de navegador, preferencias de idioma) y no
+                permiten la identificación nominal del usuario. Usted puede deshabilitar o
+                configurar el uso de cookies directamente en las opciones de configuración de su
+                navegador web.
+              </p>
+            </div>
+
+            <div className="space-y-4">
+              <h3 className="text-xl font-bold text-white text-left">
+                8. Cambios al Aviso de Privacidad
+              </h3>
+              <p>
+                El presente aviso de privacidad puede sufrir modificaciones, cambios o
+                actualizaciones derivadas de nuevos requerimientos legales, de nuestras propias
+                necesidades por los productos o servicios que ofrecemos, de nuestras prácticas de
+                privacidad, o por cambios en nuestros modelos de infraestructura.
+              </p>
+              <p>
+                Nos comprometemos a mantenerlo informado sobre los cambios que pueda sufrir el
+                presente aviso de privacidad a través de su publicación directa en nuestro portal
+                web.
               </p>
             </div>
           </div>
         </div>
       </section>
-
-      <Footer />
     </main>
   );
 }

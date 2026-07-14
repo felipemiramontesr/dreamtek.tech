@@ -1,6 +1,9 @@
 import { GlassCard } from '../ui/GlassCard';
+import type { es } from '@/i18n/dictionaries/es';
 
-export function Services() {
+type Dictionary = typeof es;
+
+export function Services({ dict }: { dict: Dictionary }) {
   const services = [
     {
       id: 'web',
@@ -19,9 +22,10 @@ export function Services() {
           />
         </svg>
       ),
-      title: 'Desarrollo Web',
-      description:
-        'Ecosistemas escalables construidos con arquitecturas modernas. Optimizados para el rendimiento y la flexibilidad empresarial.',
+      title: dict.services.cards[0].title,
+      description: dict.services.cards[0].description,
+      badges: dict.services.cards[0].badges,
+      ctaText: dict.services.cards[0].ctaText,
       featured: false,
     },
     {
@@ -41,9 +45,10 @@ export function Services() {
           />
         </svg>
       ),
-      title: 'Mobile Apps',
-      description:
-        'Soluciones nativas e híbridas con experiencias fluidas. Enfoque mobile-first alineado a lineamientos de diseño premium.',
+      title: dict.services.cards[1].title,
+      description: dict.services.cards[1].description,
+      badges: dict.services.cards[1].badges,
+      ctaText: dict.services.cards[1].ctaText,
       featured: false,
     },
     {
@@ -63,9 +68,10 @@ export function Services() {
           />
         </svg>
       ),
-      title: 'Ciberseguridad',
-      description:
-        'Preparacionismo Digital y auditorías profundas. Aplicamos Security by Design para mitigar riesgos antes de que se presenten.',
+      title: dict.services.cards[2].title,
+      description: dict.services.cards[2].description,
+      badges: dict.services.cards[2].badges,
+      ctaText: dict.services.cards[2].ctaText,
       featured: true,
     },
   ];
@@ -73,19 +79,18 @@ export function Services() {
   return (
     <section
       id="servicios"
-      className="min-h-screen flex items-center py-24 relative overflow-hidden bg-[#00213d]/90 scroll-mt-20"
+      className="min-h-screen flex flex-col justify-center pt-28 pb-12 relative overflow-hidden bg-[#00213d]/90"
     >
       {/* Decorative gradient blob */}
       <div className="absolute top-0 right-0 -translate-y-1/2 translate-x-1/2 w-[800px] h-[800px] bg-[#FF2D00]/5 rounded-full blur-[120px] pointer-events-none" />
 
       <div className="max-w-[1440px] px-6 mx-auto w-full relative z-10">
-        <div className="text-center md:text-left mb-16">
+        <div className="text-center md:text-left mb-10">
           <h2 className="text-3xl md:text-5xl font-bold text-white mb-4">
-            Servicios <span className="text-[#FF2D00]">Core</span>
+            {dict.services.heading1}
+            <span className="text-[#FF2D00]">{dict.services.heading2}</span>
           </h2>
-          <p className="text-white/60 max-w-xl text-lg">
-            Soluciones integrales de alto rendimiento para retos corporativos complejos.
-          </p>
+          <p className="text-white/60 max-w-xl text-lg">{dict.services.subtitle}</p>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
@@ -101,11 +106,22 @@ export function Services() {
                 {service.title}
               </h3>
 
-              <p className="text-white/70 leading-relaxed font-light">{service.description}</p>
+              <p className="text-white/70 leading-relaxed font-light mb-6">{service.description}</p>
 
-              <div className="mt-auto block transition-all pt-8">
+              <div className="flex flex-wrap gap-2 mb-6">
+                {service.badges.map((badge, idx) => (
+                  <span
+                    key={idx}
+                    className="px-2 py-1 text-xs font-semibold uppercase tracking-wider text-[#FF2D00] bg-[#FF2D00]/10 rounded-md border border-[#FF2D00]/20"
+                  >
+                    {badge}
+                  </span>
+                ))}
+              </div>
+
+              <div className="mt-auto block transition-all pt-2">
                 <button className="text-sm font-bold tracking-widest uppercase text-white hover:text-[#FF2D00] flex items-center gap-2 group/btn transition-colors outline-none focus-visible:ring-1 focus-visible:ring-white">
-                  Explorar
+                  {service.ctaText}
                   <span className="transform group-hover/btn:translate-x-1 transition-transform">
                     →
                   </span>

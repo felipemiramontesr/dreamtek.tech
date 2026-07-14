@@ -2,12 +2,15 @@
 
 import React, { useState } from 'react';
 import { Button } from '../ui/Button';
+import type { es } from '@/i18n/dictionaries/es';
 
-export function Contact() {
+type Dictionary = typeof es;
+
+export function Contact({ dict }: { dict: Dictionary }) {
   const [formData, setFormData] = useState({
     name: '',
     email: '',
-    service: 'web-starter',
+    service: 'starterkit',
     message: '',
   });
 
@@ -45,12 +48,12 @@ export function Contact() {
           setStep('code');
         } else {
           setStatus('error');
-          setErrorMessage(data.message || 'Ocurrió un error al enviar el código de verificación.');
+          setErrorMessage(data.message || dict.contact.errors.sendCode);
         }
       } catch (error) {
         console.error(error);
         setStatus('error');
-        setErrorMessage('No se pudo conectar con el servidor para enviar el código.');
+        setErrorMessage(dict.contact.errors.sendCodeNetwork);
       }
     } else {
       try {
@@ -68,15 +71,15 @@ export function Contact() {
           setStatus('success');
           setStep('form');
           setCode('');
-          setFormData({ name: '', email: '', service: 'web-starter', message: '' });
+          setFormData({ name: '', email: '', service: 'starterkit', message: '' });
         } else {
           setStatus('error');
-          setErrorMessage(data.message || 'Ocurrió un error al verificar el código.');
+          setErrorMessage(data.message || dict.contact.errors.verifyCode);
         }
       } catch (error) {
         console.error(error);
         setStatus('error');
-        setErrorMessage('No se pudo conectar con el servidor de correos.');
+        setErrorMessage(dict.contact.errors.verifyNetwork);
       }
     }
   };
@@ -97,19 +100,22 @@ export function Contact() {
         setStatus('idle');
         setCode('');
         setErrorMessage('');
-        alert('Se ha reenviado un nuevo código a tu correo.');
+        alert(dict.contact.code.resendAlert);
       } else {
         setStatus('error');
-        setErrorMessage(data.message || 'Error al reenviar el código.');
+        setErrorMessage(data.message || dict.contact.code.resendError);
       }
     } catch {
       setStatus('error');
-      setErrorMessage('Error de conexión al intentar reenviar el código.');
+      setErrorMessage(dict.contact.code.resendNetworkError);
     }
   };
 
   return (
-    <section id="contacto" className="py-24 relative overflow-hidden bg-black/40 scroll-mt-20">
+    <section
+      id="contacto"
+      className="min-h-screen flex flex-col justify-center pt-28 pb-12 relative overflow-hidden bg-black/40"
+    >
       {/* Decorative gradient blob */}
       <div className="absolute bottom-0 right-0 w-[600px] h-[600px] bg-[#FF2D00]/5 rounded-full blur-[100px] pointer-events-none" />
 
@@ -118,17 +124,16 @@ export function Contact() {
           {/* Info Side */}
           <div className="lg:w-1/2">
             <span className="text-[#FF2D00] text-xs font-bold uppercase tracking-widest block mb-4">
-              Contacto
+              {dict.contact.tag}
             </span>
             <h2 className="text-3xl md:text-5xl font-bold text-white mb-6">
-              ¿Listo para dar el{' '}
+              {dict.contact.heading1}
               <span className="text-transparent bg-clip-text bg-gradient-to-r from-white to-white/70">
-                siguiente paso?
+                {dict.contact.heading2}
               </span>
             </h2>
             <p className="text-white/60 font-light leading-relaxed mb-8 max-w-lg">
-              Completa el formulario para solicitar un diagnóstico inicial o cotización. Nuestro
-              equipo auditará tu requerimiento y responderá en menos de 24 horas hábiles.
+              {dict.contact.description}
             </p>
 
             <div className="space-y-6">
@@ -144,7 +149,7 @@ export function Contact() {
                   </svg>
                 </div>
                 <div>
-                  <span className="text-xs text-white/40 block">Email Corporativo</span>
+                  <span className="text-xs text-white/40 block">{dict.contact.emailLabel}</span>
                   <a
                     href="mailto:contacto@dreamtek.tech"
                     className="text-white hover:text-[#FF2D00] transition-colors"
@@ -172,8 +177,8 @@ export function Contact() {
                   </svg>
                 </div>
                 <div>
-                  <span className="text-xs text-white/40 block">Sede Operativa</span>
-                  <span className="text-white">Guadalupe, Zacatecas, México</span>
+                  <span className="text-xs text-white/40 block">{dict.contact.locationLabel}</span>
+                  <span className="text-white">{dict.contact.locationValue}</span>
                 </div>
               </div>
             </div>
@@ -195,13 +200,14 @@ export function Contact() {
                       <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                     </svg>
                   </div>
-                  <h3 className="text-2xl font-bold text-white mb-2">¡Solicitud Recibida!</h3>
+                  <h3 className="text-2xl font-bold text-white mb-2">
+                    {dict.contact.successTitle}
+                  </h3>
                   <p className="text-white/60 font-light max-w-sm mb-8 text-sm">
-                    Tu ticket ha sido registrado y verificado. Un ingeniero de Dreamtek se pondrá en
-                    contacto contigo a la brevedad.
+                    {dict.contact.successMessage}
                   </p>
                   <Button variant="outline" onClick={() => setStatus('idle')}>
-                    Enviar otro mensaje
+                    {dict.contact.sendAnother}
                   </Button>
                 </div>
               ) : (
@@ -211,7 +217,7 @@ export function Contact() {
                       htmlFor="name"
                       className="block text-xs uppercase tracking-widest text-white/60 mb-2 font-medium"
                     >
-                      Nombre Completo
+                      {dict.contact.form.name}
                     </label>
                     <input
                       type="text"
@@ -222,7 +228,7 @@ export function Contact() {
                       onChange={handleChange}
                       disabled={status === 'loading' || step === 'code'}
                       className="w-full bg-white/5 border border-white/10 rounded-sm px-4 py-3 text-white outline-none focus:border-[#FF2D00] focus:ring-1 focus:ring-[#FF2D00] transition-all disabled:opacity-50 text-sm"
-                      placeholder="Ej. Felipe Miramontes"
+                      placeholder={dict.contact.form.namePlaceholder}
                     />
                   </div>
 
@@ -231,7 +237,7 @@ export function Contact() {
                       htmlFor="email"
                       className="block text-xs uppercase tracking-widest text-white/60 mb-2 font-medium"
                     >
-                      Correo Electrónico
+                      {dict.contact.form.email}
                     </label>
                     <input
                       type="email"
@@ -242,7 +248,7 @@ export function Contact() {
                       onChange={handleChange}
                       disabled={status === 'loading' || step === 'code'}
                       className="w-full bg-white/5 border border-white/10 rounded-sm px-4 py-3 text-white outline-none focus:border-[#FF2D00] focus:ring-1 focus:ring-[#FF2D00] transition-all disabled:opacity-50 text-sm"
-                      placeholder="ejemplo@correo.com"
+                      placeholder={dict.contact.form.emailPlaceholder}
                     />
                   </div>
 
@@ -251,7 +257,7 @@ export function Contact() {
                       htmlFor="service"
                       className="block text-xs uppercase tracking-widest text-white/60 mb-2 font-medium"
                     >
-                      Servicio o Plan de Interés
+                      {dict.contact.form.service}
                     </label>
                     <div className="relative">
                       <select
@@ -262,20 +268,20 @@ export function Contact() {
                         disabled={status === 'loading' || step === 'code'}
                         className="w-full bg-white/5 border border-white/10 rounded-sm px-4 py-3 text-white outline-none focus:border-[#FF2D00] focus:ring-1 focus:ring-[#FF2D00] transition-all disabled:opacity-50 appearance-none text-sm cursor-pointer"
                       >
-                        <option value="web-starter" className="bg-[#00213D]">
-                          Web Starter — $1,200 USD
+                        <option value="starterkit" className="bg-[#00213D]">
+                          {dict.contact.form.options.starterkit}
                         </option>
-                        <option value="custom-app" className="bg-[#00213D]">
-                          Custom App — $3,500 USD
+                        <option value="archon-fleet" className="bg-[#00213D]">
+                          {dict.contact.form.options.archon}
                         </option>
                         <option value="cyber-audit" className="bg-[#00213D]">
-                          Cyber Audit — $1,800 USD
+                          {dict.contact.form.options.cyber}
                         </option>
-                        <option value="cybersecurity" className="bg-[#00213D]">
-                          Ciberseguridad Consultoría
+                        <option value="bespoke-ia" className="bg-[#00213D]">
+                          {dict.contact.form.options.bespoke}
                         </option>
                         <option value="other" className="bg-[#00213D]">
-                          Otro Requerimiento
+                          {dict.contact.form.options.other}
                         </option>
                       </select>
                       <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-4 text-white/60">
@@ -291,7 +297,7 @@ export function Contact() {
                       htmlFor="message"
                       className="block text-xs uppercase tracking-widest text-white/60 mb-2 font-medium"
                     >
-                      Mensaje / Descripción del Proyecto
+                      {dict.contact.form.message}
                     </label>
                     <textarea
                       id="message"
@@ -302,7 +308,7 @@ export function Contact() {
                       onChange={handleChange}
                       disabled={status === 'loading' || step === 'code'}
                       className="w-full bg-white/5 border border-white/10 rounded-sm px-4 py-3 text-white outline-none focus:border-[#FF2D00] focus:ring-1 focus:ring-[#FF2D00] transition-all disabled:opacity-50 text-sm resize-none"
-                      placeholder="Platícanos acerca de tu idea, retos y fechas límites..."
+                      placeholder={dict.contact.form.messagePlaceholder}
                     />
                   </div>
 
@@ -312,12 +318,12 @@ export function Contact() {
                         htmlFor="code"
                         className="block text-xs uppercase tracking-widest text-[#FF2D00] font-bold"
                       >
-                        Código de Verificación (6 dígitos)
+                        {dict.contact.code.label}
                       </label>
                       <p className="text-xs text-white/60 font-light">
-                        Hemos enviado un código temporal a{' '}
-                        <strong className="text-white font-medium">{formData.email}</strong>. Por
-                        favor ingrésalo abajo para completar la validación anti-spam.
+                        {dict.contact.code.desc1}
+                        <strong className="text-white font-medium">{formData.email}</strong>
+                        {dict.contact.code.desc2}
                       </p>
                       <input
                         type="text"
@@ -330,7 +336,7 @@ export function Contact() {
                         onChange={(e) => setCode(e.target.value.replace(/\D/g, ''))}
                         disabled={status === 'loading'}
                         className="w-full bg-white/5 border border-white/15 rounded-sm px-4 py-3 text-white outline-none focus:border-[#FF2D00] focus:ring-1 focus:ring-[#FF2D00] transition-all disabled:opacity-50 text-center tracking-[0.5em] text-lg font-bold placeholder-white/20"
-                        placeholder="000000"
+                        placeholder={dict.contact.code.placeholder}
                       />
                       <div className="text-right">
                         <button
@@ -339,7 +345,7 @@ export function Contact() {
                           disabled={status === 'loading'}
                           className="text-xs text-white/40 hover:text-white transition-colors cursor-pointer outline-none focus:underline"
                         >
-                          ¿No recibiste el código? Reenviar código
+                          {dict.contact.code.resend}
                         </button>
                       </div>
                     </div>
@@ -378,12 +384,12 @@ export function Contact() {
                             d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
                           />
                         </svg>
-                        Procesando...
+                        {dict.contact.button.loading}
                       </span>
                     ) : step === 'code' ? (
-                      'Verificar Código y Enviar'
+                      dict.contact.button.verify
                     ) : (
-                      'Enviar Solicitud'
+                      dict.contact.button.submit
                     )}
                   </Button>
                 </form>
