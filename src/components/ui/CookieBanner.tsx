@@ -62,6 +62,10 @@ export const CookieBanner = ({ dict, lang = 'es' }: { dict: Dictionary; lang?: '
         <Link href={lang === 'es' ? '/privacidad' : '/en/privacidad'} className="cookie-link">
           {dict.footer.privacy}
         </Link>
+        {', '}
+        <Link href={lang === 'es' ? '/terminos' : '/en/terminos'} className="cookie-link">
+          {dict.footer.terms}
+        </Link>
         {dict.cookieBanner.and}
         <Link href={lang === 'es' ? '/cookies' : '/en/cookies'} className="cookie-link">
           {lang === 'es' ? 'Manejo de Cookies' : 'Cookie Policy'}
