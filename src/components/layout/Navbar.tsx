@@ -46,7 +46,7 @@ export function Navbar({ dict, lang = 'es' }: { dict: Dictionary; lang?: 'es' | 
 
   return (
     <header className="fixed top-0 left-0 right-0 z-50 bg-[#00213D]/95 border-b border-white/10 safe-area-top backdrop-blur-md">
-      <div className="max-w-[1440px] w-full mx-auto px-6 h-20 flex items-center justify-between">
+      <div className="max-w-[1440px] w-full mx-auto px-6 h-20 flex items-center justify-between relative z-50">
         {/* Logo Section */}
         <button
           onClick={() => {
@@ -191,7 +191,7 @@ export function Navbar({ dict, lang = 'es' }: { dict: Dictionary; lang?: 'es' | 
       {/* Mobile Drawer */}
       {!isLegalPage && (
         <div
-          className={`fixed top-0 right-0 h-full w-[280px] max-w-[80vw] bg-[#00213D] border-l border-white/10 z-40 p-8 pt-28 shadow-2xl transition-transform duration-300 cubic-bezier(0.16, 1, 0.3, 1) md:hidden flex flex-col gap-6 ${
+          className={`fixed inset-y-0 right-0 h-[100dvh] w-[280px] max-w-[80vw] bg-[#001529]/95 backdrop-blur-xl border-l border-white/10 z-40 p-8 pt-28 shadow-2xl transition-transform duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] md:hidden flex flex-col gap-6 overflow-y-auto ${
             isOpen ? 'translate-x-0' : 'translate-x-full'
           }`}
         >
