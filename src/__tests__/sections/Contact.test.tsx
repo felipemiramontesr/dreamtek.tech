@@ -1,6 +1,7 @@
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { Contact } from '@/components/sections/Contact';
+import { es } from '@/i18n/dictionaries/es';
 
 describe('Contact Component', () => {
   beforeEach(() => {
@@ -8,7 +9,7 @@ describe('Contact Component', () => {
   });
 
   it('se debe renderizar el formulario con todos los campos requeridos', () => {
-    render(<Contact />);
+    render(<Contact dict={es} />);
 
     expect(screen.getByLabelText(/Nombre Completo/i)).toBeInTheDocument();
     expect(screen.getByLabelText(/Correo Electrónico/i)).toBeInTheDocument();
@@ -39,7 +40,7 @@ describe('Contact Component', () => {
     });
     vi.stubGlobal('fetch', fetchMock);
 
-    render(<Contact />);
+    render(<Contact dict={es} />);
 
     // Rellenar formulario inicial
     fireEvent.change(screen.getByLabelText(/Nombre Completo/i), { target: { value: 'Felipe M' } });
@@ -97,7 +98,7 @@ describe('Contact Component', () => {
     });
     vi.stubGlobal('fetch', fetchMock);
 
-    render(<Contact />);
+    render(<Contact dict={es} />);
 
     fireEvent.change(screen.getByLabelText(/Nombre Completo/i), { target: { value: 'Felipe M' } });
     fireEvent.change(screen.getByLabelText(/Correo Electrónico/i), {

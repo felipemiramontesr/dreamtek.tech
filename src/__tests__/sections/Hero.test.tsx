@@ -1,10 +1,11 @@
 import { render, screen } from '@testing-library/react';
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import { Hero } from '@/components/sections/Hero';
+import { es } from '@/i18n/dictionaries/es';
 
 describe('Hero Component', () => {
   it('debe renderizar el canvas de fondo espacial y el titulo principal', () => {
-    const { container } = render(<Hero />);
+    const { container } = render(<Hero dict={es} />);
 
     // Validamos que se muestre el canvas de estrellas en el fondo
     const canvas = container.querySelector('canvas');
@@ -17,7 +18,7 @@ describe('Hero Component', () => {
   });
 
   it('debe renderizar los botones de accion (CTAs) requeridos', () => {
-    render(<Hero />);
+    render(<Hero dict={es} />);
 
     expect(
       screen.getByRole('button', { name: /Solicitar Diagnóstico Inicial/i }),

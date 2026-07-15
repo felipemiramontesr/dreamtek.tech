@@ -1,6 +1,7 @@
 import { render, screen, fireEvent } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { Navbar } from '@/components/layout/Navbar';
+import { es } from '@/i18n/dictionaries/es';
 
 // Mock next/image to prevent issues with Vitest and dynamic Next.js optimization
 vi.mock('next/image', () => ({
@@ -12,6 +13,7 @@ vi.mock('next/image', () => ({
 let mockPathname = '/';
 vi.mock('next/navigation', () => ({
   usePathname: () => mockPathname,
+  useRouter: () => ({ push: vi.fn(), back: vi.fn() }),
 }));
 
 describe('Navbar Component', () => {
@@ -21,7 +23,7 @@ describe('Navbar Component', () => {
 
   describe('Comportamiento en la Landing Page Principal', () => {
     it('debe renderizar el logotipo y los enlaces principales de escritorio y móvil', () => {
-      render(<Navbar />);
+      render(<Navbar dict={es} lang="es" />);
 
       expect(screen.getByText(/Dreamtek/)).toBeInTheDocument();
 
@@ -33,7 +35,7 @@ describe('Navbar Component', () => {
     });
 
     it('debe abrir y cerrar el menú móvil al hacer clic en el botón de hamburguesa', () => {
-      render(<Navbar />);
+      render(<Navbar dict={es} lang="es" />);
 
       const menuButton = screen.getByRole('button', { name: 'Abrir menú' });
       expect(menuButton).toBeInTheDocument();
@@ -50,7 +52,7 @@ describe('Navbar Component', () => {
     });
 
     it('debe cerrar el menú móvil al hacer clic en un enlace de navegación móvil', () => {
-      render(<Navbar />);
+      render(<Navbar dict={es} lang="es" />);
 
       const menuButton = screen.getByRole('button', { name: 'Abrir menú' });
       fireEvent.click(menuButton);
@@ -66,14 +68,13 @@ describe('Navbar Component', () => {
   describe('Comportamiento en Páginas Legales', () => {
     it('debe renderizar la cabecera simplificada (únicamente logotipo y Regresar al sitio)', () => {
       mockPathname = '/cookies';
-      render(<Navbar />);
+      render(<Navbar dict={es} lang="es" />);
 
       expect(screen.getByText(/Dreamtek/)).toBeInTheDocument();
 
       // Debe mostrar el botón/enlace de Regresar al sitio
-      const backLink = screen.getByRole('link', { name: /Regresar al sitio/i });
+      const backLink = screen.getByRole('button', { name: /Regresar al sitio/i });
       expect(backLink).toBeInTheDocument();
-      expect(backLink).toHaveAttribute('href', '/');
 
       // No debe contener ninguno de los enlaces del menú principal
       expect(screen.queryByRole('link', { name: 'Servicios' })).not.toBeInTheDocument();

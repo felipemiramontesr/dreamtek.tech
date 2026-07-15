@@ -1,6 +1,11 @@
 import { render, screen, fireEvent } from '@testing-library/react';
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { CookieBanner } from '@/components/ui/CookieBanner';
+import { es } from '@/i18n/dictionaries/es';
+
+vi.mock('next/navigation', () => ({
+  usePathname: () => '/',
+}));
 
 describe('CookieBanner Component', () => {
   beforeEach(() => {
@@ -9,13 +14,13 @@ describe('CookieBanner Component', () => {
   });
 
   it('debe mostrarse si no hay preferencia previa en localStorage', async () => {
-    render(<CookieBanner />);
+    render(<CookieBanner dict={es} />);
     const text = await screen.findByText(/Este sitio utiliza cookies propias y de terceros/);
     expect(text).toBeInTheDocument();
   });
 
   it('debe registrar accepted en localStorage al hacer clic en Aceptar', async () => {
-    render(<CookieBanner />);
+    render(<CookieBanner dict={es} />);
     const acceptBtn = await screen.findByRole('button', { name: 'Aceptar' });
     fireEvent.click(acceptBtn);
 
@@ -26,7 +31,7 @@ describe('CookieBanner Component', () => {
   });
 
   it('debe registrar rejected en localStorage al hacer clic en Rechazar', async () => {
-    render(<CookieBanner />);
+    render(<CookieBanner dict={es} />);
     const rejectBtn = await screen.findByRole('button', { name: 'Rechazar' });
     fireEvent.click(rejectBtn);
 
@@ -38,7 +43,7 @@ describe('CookieBanner Component', () => {
 
   it('no debe mostrarse si ya existe preferencia en localStorage', async () => {
     localStorage.setItem('cookieConsent', 'accepted');
-    render(<CookieBanner />);
+    render(<CookieBanner dict={es} />);
 
     // Esperamos un instante corto para asegurar que el useEffect se procesó
     await new Promise((resolve) => setTimeout(resolve, 10));
