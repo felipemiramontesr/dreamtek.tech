@@ -41,6 +41,7 @@ export function Navbar({ dict, lang = 'es' }: { dict: Dictionary; lang?: 'es' | 
 
   const handleLangClick = (selectedLang: 'es' | 'en') => {
     localStorage.setItem('dreamtek_lang_preference', selectedLang);
+    document.cookie = `dreamtek_lang_preference=${selectedLang}; path=/; max-age=31536000`;
   };
 
   return (

@@ -108,24 +108,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="es" className={`${neueMontreal.variable} antialiased h-full scroll-smooth`}>
-      <head>
-        <script
-          dangerouslySetInnerHTML={{
-            __html: `
-              try {
-                var pref = localStorage.getItem('dreamtek_lang_preference');
-                if (!pref && window.location.pathname === '/') {
-                  var browserLang = navigator.language.toLowerCase();
-                  if (browserLang.startsWith('en')) {
-                    localStorage.setItem('dreamtek_lang_preference', 'en');
-                    window.location.replace('/en');
-                  }
-                }
-              } catch (e) {}
-            `,
-          }}
-        />
-      </head>
+      <head></head>
       <body className="min-h-full flex flex-col bg-deep-space text-off-white">
         <ClientWrapper>{children}</ClientWrapper>
       </body>
