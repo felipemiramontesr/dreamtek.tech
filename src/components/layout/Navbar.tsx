@@ -120,22 +120,20 @@ export function Navbar({ dict, lang = 'es' }: { dict: Dictionary; lang?: 'es' | 
               <div
                 className={`absolute top-1 bottom-1 w-[36px] rounded-full bg-[#FF2D00]/20 border border-[#FF2D00]/50 shadow-[0_0_15px_rgba(255,45,0,0.3)] transition-transform duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] ${lang === 'es' ? 'translate-x-0' : 'translate-x-[36px]'}`}
               />
-              <Link
+              <a
                 href={getTogglePath('es')}
-                scroll={false}
                 onClick={() => handleLangClick('es')}
                 className={`relative z-10 w-[36px] h-[26px] flex items-center justify-center text-[11px] font-bold tracking-wider transition-colors duration-300 ${lang === 'es' ? 'text-white' : 'text-white/40 hover:text-white/80'}`}
               >
                 ES
-              </Link>
-              <Link
+              </a>
+              <a
                 href={getTogglePath('en')}
-                scroll={false}
                 onClick={() => handleLangClick('en')}
                 className={`relative z-10 w-[36px] h-[26px] flex items-center justify-center text-[11px] font-bold tracking-wider transition-colors duration-300 ${lang === 'en' ? 'text-white' : 'text-white/40 hover:text-white/80'}`}
               >
                 EN
-              </Link>
+              </a>
             </div>
 
             {/* Mobile Menu Button - Minimal */}
@@ -207,28 +205,26 @@ export function Navbar({ dict, lang = 'es' }: { dict: Dictionary; lang?: 'es' | 
               <div
                 className={`absolute top-1 bottom-1 w-[32px] rounded-full bg-[#FF2D00]/20 border border-[#FF2D00]/50 shadow-[0_0_10px_rgba(255,45,0,0.3)] transition-transform duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] ${lang === 'es' ? 'translate-x-0' : 'translate-x-[32px]'}`}
               />
-              <Link
+              <a
                 href={getTogglePath('es')}
                 onClick={() => {
                   closeMenu();
                   handleLangClick('es');
                 }}
-                scroll={false}
                 className={`relative z-10 w-[32px] h-[24px] flex items-center justify-center text-[10px] font-bold tracking-wider transition-colors duration-300 ${lang === 'es' ? 'text-white' : 'text-white/40'}`}
               >
                 ES
-              </Link>
-              <Link
+              </a>
+              <a
                 href={getTogglePath('en')}
                 onClick={() => {
                   closeMenu();
                   handleLangClick('en');
                 }}
-                scroll={false}
                 className={`relative z-10 w-[32px] h-[24px] flex items-center justify-center text-[10px] font-bold tracking-wider transition-colors duration-300 ${lang === 'en' ? 'text-white' : 'text-white/40'}`}
               >
                 EN
-              </Link>
+              </a>
             </div>
           </div>
 
