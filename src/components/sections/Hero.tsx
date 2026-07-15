@@ -35,11 +35,11 @@ export function Hero({ dict }: { dict: Dictionary }) {
         </p>
 
         {/* CTA */}
-        <div className="flex flex-col sm:flex-row items-center gap-4">
-          <Button variant="primary" size="lg">
+        <div className="flex flex-col sm:flex-row items-center justify-center gap-4 w-full mt-4">
+          <Button variant="primary" size="lg" className="w-full sm:w-[320px]">
             {dict.hero.ctaPrimary}
           </Button>
-          <Button variant="outline" size="lg">
+          <Button variant="outline" size="lg" className="w-full sm:w-[320px]">
             {dict.hero.ctaSecondary}
           </Button>
         </div>
