@@ -1,8 +1,13 @@
 'use client';
 
+import dynamic from 'next/dynamic';
 import { Button } from '../ui/Button';
-import { SpaceBackground } from '../ui/SpaceBackground';
 import type { es } from '@/i18n/dictionaries/es';
+
+const SpaceBackground = dynamic(
+  () => import('../ui/SpaceBackground').then((mod) => mod.SpaceBackground),
+  { ssr: false },
+);
 
 type Dictionary = typeof es;
 

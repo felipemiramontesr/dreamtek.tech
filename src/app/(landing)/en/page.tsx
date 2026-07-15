@@ -1,6 +1,20 @@
+import { Hero } from '@/components/sections/Hero';
+import { Services } from '@/components/sections/Services';
+import { Products } from '@/components/sections/Products';
+import { Differential } from '@/components/sections/Differential';
+import { Contact } from '@/components/sections/Contact';
+import { en } from '@/i18n/dictionaries/en';
+
 export default function HomeEN() {
   return (
     <>
+      <main className="flex flex-col min-h-screen">
+        <Hero dict={en} />
+        <Services dict={en} />
+        <Products dict={en} />
+        <Differential dict={en} />
+        <Contact dict={en} />
+      </main>
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{

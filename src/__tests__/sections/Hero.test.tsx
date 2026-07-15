@@ -1,7 +1,14 @@
 import { render, screen } from '@testing-library/react';
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { Hero } from '@/components/sections/Hero';
 import { es } from '@/i18n/dictionaries/es';
+
+vi.mock('next/dynamic', () => ({
+  default: () => {
+    const MockDynamicComponent = () => <canvas aria-hidden="true" />;
+    return MockDynamicComponent;
+  },
+}));
 
 describe('Hero Component', () => {
   it('debe renderizar el canvas de fondo espacial y el titulo principal', () => {
