@@ -24,18 +24,18 @@ export function ClientWrapper({ children }: { children: React.ReactNode }) {
       {children}
       <Footer dict={dict} lang={lang} />
 
-      <div className="fixed bottom-6 left-0 w-full z-[100] pointer-events-none flex items-center min-h-[3.5rem]">
-        {/* Left spacing for perfect centering symmetry */}
-        <div className="flex-1 min-w-[5rem] md:min-w-[6rem]" />
+      <div className="fixed bottom-0 md:bottom-6 left-0 w-full z-[100] pointer-events-none flex items-center md:min-h-[3.5rem]">
+        {/* Left spacing for perfect centering symmetry (hidden on mobile) */}
+        <div className="hidden md:block flex-1 min-w-[6rem]" />
 
-        {/* Cookie Banner */}
-        <div className="pointer-events-auto w-full max-w-[1392px]">
+        {/* Cookie Banner (full width on mobile) */}
+        <div className="pointer-events-auto w-full md:max-w-[1392px]">
           <CookieBanner dict={dict} lang={lang} />
         </div>
 
-        {/* Right space where WA pill is perfectly centered */}
-        <div className="flex-1 min-w-[5rem] md:min-w-[6rem] relative pointer-events-auto">
-          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2">
+        {/* Right space where WA pill is perfectly centered on desktop, floating above on mobile */}
+        <div className="absolute bottom-[120%] right-4 md:static md:flex-1 md:min-w-[6rem] md:block pointer-events-auto">
+          <div className="md:absolute md:top-1/2 md:left-1/2 md:-translate-x-1/2 md:-translate-y-1/2">
             <WhatsAppPill dict={dict} />
           </div>
         </div>
