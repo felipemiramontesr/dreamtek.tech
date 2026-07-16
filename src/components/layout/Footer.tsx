@@ -23,7 +23,7 @@ export function Footer({ dict, lang = 'es' }: { dict: Dictionary; lang?: 'es' | 
               aria-label={dict.navbar.returnSite}
               className="outline-none focus-visible:ring-2 focus-visible:ring-white rounded-sm bg-transparent border-none p-0 cursor-pointer text-left group flex items-center gap-2"
             >
-              <div className="relative w-8 h-8 overflow-hidden">
+              <div className="relative w-8 h-8">
                 <Image
                   src="/svg/24_DREAMTEK_LOGO_ISOTIPO_Teck Red.svg"
                   alt="Dreamtek Nautilus"
