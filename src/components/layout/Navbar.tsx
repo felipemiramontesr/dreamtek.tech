@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
@@ -23,6 +23,17 @@ export function Navbar({ dict, lang = 'es' }: { dict: Dictionary; lang?: 'es' | 
 
   const toggleMenu = () => setIsOpen(!isOpen);
   const closeMenu = () => setIsOpen(false);
+
+  useEffect(() => {
+    if (isOpen) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = '';
+    }
+    return () => {
+      document.body.style.overflow = '';
+    };
+  }, [isOpen]);
 
   const NAV_LINKS = [
     { label: dict.navbar.services, href: '#servicios' },
@@ -183,7 +194,7 @@ export function Navbar({ dict, lang = 'es' }: { dict: Dictionary; lang?: 'es' | 
       {/* Backdrop (Mobile Menu) */}
       {!isLegalPage && (
         <div
-          className={`fixed inset-0 bg-black/60 backdrop-blur-sm transition-opacity duration-300 md:hidden z-[180] ${
+          className={`fixed inset-0 h-[100dvh] w-screen bg-black/60 backdrop-blur-sm transition-opacity duration-300 md:hidden z-[180] ${
             isOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'
           }`}
           onClick={closeMenu}
