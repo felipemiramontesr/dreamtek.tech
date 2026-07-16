@@ -46,8 +46,8 @@ export function Navbar({ dict, lang = 'es' }: { dict: Dictionary; lang?: 'es' | 
 
   return (
     <>
-      <header className="fixed top-0 left-0 right-0 z-50 bg-[#00213D]/95 border-b border-white/10 safe-area-top backdrop-blur-md">
-        <div className="max-w-[1440px] w-full mx-auto px-6 h-20 flex items-center justify-between relative z-50">
+      <header className="fixed top-0 left-0 right-0 z-[200] bg-[#00213D]/95 border-b border-white/10 safe-area-top backdrop-blur-md">
+        <div className="max-w-[1440px] w-full mx-auto px-6 h-20 flex items-center justify-between relative z-[200]">
           {/* Logo Section */}
           <button
             onClick={() => {
@@ -183,7 +183,7 @@ export function Navbar({ dict, lang = 'es' }: { dict: Dictionary; lang?: 'es' | 
       {/* Backdrop (Mobile Menu) */}
       {!isLegalPage && (
         <div
-          className={`fixed inset-0 bg-black/60 backdrop-blur-sm transition-opacity duration-300 md:hidden z-30 ${
+          className={`fixed inset-0 bg-black/60 backdrop-blur-sm transition-opacity duration-300 md:hidden z-[180] ${
             isOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'
           }`}
           onClick={closeMenu}
@@ -193,7 +193,7 @@ export function Navbar({ dict, lang = 'es' }: { dict: Dictionary; lang?: 'es' | 
       {/* Mobile Drawer (Vertical Persiana) */}
       {!isLegalPage && (
         <div
-          className={`fixed top-20 left-0 right-0 w-full bg-[#001529]/95 backdrop-blur-xl border-b border-white/10 z-40 p-8 shadow-2xl transition-transform duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] md:hidden flex flex-col gap-6 overflow-y-auto ${
+          className={`fixed top-20 left-0 right-0 w-full bg-[#001529]/95 backdrop-blur-xl border-b border-white/10 z-[190] p-8 shadow-2xl transition-transform duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] md:hidden flex flex-col gap-6 overflow-y-auto ${
             isOpen ? 'translate-y-0' : '-translate-y-[150%]'
           }`}
           style={{ maxHeight: 'calc(100dvh - 80px)' }}

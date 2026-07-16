@@ -34,7 +34,7 @@ export function ClientWrapper({ children }: { children: React.ReactNode }) {
         </div>
 
         {/* Right space where WA pill is perfectly centered on desktop, floating above on mobile */}
-        <div className="absolute bottom-[120%] right-4 md:relative md:bottom-auto md:right-auto md:flex-1 md:min-w-[6rem] pointer-events-auto">
+        <div className="fixed bottom-6 right-4 z-[90] md:z-auto md:relative md:bottom-auto md:right-auto md:flex-1 md:min-w-[6rem] pointer-events-auto">
           <div className="md:absolute md:top-0 md:left-1/2 md:-translate-x-1/2 md:-translate-y-1/2">
             <WhatsAppPill dict={dict} />
           </div>

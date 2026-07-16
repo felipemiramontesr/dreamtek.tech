@@ -56,30 +56,35 @@ export const CookieBanner = ({ dict, lang = 'es' }: { dict: Dictionary; lang?: '
   if (!visible) return null;
 
   return (
-    <div className={`cookie-banner ${isLegalPage || isScrolled ? 'solid-bg' : ''}`}>
-      <p className="cookie-text">
-        {dict.cookieBanner.text}
-        <Link href={lang === 'es' ? '/privacidad' : '/en/privacidad'} className="cookie-link">
-          {dict.footer.privacy}
-        </Link>
-        {', '}
-        <Link href={lang === 'es' ? '/terminos' : '/en/terminos'} className="cookie-link">
-          {dict.footer.terms}
-        </Link>
-        {dict.cookieBanner.and}
-        <Link href={lang === 'es' ? '/cookies' : '/en/cookies'} className="cookie-link">
-          {lang === 'es' ? 'Manejo de Cookies' : 'Cookie Policy'}
-        </Link>
-        .
-      </p>
-      <div className="cookie-actions">
-        <button className="cookie-btn accept" onClick={() => handleChoice('accepted')}>
-          {dict.cookieBanner.accept}
-        </button>
-        <button className="cookie-btn reject" onClick={() => handleChoice('rejected')}>
-          {dict.cookieBanner.reject}
-        </button>
+    <>
+      <div className="fixed inset-0 bg-[#001529]/20 backdrop-blur-[2px] z-[-1] pointer-events-auto transition-opacity" />
+      <div
+        className={`cookie-banner relative z-[10] ${isLegalPage || isScrolled ? 'solid-bg' : ''}`}
+      >
+        <p className="cookie-text text-justify md:text-left">
+          {dict.cookieBanner.text}
+          <Link href={lang === 'es' ? '/privacidad' : '/en/privacidad'} className="cookie-link">
+            {dict.footer.privacy}
+          </Link>
+          {', '}
+          <Link href={lang === 'es' ? '/terminos' : '/en/terminos'} className="cookie-link">
+            {dict.footer.terms}
+          </Link>
+          {dict.cookieBanner.and}
+          <Link href={lang === 'es' ? '/cookies' : '/en/cookies'} className="cookie-link">
+            {lang === 'es' ? 'Manejo de Cookies' : 'Cookie Policy'}
+          </Link>
+          .
+        </p>
+        <div className="cookie-actions">
+          <button className="cookie-btn accept" onClick={() => handleChoice('accepted')}>
+            {dict.cookieBanner.accept}
+          </button>
+          <button className="cookie-btn reject" onClick={() => handleChoice('rejected')}>
+            {dict.cookieBanner.reject}
+          </button>
+        </div>
       </div>
-    </div>
+    </>
   );
 };
