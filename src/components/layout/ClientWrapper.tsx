@@ -24,7 +24,7 @@ export function ClientWrapper({ children }: { children: React.ReactNode }) {
       {children}
       <Footer dict={dict} lang={lang} />
 
-      <div className="fixed bottom-0 md:bottom-6 left-0 w-full z-[100] pointer-events-none flex items-center md:min-h-[3.5rem]">
+      <div className="fixed bottom-0 md:bottom-6 left-0 w-full z-[100] pointer-events-none flex items-center md:items-stretch md:min-h-[3.5rem]">
         {/* Left spacing for perfect centering symmetry (hidden on mobile) */}
         <div className="hidden md:block flex-1 min-w-[6rem]" />
 
@@ -34,8 +34,8 @@ export function ClientWrapper({ children }: { children: React.ReactNode }) {
         </div>
 
         {/* Right space where WA pill is perfectly centered on desktop, floating above on mobile */}
-        <div className="absolute bottom-[120%] right-4 md:static md:flex-1 md:min-w-[6rem] md:block pointer-events-auto">
-          <div className="md:absolute md:top-1/2 md:left-1/2 md:-translate-x-1/2 md:-translate-y-1/2">
+        <div className="absolute bottom-[120%] right-4 md:relative md:bottom-auto md:right-auto md:flex-1 md:min-w-[6rem] pointer-events-auto">
+          <div className="md:absolute md:top-0 md:left-1/2 md:-translate-x-1/2 md:-translate-y-1/2">
             <WhatsAppPill dict={dict} />
           </div>
         </div>
