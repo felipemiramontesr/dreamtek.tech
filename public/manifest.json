@@ -4,8 +4,8 @@
   "description": "Convertimos visiones complejas en infraestructura digital robusta.",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#001529",
-  "theme_color": "#001529",
+  "background_color": "#00213d",
+  "theme_color": "#00213d",
   "icons": [
     {
       "src": "/svg/24_DREAMTEK_LOGO_ISOTIPO_Teck Red.svg",

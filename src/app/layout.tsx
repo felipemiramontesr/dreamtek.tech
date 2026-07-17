@@ -106,7 +106,7 @@ export const metadata: Metadata = {
 };
 
 export const viewport = {
-  themeColor: '#001529',
+  themeColor: '#00213d',
 };
 
 import { ClientWrapper } from '@/components/layout/ClientWrapper';
