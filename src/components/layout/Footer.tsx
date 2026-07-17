@@ -1,4 +1,4 @@
-import Image from 'next/image';
+import ExportedImage from 'next-export-optimize-images/image';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import type { es } from '@/i18n/dictionaries/es';
@@ -24,7 +24,7 @@ export function Footer({ dict, lang = 'es' }: { dict: Dictionary; lang?: 'es' | 
               className="outline-none focus-visible:ring-2 focus-visible:ring-white rounded-sm bg-transparent border-none p-0 cursor-pointer text-left group flex items-center gap-2"
             >
               <div className="relative w-8 h-8">
-                <Image
+                <ExportedImage
                   src="/svg/24_DREAMTEK_LOGO_ISOTIPO_Teck Red.svg"
                   alt="Dreamtek Nautilus"
                   fill

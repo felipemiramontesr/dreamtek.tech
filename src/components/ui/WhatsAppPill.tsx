@@ -1,6 +1,6 @@
 'use client';
 
-import Image from 'next/image';
+import ExportedImage from 'next-export-optimize-images/image';
 import type { es } from '@/i18n/dictionaries/es';
 
 type Dictionary = typeof es;
@@ -27,7 +27,7 @@ export function WhatsAppPill({ dict }: { dict: Dictionary }) {
           <div className="absolute -bottom-[8px] right-[20px] border-l-[6px] border-l-transparent border-r-[6px] border-r-transparent border-t-[10px] border-t-white"></div>
 
           <div className="relative w-7 h-7 flex-shrink-0 z-10 overflow-hidden">
-            <Image
+            <ExportedImage
               src="/svg/24_DREAMTEK_LOGO_ISOTIPO_Teck Red.svg"
               alt="Dreamtek Nautilus"
               fill

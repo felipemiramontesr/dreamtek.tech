@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import Image from 'next/image';
+import ExportedImage from 'next-export-optimize-images/image';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import type { es } from '@/i18n/dictionaries/es';
@@ -70,7 +70,7 @@ export function Navbar({ dict, lang = 'es' }: { dict: Dictionary; lang?: 'es' | 
             className="flex items-center group outline-none focus-visible:ring-2 rounded-sm focus-visible:ring-white bg-transparent border-none p-0 cursor-pointer"
           >
             <div className="relative w-12 h-12">
-              <Image
+              <ExportedImage
                 src="/svg/24_DREAMTEK_LOGO_ISOTIPO_Teck Red.svg"
                 alt="Dreamtek Isotipo"
                 fill

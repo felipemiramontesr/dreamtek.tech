@@ -1,8 +1,14 @@
 import { Hero } from '@/components/sections/Hero';
 import { Services } from '@/components/sections/Services';
-import { Products } from '@/components/sections/Products';
-import { Differential } from '@/components/sections/Differential';
-import { Contact } from '@/components/sections/Contact';
+import dynamic from 'next/dynamic';
+
+const Products = dynamic(() =>
+  import('@/components/sections/Products').then((mod) => mod.Products),
+);
+const Differential = dynamic(() =>
+  import('@/components/sections/Differential').then((mod) => mod.Differential),
+);
+const Contact = dynamic(() => import('@/components/sections/Contact').then((mod) => mod.Contact));
 import { es } from '@/i18n/dictionaries/es';
 
 export default function Home() {
