@@ -8,7 +8,7 @@ type Dictionary = typeof es;
 export function WhatsAppPill({ dict }: { dict: Dictionary }) {
   return (
     <a
-      href="https://wa.me/524481117977"
+      href="https://wa.me/524481117977?text=%C2%A1Hola%2C%20equipo%20Dreamtek!%20%C2%BFPodr%C3%ADan%20ayudarme%20con%20la%20siguiente%20informaci%C3%B3n%3F"
       target="_blank"
       rel="noopener noreferrer"
       className="relative z-50 flex items-center justify-center w-14 h-14 bg-[#25D366] hover:bg-[#20bd5a] text-white rounded-full shadow-lg hover:shadow-xl hover:scale-105 transition-all duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] group"
