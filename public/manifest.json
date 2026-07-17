@@ -1,0 +1,16 @@
+{
+  "name": "Dreamtek.",
+  "short_name": "Dreamtek",
+  "description": "Convertimos visiones complejas en infraestructura digital robusta.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#001529",
+  "theme_color": "#001529",
+  "icons": [
+    {
+      "src": "/svg/24_DREAMTEK_LOGO_ISOTIPO_Teck Red.svg",
+      "sizes": "any",
+      "type": "image/svg+xml"
+    }
+  ]
+}

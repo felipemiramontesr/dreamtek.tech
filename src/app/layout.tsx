@@ -97,6 +97,16 @@ export const metadata: Metadata = {
       en: 'https://dreamtek.tech/en',
     },
   },
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: 'black-translucent',
+    title: 'Dreamtek.',
+  },
+  manifest: '/manifest.json',
+};
+
+export const viewport = {
+  themeColor: '#001529',
 };
 
 import { ClientWrapper } from '@/components/layout/ClientWrapper';
