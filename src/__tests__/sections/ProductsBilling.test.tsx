@@ -42,28 +42,34 @@ describe('Products Billing Toggle (TDD)', () => {
     expect(screen.getByText(es.products.plans[1].annualPrice)).toBeInTheDocument();
     expect(screen.getByText(es.products.plans[2].annualPrice)).toBeInTheDocument();
 
-    // Debe mostrar la etiqueta de cobro anual
-    expect(
-      screen.getByText(
-        (content) =>
-          content.includes(es.products.billedAnnually.trim()) &&
-          content.includes(es.products.plans[0].annualTotal),
-      ),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByText(
-        (content) =>
-          content.includes(es.products.billedAnnually.trim()) &&
-          content.includes(es.products.plans[1].annualTotal),
-      ),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByText(
-        (content) =>
-          content.includes(es.products.billedAnnually.trim()) &&
-          content.includes(es.products.plans[2].annualTotal),
-      ),
-    ).toBeInTheDocument();
+    // Debe mostrar la etiqueta de cobro anual para los planes que tengan total anual definido
+    if (es.products.plans[0].annualTotal) {
+      expect(
+        screen.getByText(
+          (content) =>
+            content.includes(es.products.billedAnnually.trim()) &&
+            content.includes(es.products.plans[0].annualTotal),
+        ),
+      ).toBeInTheDocument();
+    }
+    if (es.products.plans[1].annualTotal) {
+      expect(
+        screen.getByText(
+          (content) =>
+            content.includes(es.products.billedAnnually.trim()) &&
+            content.includes(es.products.plans[1].annualTotal),
+        ),
+      ).toBeInTheDocument();
+    }
+    if (es.products.plans[2].annualTotal) {
+      expect(
+        screen.getByText(
+          (content) =>
+            content.includes(es.products.billedAnnually.trim()) &&
+            content.includes(es.products.plans[2].annualTotal),
+        ),
+      ).toBeInTheDocument();
+    }
   });
 
   it('debe retornar a precios mensuales al desactivar el toggle', () => {

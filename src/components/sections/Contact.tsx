@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Button } from '../ui/Button';
 import type { es } from '@/i18n/dictionaries/es';
 
@@ -13,6 +13,19 @@ export function Contact({ dict }: { dict: Dictionary }) {
     service: 'starterkit',
     message: '',
   });
+
+  useEffect(() => {
+    const handleSelectService = (e: Event) => {
+      const customEvent = e as CustomEvent<string>;
+      if (customEvent.detail) {
+        setFormData((prev) => ({ ...prev, service: customEvent.detail }));
+      }
+    };
+    window.addEventListener('select-service', handleSelectService);
+    return () => {
+      window.removeEventListener('select-service', handleSelectService);
+    };
+  }, []);
 
   const [step, setStep] = useState<'form' | 'code'>('form');
   const [code, setCode] = useState('');

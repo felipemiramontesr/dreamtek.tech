@@ -62,29 +62,33 @@ export const es = {
     plans: [
       {
         id: 'starterkit',
-        title: 'StarterKit Digital',
-        price: '$1,200',
-        annualPrice: '$1,200',
-        annualTotal: '$1,200 + $600/año soporte',
-        period: 'setup',
+        badge: 'Posicionamiento Web',
+        title: 'Escolta Digital',
+        price: '$2,900.00 MXN',
+        annualPrice: '$2,900.00 MXN',
+        annualTotal: '',
+        period: 'mes',
+        priceSuffix: ' + IVA / mes',
+        subPriceText: 'Suscripción Pura — Facturación mensual 100% deducible',
         description:
-          'Presencia web ágil para PyMES. Stack: Vite, React, TS & Tailwind CSS. Incluye iguala de $50 USD/mes.',
+          'Presencia Web con infraestructura totalmente resuelta. Diseñamos, montamos y protegemos tu ventana al mercado digital para que te olvides por completo de la complejidad tecnológica y de los caprichos del desarrollo tradicional.',
         features: [
-          'Infraestructura: Dominio, SSL y Hosting en Hostinger',
-          'Despliegue automatizado (CI/CD) vía GitHub Actions',
-          '3 horas de mantenimiento y soporte mensual',
-          'UI Glassmorphism y diseño responsivo',
-          'Optimización extrema y accesibilidad',
+          'Selección de Arquitectura Visual Premium y personalización de identidad.',
+          'Infraestructura resuelta: Dominio, Seguridad SSL y Hosting incluidos.',
+          'Escolta activa con 3 horas mensuales de soporte de ingeniería para cambios rápidos.',
         ],
-        ctaText: 'Iniciar Proyecto',
+        ctaText: 'Ver Alcance y Detalles',
       },
       {
         id: 'archon-fleet',
+        badge: '',
         title: 'ARCHON — Fleet Manager',
         price: 'Bespoke',
         annualPrice: 'Bespoke',
         annualTotal: 'Sujeto a SLA',
         period: 'Enterprise',
+        priceSuffix: '',
+        subPriceText: '',
         description:
           'ERP modular y mutable bajo arquitectura de nodos atómicos. Diseñado para alta disponibilidad.',
         features: [
@@ -98,11 +102,14 @@ export const es = {
       },
       {
         id: 'cyber-audit',
+        badge: '',
         title: 'Forensic & Cyber Audit',
         price: '$1,800',
         annualPrice: '$1,800',
         annualTotal: '$1,800',
         period: 'proceso',
+        priceSuffix: '',
+        subPriceText: '',
         description:
           'Ciberseguridad ofensiva empresarial. Identifica y mitiga vectores de ataque con rigor táctico.',
         features: [
@@ -154,7 +161,7 @@ export const es = {
       message: 'Mensaje / Descripción del Proyecto',
       messagePlaceholder: 'Platícanos acerca de tu idea, retos y fechas límites...',
       options: {
-        starterkit: 'StarterKit Digital — Presencia Web',
+        starterkit: 'Escolta Digital — StarterKit',
         archon: 'ARCHON — Gestión de Flotas Corporativas',
         cyber: 'Cyber Audit — Auditoría OWASP / OSSTMM',
         bespoke: 'Desarrollo a la Medida & Orquestación de IA',
