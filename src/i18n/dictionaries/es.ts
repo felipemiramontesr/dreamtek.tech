@@ -122,6 +122,68 @@ export const es = {
         ctaText: 'Agendar Auditoría',
       },
     ],
+    modal: {
+      tag: 'Suscripción Tecnológica PyME',
+      title: 'Escolta Digital — StarterKit',
+      description:
+        'Tu presencia en internet llave en mano, diseñada para PyMEs y profesionales que desean visibilidad absoluta y olvidarse por completo de la complejidad tecnológica.',
+      includesTitle: 'Lo que está resuelto para ti (INCLUYE)',
+      includes: [
+        {
+          label: 'Arquitectura Visual Premium',
+          text: 'Eliges una de nuestras estructuras preestablecidas y la adaptamos con tus colores, logotipo e identidad de marca.',
+        },
+        {
+          label: 'Infraestructura Llave en Mano',
+          text: 'Registro de dominio (.com/.mx), hospedaje de alta velocidad en Hostinger y certificado SSL (candado de seguridad) activos.',
+        },
+        {
+          label: 'Protección Activa',
+          text: 'Monitoreo preventivo de caídas y formulario de contacto inteligente blindado contra correos basura (Spam).',
+        },
+        {
+          label: 'Mantenimiento Mensual',
+          text: 'Hasta 3 horas incluidas al mes de soporte técnico para actualizar textos, cambiar fotografías o ajustar horarios.',
+        },
+      ],
+      excludesTitle: 'Fuera de este alcance (NO INCLUYE)',
+      excludes: [
+        {
+          label: 'Módulos de Comercio Electrónico',
+          text: 'No incluye pasarelas de pago automatizadas, carritos de compra ni inventarios dinámicos.',
+        },
+        {
+          label: 'Áreas de Miembros',
+          text: 'No incluye creación de cuentas de usuario, sistemas de contraseñas ni paneles de clientes internos.',
+        },
+        {
+          label: 'Modificaciones Estructurales',
+          text: 'No se altera el esqueleto de la plantilla elegida. Cambios fuera del molde se cotizan como ingeniería externa.',
+        },
+        {
+          label: 'Horas No Acumulables',
+          text: 'Las 3 horas de soporte expiran al término del mes correspondiente y no se transfieren al siguiente periodo.',
+        },
+      ],
+      processTitle: 'Pipeline de Despliegue Atómico (Tu proceso en 5 días)',
+      processSteps: [
+        {
+          title: '1. Selección (Día 1)',
+          text: 'Eliges la estructura de tu preferencia de nuestro catálogo y nos entregas tu identidad de marca.',
+        },
+        {
+          title: '2. Carga (Días 2-3)',
+          text: 'Nos envías tus textos y materiales gráficos a través de nuestros canales preestablecidos.',
+        },
+        {
+          title: '3. Activación (Día 5)',
+          text: 'Validamos tus formularios, activamos el blindaje de seguridad y tu sitio queda oficialmente escoltado en vivo.',
+        },
+      ],
+      ctaText: 'Iniciar mi Proceso de Escolta Digital',
+      taxNote: 'Facturación mensual 100% deducible',
+      priceSuffix: ' + IVA / mes',
+    },
   },
   differential: {
     heading1: 'El Diferencial ',

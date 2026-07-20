@@ -71,7 +71,7 @@ export const en = {
         priceSuffix: ' + VAT / month',
         subPriceText: 'Pure Subscription — 100% tax-deductible monthly billing',
         description:
-          'Web presence with fully resolved infrastructure. We design, set up, and protect your window to the digital market so you can completely forget about technological complexity and the whims of traditional development.',
+          'Web presence with total infrastructure. We design, set up, and protect your window to the digital market.',
         features: [
           'Selection of Premium Visual Architecture and identity customization.',
           'Resolved infrastructure: Domain, SSL Security, and Hosting included.',
@@ -122,6 +122,68 @@ export const en = {
         ctaText: 'Schedule Audit',
       },
     ],
+    modal: {
+      tag: 'SME Technology Subscription',
+      title: 'Digital Escort — StarterKit',
+      description:
+        'Your internet presence turnkey, designed for SMEs and professionals who want absolute visibility and to completely forget about technological complexity.',
+      includesTitle: 'What is resolved for you (INCLUDES)',
+      includes: [
+        {
+          label: 'Premium Visual Architecture',
+          text: 'You choose one of our pre-established structures and we adapt it with your colors, logo, and brand identity.',
+        },
+        {
+          label: 'Turnkey Infrastructure',
+          text: 'Domain registration (.com/.mx), high-speed hosting on Hostinger, and active SSL certificate (security padlock).',
+        },
+        {
+          label: 'Active Protection',
+          text: 'Preventive downtime monitoring and smart contact form shielded against spam emails.',
+        },
+        {
+          label: 'Monthly Maintenance',
+          text: 'Up to 3 hours of technical support included per month to update texts, change photos, or adjust business hours.',
+        },
+      ],
+      excludesTitle: 'Out of this scope (DOES NOT INCLUDE)',
+      excludes: [
+        {
+          label: 'E-commerce Modules',
+          text: 'Does not include automated payment gateways, shopping carts, or dynamic inventories.',
+        },
+        {
+          label: 'Member Areas',
+          text: 'Does not include user account creation, password systems, or internal client portals.',
+        },
+        {
+          label: 'Structural Modifications',
+          text: 'The skeleton of the chosen template is not altered. Changes outside the template are quoted as external engineering.',
+        },
+        {
+          label: 'Non-Accumulative Hours',
+          text: 'The 3 hours of support expire at the end of the corresponding month and are not transferred to the next period.',
+        },
+      ],
+      processTitle: 'Atomic Deployment Pipeline (Your process in 5 days)',
+      processSteps: [
+        {
+          title: '1. Selection (Day 1)',
+          text: 'You choose your preferred structure from our catalog and hand over your brand identity.',
+        },
+        {
+          title: '2. Upload (Days 2-3)',
+          text: 'You send us your texts and graphic materials through our established channels.',
+        },
+        {
+          title: '3. Activation (Day 5)',
+          text: 'We validate your forms, activate the security shield, and your site is officially escorted live.',
+        },
+      ],
+      ctaText: 'Start my Digital Escort Process',
+      taxNote: '100% tax-deductible monthly billing',
+      priceSuffix: ' + VAT / month',
+    },
   },
   differential: {
     heading1: 'The Dreamtek ',

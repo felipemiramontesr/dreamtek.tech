@@ -250,15 +250,13 @@ export function Products({ dict }: { dict: Dictionary }) {
                 {/* Cabecera */}
                 <div className="mb-8 border-b border-white/10 pb-6">
                   <span className="inline-block text-[10px] sm:text-xs uppercase tracking-widest text-[#FF2D00] font-semibold mb-2 bg-[#FF2D00]/10 px-2.5 py-1 rounded-full border border-[#FF2D00]/20 font-sans">
-                    Suscripción Tecnológica PyME
+                    {dict.products.modal.tag}
                   </span>
                   <h3 className="text-3xl md:text-4xl font-bold text-white mb-3 tracking-tight font-sans">
-                    Escolta Digital — StarterKit
+                    {dict.products.modal.title}
                   </h3>
                   <p className="text-white/70 font-light text-base md:text-lg max-w-2xl leading-relaxed">
-                    Tu presencia en internet llave en mano, diseñada para PyMEs y profesionales que
-                    desean visibilidad absoluta y olvidarse por completo de la complejidad
-                    tecnológica.
+                    {dict.products.modal.description}
                   </p>
                 </div>
 
@@ -266,91 +264,43 @@ export function Products({ dict }: { dict: Dictionary }) {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-8">
                   {/* Bloque Izquierdo: INCLUYE */}
                   <div className="space-y-4">
-                    <h4 className="text-white font-semibold text-base uppercase tracking-wider border-l-2 border-emerald-500 pl-3">
-                      Lo que está resuelto para ti (INCLUYE)
+                    <h4 className="text-white font-semibold text-base uppercase tracking-wider border-l-2 border-emerald-500 pl-3 font-sans">
+                      {dict.products.modal.includesTitle}
                     </h4>
                     <ul className="space-y-3">
-                      <li className="flex items-start gap-2.5 text-sm text-white/80 font-light leading-relaxed">
-                        <span className="text-emerald-500 font-bold shrink-0">✓</span>
-                        <div>
-                          <strong className="text-white font-medium">
-                            Arquitectura Visual Premium:
-                          </strong>{' '}
-                          Eliges una de nuestras estructuras preestablecidas y la adaptamos con tus
-                          colores, logotipo e identidad de marca.
-                        </div>
-                      </li>
-                      <li className="flex items-start gap-2.5 text-sm text-white/80 font-light leading-relaxed">
-                        <span className="text-emerald-500 font-bold shrink-0">✓</span>
-                        <div>
-                          <strong className="text-white font-medium">
-                            Infraestructura Llave en Mano:
-                          </strong>{' '}
-                          Registro de dominio (.com/.mx), hospedaje de alta velocidad en Hostinger y
-                          certificado SSL (candado de seguridad) activos.
-                        </div>
-                      </li>
-                      <li className="flex items-start gap-2.5 text-sm text-white/80 font-light leading-relaxed">
-                        <span className="text-emerald-500 font-bold shrink-0">✓</span>
-                        <div>
-                          <strong className="text-white font-medium">Protección Activa:</strong>{' '}
-                          Monitoreo preventivo de caídas y formulario de contacto inteligente
-                          blindado contra correos basura (Spam).
-                        </div>
-                      </li>
-                      <li className="flex items-start gap-2.5 text-sm text-white/80 font-light leading-relaxed">
-                        <span className="text-emerald-500 font-bold shrink-0">✓</span>
-                        <div>
-                          <strong className="text-white font-medium">Mantenimiento Mensual:</strong>{' '}
-                          Hasta 3 horas incluidas al mes de soporte técnico para actualizar textos,
-                          cambiar fotografías o ajustar horarios.
-                        </div>
-                      </li>
+                      {dict.products.modal.includes.map((item, idx) => (
+                        <li
+                          key={idx}
+                          className="flex items-start gap-2.5 text-sm text-white/80 font-light leading-relaxed"
+                        >
+                          <span className="text-emerald-500 font-bold shrink-0">✓</span>
+                          <div>
+                            <strong className="text-white font-medium">{item.label}:</strong>{' '}
+                            {item.text}
+                          </div>
+                        </li>
+                      ))}
                     </ul>
                   </div>
 
                   {/* Bloque Derecho: NO INCLUYE */}
                   <div className="space-y-4">
-                    <h4 className="text-white font-semibold text-base uppercase tracking-wider border-l-2 border-[#FF2D00] pl-3">
-                      Fuera de este alcance (NO INCLUYE)
+                    <h4 className="text-white font-semibold text-base uppercase tracking-wider border-l-2 border-[#FF2D00] pl-3 font-sans">
+                      {dict.products.modal.excludesTitle}
                     </h4>
                     <ul className="space-y-3">
-                      <li className="flex items-start gap-2.5 text-sm text-white/80 font-light leading-relaxed">
-                        <span className="text-[#FF2D00] font-bold shrink-0">✕</span>
-                        <div>
-                          <strong className="text-white font-medium">
-                            Módulos de Comercio Electrónico:
-                          </strong>{' '}
-                          No incluye pasarelas de pago automatizadas, carritos de compra ni
-                          inventarios dinámicos.
-                        </div>
-                      </li>
-                      <li className="flex items-start gap-2.5 text-sm text-white/80 font-light leading-relaxed">
-                        <span className="text-[#FF2D00] font-bold shrink-0">✕</span>
-                        <div>
-                          <strong className="text-white font-medium">Áreas de Miembros:</strong> No
-                          incluye creación de cuentas de usuario, sistemas de contraseñas ni paneles
-                          de clientes internos.
-                        </div>
-                      </li>
-                      <li className="flex items-start gap-2.5 text-sm text-white/80 font-light leading-relaxed">
-                        <span className="text-[#FF2D00] font-bold shrink-0">✕</span>
-                        <div>
-                          <strong className="text-white font-medium">
-                            Modificaciones Estructurales:
-                          </strong>{' '}
-                          No se altera el esqueleto de la plantilla elegida. Cambios fuera del molde
-                          se cotizan como ingeniería externa.
-                        </div>
-                      </li>
-                      <li className="flex items-start gap-2.5 text-sm text-white/80 font-light leading-relaxed">
-                        <span className="text-[#FF2D00] font-bold shrink-0">✕</span>
-                        <div>
-                          <strong className="text-white font-medium">Horas No Acumulables:</strong>{' '}
-                          Las 3 horas de soporte expiran al término del mes correspondiente y no se
-                          transfieren al siguiente periodo.
-                        </div>
-                      </li>
+                      {dict.products.modal.excludes.map((item, idx) => (
+                        <li
+                          key={idx}
+                          className="flex items-start gap-2.5 text-sm text-white/80 font-light leading-relaxed"
+                        >
+                          <span className="text-[#FF2D00] font-bold shrink-0">✕</span>
+                          <div>
+                            <strong className="text-white font-medium">{item.label}:</strong>{' '}
+                            {item.text}
+                          </div>
+                        </li>
+                      ))}
                     </ul>
                   </div>
                 </div>
@@ -358,39 +308,19 @@ export function Products({ dict }: { dict: Dictionary }) {
                 {/* Pipeline de Proceso */}
                 <div className="bg-white/5 border border-white/10 rounded-xl p-5 md:p-6 mb-8 relative overflow-hidden">
                   <h4 className="text-white font-semibold text-base uppercase tracking-wider mb-4 font-sans">
-                    Pipeline de Despliegue Atómico (Tu proceso en 5 días)
+                    {dict.products.modal.processTitle}
                   </h4>
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-6 relative">
-                    {/* Step 1 */}
-                    <div className="flex flex-col gap-1.5 relative z-10">
-                      <span className="text-xs uppercase tracking-widest text-[#FF2D00] font-bold">
-                        1. Selección (Día 1)
-                      </span>
-                      <p className="text-white/80 font-light text-sm leading-relaxed">
-                        Eliges la estructura de tu preferencia de nuestro catálogo y nos entregas tu
-                        identidad de marca.
-                      </p>
-                    </div>
-                    {/* Step 2 */}
-                    <div className="flex flex-col gap-1.5 relative z-10">
-                      <span className="text-xs uppercase tracking-widest text-[#FF2D00] font-bold">
-                        2. Carga (Días 2-3)
-                      </span>
-                      <p className="text-white/80 font-light text-sm leading-relaxed">
-                        Nos envías tus textos y materiales gráficos a través de nuestros canales
-                        preestablecidos.
-                      </p>
-                    </div>
-                    {/* Step 3 */}
-                    <div className="flex flex-col gap-1.5 relative z-10">
-                      <span className="text-xs uppercase tracking-widest text-[#FF2D00] font-bold">
-                        3. Activación (Día 5)
-                      </span>
-                      <p className="text-white/80 font-light text-sm leading-relaxed">
-                        Validamos tus formularios, activamos el blindaje de seguridad y tu sitio
-                        queda oficialmente escoltado en vivo.
-                      </p>
-                    </div>
+                    {dict.products.modal.processSteps.map((step, idx) => (
+                      <div key={idx} className="flex flex-col gap-1.5 relative z-10">
+                        <span className="text-xs uppercase tracking-widest text-[#FF2D00] font-bold font-sans">
+                          {step.title}
+                        </span>
+                        <p className="text-white/80 font-light text-sm leading-relaxed">
+                          {step.text}
+                        </p>
+                      </div>
+                    ))}
                   </div>
                 </div>
               </div>
@@ -400,10 +330,12 @@ export function Products({ dict }: { dict: Dictionary }) {
                 <div className="flex flex-col items-center sm:items-start text-center sm:text-left">
                   <div className="flex items-baseline gap-1.5">
                     <span className="text-2xl md:text-3xl font-bold text-white">$2,900.00 MXN</span>
-                    <span className="text-white/40 text-sm font-light">+ IVA / mes</span>
+                    <span className="text-white/40 text-sm font-light">
+                      {dict.products.modal.priceSuffix}
+                    </span>
                   </div>
                   <span className="text-xs text-white/50 font-light mt-0.5">
-                    Facturación mensual 100% deducible
+                    {dict.products.modal.taxNote}
                   </span>
                 </div>
                 <Button
@@ -426,7 +358,7 @@ export function Products({ dict }: { dict: Dictionary }) {
                   }}
                   className="w-full sm:w-auto px-8 py-3 text-sm font-medium tracking-wide uppercase transition-all duration-300 shadow-[0_0_20px_rgba(255,45,0,0.3)] hover:shadow-[0_0_30px_rgba(255,45,0,0.5)]"
                 >
-                  Iniciar mi Proceso de Escolta Digital
+                  {dict.products.modal.ctaText}
                 </Button>
               </div>
             </div>
