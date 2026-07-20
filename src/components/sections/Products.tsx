@@ -10,6 +10,7 @@ type Dictionary = typeof es;
 export function Products({ dict }: { dict: Dictionary }) {
   const [isAnnual, setIsAnnual] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [activeTab, setActiveTab] = useState<'includes' | 'excludes' | 'process'>('includes');
 
   // Prevent scroll when modal is open
   useEffect(() => {
@@ -216,7 +217,7 @@ export function Products({ dict }: { dict: Dictionary }) {
 
         {/* Focus Full-Screen Modal */}
         {isModalOpen && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 md:p-6 overflow-y-auto bg-black/90 backdrop-blur-xl animate-fade-in transition-all duration-300">
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-0 md:p-12 overflow-hidden bg-black/75 backdrop-blur-2xl animate-fade-in transition-all duration-300">
             {/* Close modal background click */}
             <div
               className="absolute inset-0 cursor-pointer"
@@ -224,54 +225,161 @@ export function Products({ dict }: { dict: Dictionary }) {
             />
 
             {/* Modal Container */}
-            <div className="relative w-full max-w-4xl bg-[#080808]/95 border border-white/10 rounded-2xl p-6 md:p-10 shadow-[0_0_50px_rgba(255,45,0,0.15)] overflow-hidden animate-slide-up max-h-[90vh] overflow-y-auto z-10 flex flex-col justify-between">
+            <div className="relative w-full h-full md:h-auto md:max-w-6xl md:max-h-[90vh] bg-[#050505]/95 border-0 md:border border-white/10 rounded-none md:rounded-2xl p-6 md:p-10 shadow-[0_0_65px_rgba(255,45,0,0.15)] overflow-hidden animate-slide-up z-10 flex flex-col justify-between">
               {/* Subtle glow effect */}
               <div className="absolute -top-40 -left-40 w-96 h-96 bg-[#FF2D00]/10 rounded-full blur-[100px] pointer-events-none" />
 
               {/* Close Button */}
               <button
                 onClick={() => setIsModalOpen(false)}
-                className="absolute top-6 right-6 text-white/50 hover:text-white transition-colors duration-200 z-20"
+                className="absolute top-4 right-4 md:top-6 md:right-6 text-white/50 hover:text-white transition-colors duration-200 z-20 w-8 h-8 rounded-full border border-white/10 flex items-center justify-center bg-white/5 backdrop-blur-md"
                 aria-label="Cerrar modal"
               >
                 <svg
-                  className="w-6 h-6"
+                  className="w-4 h-4"
                   fill="none"
                   viewBox="0 0 24 24"
                   stroke="currentColor"
-                  strokeWidth="2"
+                  strokeWidth="2.5"
                 >
                   <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
                 </svg>
               </button>
 
               {/* Content */}
-              <div className="relative z-10 flex-1">
+              <div className="relative z-10 flex-1 flex flex-col overflow-hidden">
                 {/* Cabecera */}
-                <div className="mb-8 border-b border-white/10 pb-6">
+                <div className="mb-6 border-b border-white/10 pb-4 shrink-0">
                   <span className="inline-block text-[10px] sm:text-xs uppercase tracking-widest text-[#FF2D00] font-semibold mb-2 bg-[#FF2D00]/10 px-2.5 py-1 rounded-full border border-[#FF2D00]/20 font-sans">
                     {dict.products.modal.tag}
                   </span>
-                  <h3 className="text-3xl md:text-4xl font-bold text-white mb-3 tracking-tight font-sans">
+                  <h3 className="text-2xl md:text-4xl font-bold text-white mb-2 tracking-tight font-sans">
                     {dict.products.modal.title}
                   </h3>
-                  <p className="text-white/70 font-light text-base md:text-lg max-w-2xl leading-relaxed">
+                  <p className="text-white/70 font-light text-xs md:text-base max-w-2xl leading-relaxed">
                     {dict.products.modal.description}
                   </p>
                 </div>
 
-                {/* Grid 2 Columnas (Incluye / No incluye) */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-8">
-                  {/* Bloque Izquierdo: INCLUYE */}
-                  <div className="space-y-4">
-                    <h4 className="text-white font-semibold text-base uppercase tracking-wider border-l-2 border-emerald-500 pl-3 font-sans">
+                {/* Mobile Tabbed Switcher */}
+                <div className="flex border-b border-white/10 mb-4 justify-between md:hidden shrink-0">
+                  <button
+                    onClick={() => setActiveTab('includes')}
+                    className={`flex-1 text-center py-2.5 text-[10px] font-bold tracking-widest transition-all ${
+                      activeTab === 'includes'
+                        ? 'text-white border-b-2 border-emerald-500'
+                        : 'text-white/40'
+                    }`}
+                  >
+                    {dict.whatsapp.help === 'Can we help you?' ? 'INCLUDES' : 'INCLUYE'}
+                  </button>
+                  <button
+                    onClick={() => setActiveTab('excludes')}
+                    className={`flex-1 text-center py-2.5 text-[10px] font-bold tracking-widest transition-all ${
+                      activeTab === 'excludes'
+                        ? 'text-white border-b-2 border-[#FF2D00]'
+                        : 'text-white/40'
+                    }`}
+                  >
+                    {dict.whatsapp.help === 'Can we help you?' ? 'EXCLUDES' : 'NO INCLUYE'}
+                  </button>
+                  <button
+                    onClick={() => setActiveTab('process')}
+                    className={`flex-1 text-center py-2.5 text-[10px] font-bold tracking-widest transition-all ${
+                      activeTab === 'process'
+                        ? 'text-white border-b-2 border-[#FF2D00]'
+                        : 'text-white/40'
+                    }`}
+                  >
+                    {dict.whatsapp.help === 'Can we help you?' ? 'PROCESS' : 'PROCESO'}
+                  </button>
+                </div>
+
+                {/* Mobile View Content */}
+                <div className="flex md:hidden flex-1 overflow-hidden py-2">
+                  {activeTab === 'includes' && (
+                    <div className="glass-panel p-5 rounded-xl border border-white/10 flex-1 flex flex-col justify-between overflow-y-auto bg-black/40">
+                      <div>
+                        <h4 className="text-white font-semibold text-xs uppercase tracking-wider border-l-2 border-emerald-500 pl-3 mb-3 font-sans">
+                          {dict.products.modal.includesTitle}
+                        </h4>
+                        <ul className="space-y-3">
+                          {dict.products.modal.includes.map((item, idx) => (
+                            <li
+                              key={idx}
+                              className="flex items-start gap-2 text-xs text-white/80 font-light leading-relaxed"
+                            >
+                              <span className="text-emerald-500 font-bold shrink-0">✓</span>
+                              <div>
+                                <strong className="text-white font-medium">{item.label}:</strong>{' '}
+                                {item.text}
+                              </div>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    </div>
+                  )}
+
+                  {activeTab === 'excludes' && (
+                    <div className="glass-panel p-5 rounded-xl border border-white/10 flex-1 flex flex-col justify-between overflow-y-auto bg-black/40">
+                      <div>
+                        <h4 className="text-white font-semibold text-xs uppercase tracking-wider border-l-2 border-[#FF2D00] pl-3 mb-3 font-sans">
+                          {dict.products.modal.excludesTitle}
+                        </h4>
+                        <ul className="space-y-3">
+                          {dict.products.modal.excludes.map((item, idx) => (
+                            <li
+                              key={idx}
+                              className="flex items-start gap-2 text-xs text-white/80 font-light leading-relaxed"
+                            >
+                              <span className="text-[#FF2D00] font-bold shrink-0">✕</span>
+                              <div>
+                                <strong className="text-white font-medium">{item.label}:</strong>{' '}
+                                {item.text}
+                              </div>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    </div>
+                  )}
+
+                  {activeTab === 'process' && (
+                    <div className="glass-panel p-5 rounded-xl border border-white/10 flex-1 flex flex-col justify-between overflow-y-auto bg-black/40">
+                      <div>
+                        <h4 className="text-white font-semibold text-xs uppercase tracking-wider border-l-2 border-[#FF2D00] pl-3 mb-3 font-sans">
+                          {dict.products.modal.processTitle}
+                        </h4>
+                        <div className="space-y-4">
+                          {dict.products.modal.processSteps.map((step, idx) => (
+                            <div key={idx} className="flex flex-col gap-1 relative z-10">
+                              <span className="text-[10px] uppercase tracking-widest text-[#FF2D00] font-bold font-sans">
+                                {step.title}
+                              </span>
+                              <p className="text-white/80 font-light text-[11px] leading-relaxed">
+                                {step.text}
+                              </p>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Desktop View Content (3 columns side-by-side) */}
+                <div className="hidden md:grid grid-cols-3 gap-6 flex-1 py-4 overflow-hidden items-stretch">
+                  {/* Includes Column */}
+                  <div className="glass-panel p-6 rounded-xl border border-white/10 flex flex-col h-full bg-black/20">
+                    <h4 className="text-white font-semibold text-xs lg:text-sm uppercase tracking-wider border-l-2 border-emerald-500 pl-3 mb-4 font-sans shrink-0">
                       {dict.products.modal.includesTitle}
                     </h4>
-                    <ul className="space-y-3">
+                    <ul className="space-y-3.5 overflow-y-auto pr-1">
                       {dict.products.modal.includes.map((item, idx) => (
                         <li
                           key={idx}
-                          className="flex items-start gap-2.5 text-sm text-white/80 font-light leading-relaxed"
+                          className="flex items-start gap-2.5 text-xs lg:text-sm text-white/80 font-light leading-relaxed"
                         >
                           <span className="text-emerald-500 font-bold shrink-0">✓</span>
                           <div>
@@ -283,16 +391,16 @@ export function Products({ dict }: { dict: Dictionary }) {
                     </ul>
                   </div>
 
-                  {/* Bloque Derecho: NO INCLUYE */}
-                  <div className="space-y-4">
-                    <h4 className="text-white font-semibold text-base uppercase tracking-wider border-l-2 border-[#FF2D00] pl-3 font-sans">
+                  {/* Excludes Column */}
+                  <div className="glass-panel p-6 rounded-xl border border-white/10 flex flex-col h-full bg-black/20">
+                    <h4 className="text-white font-semibold text-xs lg:text-sm uppercase tracking-wider border-l-2 border-[#FF2D00] pl-3 mb-4 font-sans shrink-0">
                       {dict.products.modal.excludesTitle}
                     </h4>
-                    <ul className="space-y-3">
+                    <ul className="space-y-3.5 overflow-y-auto pr-1">
                       {dict.products.modal.excludes.map((item, idx) => (
                         <li
                           key={idx}
-                          className="flex items-start gap-2.5 text-sm text-white/80 font-light leading-relaxed"
+                          className="flex items-start gap-2.5 text-xs lg:text-sm text-white/80 font-light leading-relaxed"
                         >
                           <span className="text-[#FF2D00] font-bold shrink-0">✕</span>
                           <div>
@@ -303,38 +411,40 @@ export function Products({ dict }: { dict: Dictionary }) {
                       ))}
                     </ul>
                   </div>
-                </div>
 
-                {/* Pipeline de Proceso */}
-                <div className="bg-white/5 border border-white/10 rounded-xl p-5 md:p-6 mb-8 relative overflow-hidden">
-                  <h4 className="text-white font-semibold text-base uppercase tracking-wider mb-4 font-sans">
-                    {dict.products.modal.processTitle}
-                  </h4>
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6 relative">
-                    {dict.products.modal.processSteps.map((step, idx) => (
-                      <div key={idx} className="flex flex-col gap-1.5 relative z-10">
-                        <span className="text-xs uppercase tracking-widest text-[#FF2D00] font-bold font-sans">
-                          {step.title}
-                        </span>
-                        <p className="text-white/80 font-light text-sm leading-relaxed">
-                          {step.text}
-                        </p>
-                      </div>
-                    ))}
+                  {/* Process Column */}
+                  <div className="glass-panel p-6 rounded-xl border border-white/10 flex flex-col h-full bg-black/20">
+                    <h4 className="text-white font-semibold text-xs lg:text-sm uppercase tracking-wider border-l-2 border-[#FF2D00] pl-3 mb-4 font-sans shrink-0">
+                      {dict.products.modal.processTitle}
+                    </h4>
+                    <div className="space-y-5 overflow-y-auto pr-1">
+                      {dict.products.modal.processSteps.map((step, idx) => (
+                        <div key={idx} className="flex flex-col gap-1 relative z-10">
+                          <span className="text-xs uppercase tracking-widest text-[#FF2D00] font-bold font-sans">
+                            {step.title}
+                          </span>
+                          <p className="text-white/80 font-light text-xs lg:text-sm leading-relaxed">
+                            {step.text}
+                          </p>
+                        </div>
+                      ))}
+                    </div>
                   </div>
                 </div>
               </div>
 
               {/* Footer / CTA del modal */}
-              <div className="border-t border-white/10 pt-6 flex flex-col sm:flex-row justify-between items-center gap-6 mt-auto">
+              <div className="border-t border-white/10 pt-4 md:pt-6 flex flex-col sm:flex-row justify-between items-center gap-4 md:gap-6 mt-auto shrink-0">
                 <div className="flex flex-col items-center sm:items-start text-center sm:text-left">
                   <div className="flex items-baseline gap-1.5">
-                    <span className="text-2xl md:text-3xl font-bold text-white">$2,900.00 MXN</span>
-                    <span className="text-white/40 text-sm font-light">
+                    <span className="text-xl md:text-2xl lg:text-3xl font-bold text-white">
+                      $2,900.00 MXN
+                    </span>
+                    <span className="text-white/40 text-xs md:text-sm font-light">
                       {dict.products.modal.priceSuffix}
                     </span>
                   </div>
-                  <span className="text-xs text-white/50 font-light mt-0.5">
+                  <span className="text-[10px] md:text-xs text-white/50 font-light mt-0.5">
                     {dict.products.modal.taxNote}
                   </span>
                 </div>
@@ -356,7 +466,7 @@ export function Products({ dict }: { dict: Dictionary }) {
                       }
                     }, 100);
                   }}
-                  className="w-full sm:w-auto px-8 py-3 text-sm font-medium tracking-wide uppercase transition-all duration-300 shadow-[0_0_20px_rgba(255,45,0,0.3)] hover:shadow-[0_0_30px_rgba(255,45,0,0.5)]"
+                  className="w-full sm:w-auto px-6 md:px-8 py-2.5 md:py-3 text-xs md:text-sm font-medium tracking-wide uppercase transition-all duration-300 shadow-[0_0_20px_rgba(255,45,0,0.3)] hover:shadow-[0_0_30px_rgba(255,45,0,0.5)]"
                 >
                   {dict.products.modal.ctaText}
                 </Button>
