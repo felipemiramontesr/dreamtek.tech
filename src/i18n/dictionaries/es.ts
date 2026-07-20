@@ -71,7 +71,7 @@ export const es = {
         priceSuffix: ' + IVA / mes',
         subPriceText: 'Suscripción Pura — Facturación mensual 100% deducible',
         description:
-          'Presencia Web con infraestructura totalmente resuelta. Diseñamos, montamos y protegemos tu ventana al mercado digital para que te olvides por completo de la complejidad tecnológica y de los caprichos del desarrollo tradicional.',
+          'Presencia Web con infraestructura total. Diseñamos, montamos y protegemos tu ventana al mercado digital.',
         features: [
           'Selección de Arquitectura Visual Premium y personalización de identidad.',
           'Infraestructura resuelta: Dominio, Seguridad SSL y Hosting incluidos.',
