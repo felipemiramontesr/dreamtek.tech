@@ -214,10 +214,9 @@ export function Products({ dict }: { dict: Dictionary }) {
             </GlassCard>
           ))}
         </div>
-
         {/* Focus Full-Screen Modal */}
         {isModalOpen && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-0 md:p-12 overflow-hidden bg-black/75 backdrop-blur-2xl animate-fade-in transition-all duration-300">
+          <div className="fixed inset-0 z-[300] flex items-center justify-center p-0 md:p-12 overflow-hidden bg-black/75 backdrop-blur-2xl animate-fade-in transition-all duration-300">
             {/* Close modal background click */}
             <div
               className="absolute inset-0 cursor-pointer"
@@ -225,9 +224,9 @@ export function Products({ dict }: { dict: Dictionary }) {
             />
 
             {/* Modal Container */}
-            <div className="relative w-full h-full md:h-auto md:max-w-6xl md:max-h-[90vh] bg-[#050505]/95 border-0 md:border border-white/10 rounded-none md:rounded-2xl p-6 md:p-10 shadow-[0_0_65px_rgba(255,45,0,0.15)] overflow-hidden animate-slide-up z-10 flex flex-col justify-between">
+            <div className="relative w-full h-full md:h-auto md:max-w-6xl md:max-h-[90vh] bg-[#001529]/95 border-0 md:border border-[#FF2D00]/15 rounded-none md:rounded-2xl p-6 md:p-10 shadow-[0_0_65px_rgba(255,45,0,0.15)] overflow-hidden animate-slide-up z-10 flex flex-col justify-between">
               {/* Subtle glow effect */}
-              <div className="absolute -top-40 -left-40 w-96 h-96 bg-[#FF2D00]/10 rounded-full blur-[100px] pointer-events-none" />
+              <div className="absolute -top-40 -left-40 w-96 h-96 bg-[#FF2D00]/4 rounded-full blur-[120px] pointer-events-none" />
 
               {/* Close Button */}
               <button
@@ -267,7 +266,7 @@ export function Products({ dict }: { dict: Dictionary }) {
                     onClick={() => setActiveTab('includes')}
                     className={`flex-1 text-center py-2.5 text-[10px] font-bold tracking-widest transition-all ${
                       activeTab === 'includes'
-                        ? 'text-white border-b-2 border-emerald-500'
+                        ? 'text-white border-b-2 border-[#FF2D00]'
                         : 'text-white/40'
                     }`}
                   >
@@ -300,7 +299,7 @@ export function Products({ dict }: { dict: Dictionary }) {
                   {activeTab === 'includes' && (
                     <div className="glass-panel p-5 rounded-xl border border-white/10 flex-1 flex flex-col justify-between overflow-y-auto bg-black/40">
                       <div>
-                        <h4 className="text-white font-semibold text-xs uppercase tracking-wider border-l-2 border-emerald-500 pl-3 mb-3 font-sans">
+                        <h4 className="text-white font-semibold text-xs uppercase tracking-wider border-l-2 border-[#FF2D00] pl-3 mb-3 font-sans">
                           {dict.products.modal.includesTitle}
                         </h4>
                         <ul className="space-y-3">
@@ -309,7 +308,7 @@ export function Products({ dict }: { dict: Dictionary }) {
                               key={idx}
                               className="flex items-start gap-2 text-xs text-white/80 font-light leading-relaxed"
                             >
-                              <span className="text-emerald-500 font-bold shrink-0">✓</span>
+                              <span className="text-[#FF2D00] font-bold shrink-0">✓</span>
                               <div>
                                 <strong className="text-white font-medium">{item.label}:</strong>{' '}
                                 {item.text}
@@ -333,7 +332,7 @@ export function Products({ dict }: { dict: Dictionary }) {
                               key={idx}
                               className="flex items-start gap-2 text-xs text-white/80 font-light leading-relaxed"
                             >
-                              <span className="text-[#FF2D00] font-bold shrink-0">✕</span>
+                              <span className="text-[#FF2D00]/40 font-bold shrink-0">✕</span>
                               <div>
                                 <strong className="text-white font-medium">{item.label}:</strong>{' '}
                                 {item.text}
@@ -372,7 +371,7 @@ export function Products({ dict }: { dict: Dictionary }) {
                 <div className="hidden md:grid grid-cols-3 gap-6 flex-1 py-4 overflow-hidden items-stretch">
                   {/* Includes Column */}
                   <div className="glass-panel p-6 rounded-xl border border-white/10 flex flex-col h-full bg-black/20">
-                    <h4 className="text-white font-semibold text-xs lg:text-sm uppercase tracking-wider border-l-2 border-emerald-500 pl-3 mb-4 font-sans shrink-0">
+                    <h4 className="text-white font-semibold text-xs lg:text-sm uppercase tracking-wider border-l-2 border-[#FF2D00] pl-3 mb-4 font-sans shrink-0">
                       {dict.products.modal.includesTitle}
                     </h4>
                     <ul className="space-y-3.5 overflow-y-auto pr-1">
@@ -381,7 +380,7 @@ export function Products({ dict }: { dict: Dictionary }) {
                           key={idx}
                           className="flex items-start gap-2.5 text-xs lg:text-sm text-white/80 font-light leading-relaxed"
                         >
-                          <span className="text-emerald-500 font-bold shrink-0">✓</span>
+                          <span className="text-[#FF2D00] font-bold shrink-0">✓</span>
                           <div>
                             <strong className="text-white font-medium">{item.label}:</strong>{' '}
                             {item.text}
@@ -402,7 +401,7 @@ export function Products({ dict }: { dict: Dictionary }) {
                           key={idx}
                           className="flex items-start gap-2.5 text-xs lg:text-sm text-white/80 font-light leading-relaxed"
                         >
-                          <span className="text-[#FF2D00] font-bold shrink-0">✕</span>
+                          <span className="text-[#FF2D00]/40 font-bold shrink-0">✕</span>
                           <div>
                             <strong className="text-white font-medium">{item.label}:</strong>{' '}
                             {item.text}
