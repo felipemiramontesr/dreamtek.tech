@@ -13,6 +13,14 @@ const SpaceBackground = dynamic(
 
 type Dictionary = typeof es;
 
+/**
+ * Componente `Products` (Planes y Productos).
+ *
+ * Muestra la matriz de planes y precios (Escolta Digital, ARCHON, Cyber Audit),
+ * incluyendo el toggle de facturación mensual/anual y el modal interactivo de alcance.
+ *
+ * @param dict - Diccionario i18n localizado (es/en).
+ */
 export function Products({ dict }: { dict: Dictionary }) {
   const [isAnnual, setIsAnnual] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);

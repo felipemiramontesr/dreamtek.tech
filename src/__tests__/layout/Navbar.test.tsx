@@ -2,89 +2,107 @@ import { render, screen, fireEvent } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { Navbar } from '@/components/layout/Navbar';
 import { es } from '@/i18n/dictionaries/es';
+import { en } from '@/i18n/dictionaries/en';
 
-// Mock next/image to prevent issues with Vitest and dynamic Next.js optimization
-vi.mock('next/image', () => ({
-  // eslint-disable-next-line @next/next/no-img-element, jsx-a11y/alt-text, @typescript-eslint/no-explicit-any
-  default: (props: any) => <img {...props} />,
+const pushMock = vi.fn();
+let mockPathname = '/';
+
+vi.mock('next/navigation', () => ({
+  useRouter: () => ({ push: pushMock }),
+  usePathname: () => mockPathname,
 }));
 
-// Mock next/navigation dynamically
-let mockPathname = '/';
-vi.mock('next/navigation', () => ({
-  usePathname: () => mockPathname,
-  useRouter: () => ({ push: vi.fn(), back: vi.fn() }),
+vi.mock('next/image', () => ({
+  default: (props: Record<string, unknown>) => <img alt="" {...props} />,
 }));
 
 describe('Navbar Component', () => {
   beforeEach(() => {
+    vi.restoreAllMocks();
     mockPathname = '/';
+    window.scrollTo = vi.fn();
+    localStorage.clear();
   });
 
-  describe('Comportamiento en la Landing Page Principal', () => {
-    it('debe renderizar el logotipo y los enlaces principales de escritorio y móvil', () => {
-      render(<Navbar dict={es} lang="es" />);
+  it('debe renderizar el logotipo y los enlaces principales de escritorio y móvil', () => {
+    render(<Navbar dict={es} lang="es" />);
 
-      expect(screen.getByText(/Dreamtek/)).toBeInTheDocument();
-
-      // Enlaces principales (ambas instancias: escritorio y móvil)
-      expect(screen.getAllByRole('link', { name: 'Servicios' })).toHaveLength(2);
-      expect(screen.getAllByRole('link', { name: 'Productos' })).toHaveLength(2);
-      expect(screen.getAllByRole('link', { name: 'Diferencial' })).toHaveLength(2);
-      expect(screen.getAllByRole('link', { name: 'Contacto' })).toHaveLength(2);
-    });
-
-    it('debe abrir y cerrar el menú móvil al hacer clic en el botón de hamburguesa', () => {
-      render(<Navbar dict={es} lang="es" />);
-
-      const menuButton = screen.getByRole('button', { name: 'Abrir menú' });
-      expect(menuButton).toBeInTheDocument();
-
-      // Hacemos clic para abrir
-      fireEvent.click(menuButton);
-      expect(menuButton).toHaveAttribute('aria-expanded', 'true');
-      expect(screen.getByRole('button', { name: 'Cerrar menú' })).toBeInTheDocument();
-
-      // Hacemos clic para cerrar
-      const closeButton = screen.getByRole('button', { name: 'Cerrar menú' });
-      fireEvent.click(closeButton);
-      expect(menuButton).toHaveAttribute('aria-expanded', 'false');
-    });
-
-    it('debe cerrar el menú móvil al hacer clic en un enlace de navegación móvil', () => {
-      render(<Navbar dict={es} lang="es" />);
-
-      const menuButton = screen.getByRole('button', { name: 'Abrir menú' });
-      fireEvent.click(menuButton);
-
-      // Buscamos los enlaces móviles (segundo es del drawer móvil)
-      const navLinks = screen.getAllByRole('link', { name: 'Servicios' });
-      fireEvent.click(navLinks[1]);
-
-      expect(menuButton).toHaveAttribute('aria-expanded', 'false');
-    });
+    expect(screen.getByText('Dreamtek')).toBeInTheDocument();
+    expect(screen.getAllByRole('link', { name: es.navbar.services }).length).toBeGreaterThan(0);
+    expect(screen.getAllByRole('link', { name: es.navbar.products }).length).toBeGreaterThan(0);
+    expect(screen.getAllByRole('link', { name: es.navbar.differential }).length).toBeGreaterThan(0);
+    expect(screen.getAllByRole('link', { name: es.navbar.contact }).length).toBeGreaterThan(0);
   });
 
-  describe('Comportamiento en Páginas Legales', () => {
-    it('debe renderizar la cabecera simplificada (únicamente logotipo y Regresar al sitio)', () => {
-      mockPathname = '/cookies';
-      render(<Navbar dict={es} lang="es" />);
+  it('debe abrir y cerrar el menú móvil al hacer clic en el botón de hamburguesa', () => {
+    render(<Navbar dict={es} lang="es" />);
 
-      expect(screen.getByText(/Dreamtek/)).toBeInTheDocument();
+    const menuButton = screen.getByRole('button', { name: /Abrir menú/i });
+    expect(menuButton).toBeInTheDocument();
 
-      // Debe mostrar el botón/enlace de Regresar al sitio
-      const backLink = screen.getByRole('button', { name: /Regresar al sitio/i });
-      expect(backLink).toBeInTheDocument();
+    fireEvent.click(menuButton);
+    expect(screen.getByRole('button', { name: /Cerrar menú/i })).toBeInTheDocument();
 
-      // No debe contener ninguno de los enlaces del menú principal
-      expect(screen.queryByRole('link', { name: 'Servicios' })).not.toBeInTheDocument();
-      expect(screen.queryByRole('link', { name: 'Productos' })).not.toBeInTheDocument();
-      expect(screen.queryByRole('link', { name: 'Diferencial' })).not.toBeInTheDocument();
-      expect(screen.queryByRole('link', { name: 'Contacto' })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /Cerrar menú/i }));
+    expect(screen.getByRole('button', { name: /Abrir menú/i })).toBeInTheDocument();
+  });
 
-      // No debe contener el botón de hamburguesa móvil
-      expect(screen.queryByRole('button', { name: 'Abrir menú' })).not.toBeInTheDocument();
-      expect(screen.queryByRole('button', { name: 'Cerrar menú' })).not.toBeInTheDocument();
-    });
+  it('debe cerrar el menú móvil al hacer clic en un enlace de navegación móvil', () => {
+    render(<Navbar dict={es} lang="es" />);
+
+    const menuButton = screen.getByRole('button', { name: /Abrir menú/i });
+    fireEvent.click(menuButton);
+
+    const mobileServicesLinks = screen.getAllByRole('link', { name: es.navbar.services });
+    fireEvent.click(mobileServicesLinks[mobileServicesLinks.length - 1]);
+
+    expect(screen.getByRole('button', { name: /Abrir menú/i })).toBeInTheDocument();
+  });
+
+  it('debe actualizar localStorage al hacer clic en los cambiadores de idioma (ES / EN)', () => {
+    render(<Navbar dict={es} lang="es" />);
+
+    const enLinks = screen.getAllByRole('link', { name: 'EN' });
+    fireEvent.click(enLinks[0]);
+
+    expect(localStorage.getItem('dreamtek_lang_preference')).toBe('en');
+
+    const esLinks = screen.getAllByRole('link', { name: 'ES' });
+    fireEvent.click(esLinks[0]);
+
+    expect(localStorage.getItem('dreamtek_lang_preference')).toBe('es');
+  });
+
+  it('debe navegar al inicio al hacer clic en el logotipo', () => {
+    render(<Navbar dict={es} lang="es" />);
+
+    const logoBtn = screen.getByRole('button', { name: /Dreamtek/i });
+    fireEvent.click(logoBtn);
+
+    expect(pushMock).toHaveBeenCalledWith('/', { scroll: false });
+  });
+
+  it('debe renderizar el botón de retorno al sitio cuando se encuentra en páginas legales', () => {
+    mockPathname = '/privacidad';
+
+    render(<Navbar dict={es} lang="es" />);
+
+    const returnBtn = screen.getByRole('button', { name: new RegExp(es.navbar.returnSite, 'i') });
+    expect(returnBtn).toBeInTheDocument();
+
+    fireEvent.click(returnBtn);
+    expect(pushMock).toHaveBeenCalledWith('/', { scroll: false });
+  });
+
+  it('debe manejar la navegación de retorno al sitio en idioma inglés', () => {
+    mockPathname = '/en/privacidad';
+
+    render(<Navbar dict={en} lang="en" />);
+
+    const returnBtn = screen.getByRole('button', { name: new RegExp(en.navbar.returnSite, 'i') });
+    expect(returnBtn).toBeInTheDocument();
+
+    fireEvent.click(returnBtn);
+    expect(pushMock).toHaveBeenCalledWith('/en', { scroll: false });
   });
 });

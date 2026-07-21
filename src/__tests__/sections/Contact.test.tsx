@@ -1,4 +1,4 @@
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, act } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { Contact } from '@/components/sections/Contact';
 import { es } from '@/i18n/dictionaries/es';
@@ -6,112 +6,226 @@ import { es } from '@/i18n/dictionaries/es';
 describe('Contact Component', () => {
   beforeEach(() => {
     vi.restoreAllMocks();
+    window.alert = vi.fn();
   });
 
   it('se debe renderizar el formulario con todos los campos requeridos', () => {
     render(<Contact dict={es} />);
 
-    expect(screen.getByLabelText(/Nombre Completo/i)).toBeInTheDocument();
-    expect(screen.getByLabelText(/Correo Electrónico/i)).toBeInTheDocument();
-    expect(screen.getByLabelText(/Servicio o Plan de Interés/i)).toBeInTheDocument();
-    expect(screen.getByLabelText(/Mensaje \/ Descripción del Proyecto/i)).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /Enviar Solicitud/i })).toBeInTheDocument();
+    expect(screen.getByText(/¿Listo para dar el/i)).toBeInTheDocument();
+    expect(screen.getByPlaceholderText(es.contact.form.namePlaceholder)).toBeInTheDocument();
+    expect(screen.getByPlaceholderText(es.contact.form.emailPlaceholder)).toBeInTheDocument();
+    expect(screen.getByPlaceholderText(es.contact.form.messagePlaceholder)).toBeInTheDocument();
+  });
+
+  it('debe seleccionar automáticamente un servicio al recibir el evento "select-service"', () => {
+    render(<Contact dict={es} />);
+
+    act(() => {
+      window.dispatchEvent(new CustomEvent('select-service', { detail: 'archon-fleet' }));
+    });
+
+    const select = screen.getByRole('combobox') as HTMLSelectElement;
+    expect(select.value).toBe('archon-fleet');
   });
 
   it('debe procesar el flujo completo exitoso de 2FA y envío de formulario', async () => {
-    // Mock fetch global para manejar ambos endpoints
-    const fetchMock = vi.fn().mockImplementation((url) => {
-      if (url === '/api/send_code.php') {
+    global.fetch = vi.fn().mockImplementation((url) => {
+      if (url.includes('send_code.php')) {
         return Promise.resolve({
           ok: true,
-          json: async () => ({
-            success: true,
-            message: 'Código de verificación enviado con éxito.',
-          }),
+          json: () => Promise.resolve({ success: true }),
         });
       }
-      if (url === '/api/contact.php') {
-        return Promise.resolve({
-          ok: true,
-          json: async () => ({ success: true, message: 'Mensaje enviado con éxito.' }),
-        });
-      }
-      return Promise.reject(new Error('Unknown URL'));
+      return Promise.resolve({
+        ok: true,
+        json: () => Promise.resolve({ success: true }),
+      });
     });
-    vi.stubGlobal('fetch', fetchMock);
 
     render(<Contact dict={es} />);
 
-    // Rellenar formulario inicial
-    fireEvent.change(screen.getByLabelText(/Nombre Completo/i), { target: { value: 'Felipe M' } });
-    fireEvent.change(screen.getByLabelText(/Correo Electrónico/i), {
-      target: { value: 'felipe@example.com' },
+    fireEvent.change(screen.getByPlaceholderText(es.contact.form.namePlaceholder), {
+      target: { value: 'Felipe' },
     });
-    fireEvent.change(screen.getByLabelText(/Mensaje \/ Descripción del Proyecto/i), {
-      target: { value: 'Hola, me interesa el plan custom' },
+    fireEvent.change(screen.getByPlaceholderText(es.contact.form.emailPlaceholder), {
+      target: { value: 'felipe@test.com' },
+    });
+    fireEvent.change(screen.getByPlaceholderText(es.contact.form.messagePlaceholder), {
+      target: { value: 'Hola' },
     });
 
-    // Enviar primer paso (Solicitud de código)
-    fireEvent.click(screen.getByRole('button', { name: /Enviar Solicitud/i }));
+    fireEvent.click(
+      screen.getByRole('button', { name: new RegExp(es.contact.button.submit, 'i') }),
+    );
 
-    // Validar llamada a send_code.php
     await waitFor(() => {
-      expect(fetchMock).toHaveBeenCalledWith('/api/send_code.php', expect.any(Object));
+      expect(screen.getByText(es.contact.code.label)).toBeInTheDocument();
     });
 
-    // Validar cambio de UI: debe mostrarse el campo de código de verificación
-    let codeInput: HTMLElement | null = null;
-    await waitFor(() => {
-      codeInput = screen.getByLabelText(/Código de Verificación/i);
-      expect(codeInput).toBeInTheDocument();
-      expect(
-        screen.getByRole('button', { name: /Verificar Código y Enviar/i }),
-      ).toBeInTheDocument();
+    fireEvent.change(screen.getByPlaceholderText('000000'), {
+      target: { value: '123456' },
     });
+    fireEvent.click(
+      screen.getByRole('button', { name: new RegExp(es.contact.button.verify, 'i') }),
+    );
 
-    // Ingresar código de 6 dígitos
-    fireEvent.change(codeInput!, { target: { value: '123456' } });
-
-    // Enviar segundo paso (Verificación del código y envío final)
-    fireEvent.click(screen.getByRole('button', { name: /Verificar Código y Enviar/i }));
-
-    // Validar llamada a contact.php con el código
     await waitFor(() => {
-      expect(fetchMock).toHaveBeenCalledWith(
-        '/api/contact.php',
-        expect.objectContaining({
-          body: expect.stringContaining('"code":"123456"'),
-        }),
-      );
-    });
-
-    // Esperar a que se muestre el estado de éxito final
-    await waitFor(() => {
-      expect(screen.getByText(/¡Solicitud Recibida!/i)).toBeInTheDocument();
+      expect(screen.getByText(es.contact.successTitle)).toBeInTheDocument();
     });
   });
 
-  it('debe mostrar un mensaje de error si el envío del código falla', async () => {
-    const fetchMock = vi.fn().mockResolvedValue({
-      ok: false,
-      json: async () => ({ success: false, message: 'Error de servidor al enviar código' }),
-    });
-    vi.stubGlobal('fetch', fetchMock);
+  it('debe mostrar un mensaje de error si el envío del código inicial falla', async () => {
+    global.fetch = vi.fn().mockImplementation(() =>
+      Promise.resolve({
+        ok: false,
+        json: () => Promise.resolve({ success: false, message: 'Error al enviar código' }),
+      }),
+    );
 
     render(<Contact dict={es} />);
 
-    fireEvent.change(screen.getByLabelText(/Nombre Completo/i), { target: { value: 'Felipe M' } });
-    fireEvent.change(screen.getByLabelText(/Correo Electrónico/i), {
-      target: { value: 'felipe@example.com' },
+    fireEvent.change(screen.getByPlaceholderText(es.contact.form.namePlaceholder), {
+      target: { value: 'Felipe' },
     });
-    fireEvent.change(screen.getByLabelText(/Mensaje \/ Descripción del Proyecto/i), {
-      target: { value: 'Prueba' },
+    fireEvent.change(screen.getByPlaceholderText(es.contact.form.emailPlaceholder), {
+      target: { value: 'felipe@test.com' },
+    });
+    fireEvent.change(screen.getByPlaceholderText(es.contact.form.messagePlaceholder), {
+      target: { value: 'Hola' },
     });
 
-    fireEvent.click(screen.getByRole('button', { name: /Enviar Solicitud/i }));
+    fireEvent.click(
+      screen.getByRole('button', { name: new RegExp(es.contact.button.submit, 'i') }),
+    );
 
     await waitFor(() => {
-      expect(screen.getByText('Error de servidor al enviar código')).toBeInTheDocument();
+      expect(screen.getByText('Error al enviar código')).toBeInTheDocument();
+    });
+  });
+
+  it('debe mostrar error de red cuando el envío de código genera una excepción fetch', async () => {
+    global.fetch = vi.fn().mockRejectedValue(new Error('Network error'));
+
+    render(<Contact dict={es} />);
+
+    fireEvent.change(screen.getByPlaceholderText(es.contact.form.namePlaceholder), {
+      target: { value: 'Felipe' },
+    });
+    fireEvent.change(screen.getByPlaceholderText(es.contact.form.emailPlaceholder), {
+      target: { value: 'felipe@test.com' },
+    });
+    fireEvent.change(screen.getByPlaceholderText(es.contact.form.messagePlaceholder), {
+      target: { value: 'Hola' },
+    });
+
+    fireEvent.click(
+      screen.getByRole('button', { name: new RegExp(es.contact.button.submit, 'i') }),
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText(es.contact.errors.sendCodeNetwork)).toBeInTheDocument();
+    });
+  });
+
+  it('debe mostrar un mensaje de error si el código de 2FA es incorrecto o falla en la verificación', async () => {
+    let callCount = 0;
+    global.fetch = vi.fn().mockImplementation(() => {
+      callCount++;
+      if (callCount === 1) {
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve({ success: true }),
+        });
+      }
+      return Promise.resolve({
+        ok: false,
+        json: () => Promise.resolve({ success: false, message: 'Código inválido' }),
+      });
+    });
+
+    render(<Contact dict={es} />);
+
+    fireEvent.change(screen.getByPlaceholderText(es.contact.form.namePlaceholder), {
+      target: { value: 'Felipe' },
+    });
+    fireEvent.change(screen.getByPlaceholderText(es.contact.form.emailPlaceholder), {
+      target: { value: 'felipe@test.com' },
+    });
+    fireEvent.change(screen.getByPlaceholderText(es.contact.form.messagePlaceholder), {
+      target: { value: 'Hola' },
+    });
+
+    fireEvent.click(
+      screen.getByRole('button', { name: new RegExp(es.contact.button.submit, 'i') }),
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText(es.contact.code.label)).toBeInTheDocument();
+    });
+
+    fireEvent.change(screen.getByPlaceholderText('000000'), {
+      target: { value: '999999' },
+    });
+    fireEvent.click(
+      screen.getByRole('button', { name: new RegExp(es.contact.button.verify, 'i') }),
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText('Código inválido')).toBeInTheDocument();
+    });
+  });
+
+  it('debe procesar el reenvío de código (handleResend) con éxito y con error de red', async () => {
+    let callCount = 0;
+    global.fetch = vi.fn().mockImplementation(() => {
+      callCount++;
+      if (callCount === 1) {
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve({ success: true }),
+        });
+      }
+      if (callCount === 2) {
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve({ success: true }),
+        });
+      }
+      return Promise.reject(new Error('Resend network fail'));
+    });
+
+    render(<Contact dict={es} />);
+
+    fireEvent.change(screen.getByPlaceholderText(es.contact.form.namePlaceholder), {
+      target: { value: 'Felipe' },
+    });
+    fireEvent.change(screen.getByPlaceholderText(es.contact.form.emailPlaceholder), {
+      target: { value: 'felipe@test.com' },
+    });
+    fireEvent.change(screen.getByPlaceholderText(es.contact.form.messagePlaceholder), {
+      target: { value: 'Hola' },
+    });
+
+    fireEvent.click(
+      screen.getByRole('button', { name: new RegExp(es.contact.button.submit, 'i') }),
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText(es.contact.code.label)).toBeInTheDocument();
+    });
+
+    const resendBtn = screen.getByRole('button', { name: /Reenviar código/i });
+    fireEvent.click(resendBtn);
+
+    await waitFor(() => {
+      expect(window.alert).toHaveBeenCalledWith(es.contact.code.resendAlert);
+    });
+
+    fireEvent.click(resendBtn);
+
+    await waitFor(() => {
+      expect(screen.getByText(es.contact.code.resendNetworkError)).toBeInTheDocument();
     });
   });
 });

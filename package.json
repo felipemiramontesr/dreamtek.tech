@@ -10,9 +10,12 @@
     "build": "next build && next-export-optimize-images",
     "start": "next start",
     "lint": "eslint",
+    "lint:oxlint": "oxlint .",
     "format": "prettier --write .",
+    "format:check": "prettier --check .",
     "test": "vitest run",
     "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage --maxWorkers=1",
     "prepare": "node -e \"if(process.env.NODE_ENV !== 'production'){require('child_process').execSync('husky')}\""
   },
   "lint-staged": {
@@ -38,6 +41,7 @@
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "@vitejs/plugin-react": "^6.0.1",
+    "@vitest/coverage-v8": "^4.1.10",
     "eslint": "^9",
     "eslint-config-next": "16.2.1",
     "eslint-config-prettier": "^10.1.8",
@@ -46,6 +50,7 @@
     "jsdom": "^29.0.1",
     "lint-staged": "^16.4.0",
     "next-export-optimize-images": "^4.7.0",
+    "oxlint": "^1.74.0",
     "prettier": "^3.8.1",
     "tailwindcss": "^4",
     "typescript": "^5",

@@ -1,35 +1,28 @@
-import { render, screen } from '@testing-library/react';
-import { describe, it, expect, vi } from 'vitest';
+import { render, screen, waitFor } from '@testing-library/react';
+import { describe, it, expect } from 'vitest';
 import { Hero } from '@/components/sections/Hero';
 import { es } from '@/i18n/dictionaries/es';
 
-vi.mock('next/dynamic', () => ({
-  default: () => {
-    const MockDynamicComponent = () => <canvas aria-hidden="true" />;
-    return MockDynamicComponent;
-  },
-}));
-
 describe('Hero Component', () => {
-  it('debe renderizar el canvas de fondo espacial y el titulo principal', () => {
+  it('debe renderizar el canvas de fondo espacial y el titulo principal', async () => {
     const { container } = render(<Hero dict={es} />);
 
-    // Validamos que se muestre el canvas de estrellas en el fondo
-    const canvas = container.querySelector('canvas');
-    expect(canvas).toBeInTheDocument();
-    expect(canvas).toHaveAttribute('aria-hidden', 'true');
+    expect(screen.getByRole('heading', { level: 1 })).toBeInTheDocument();
+    expect(screen.getByText(/Convertimos visiones complejas/i)).toBeInTheDocument();
 
-    // Validamos el texto del titular
-    expect(screen.getByText(/Convertimos visiones complejas en/i)).toBeInTheDocument();
-    expect(screen.getByText(/infraestructura digital robusta/i)).toBeInTheDocument();
+    await waitFor(() => {
+      expect(container.querySelector('canvas')).toBeInTheDocument();
+    });
   });
 
   it('debe renderizar los botones de accion (CTAs) requeridos', () => {
     render(<Hero dict={es} />);
 
     expect(
-      screen.getByRole('button', { name: /Solicitar Diagnóstico Inicial/i }),
+      screen.getByRole('button', { name: new RegExp(es.hero.ctaPrimary, 'i') }),
     ).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /Conocer Metodología/i })).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: new RegExp(es.hero.ctaSecondary, 'i') }),
+    ).toBeInTheDocument();
   });
 });

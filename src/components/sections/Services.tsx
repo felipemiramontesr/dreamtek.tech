@@ -3,6 +3,14 @@ import type { es } from '@/i18n/dictionaries/es';
 
 type Dictionary = typeof es;
 
+/**
+ * Componente `Services` (Core Services Section).
+ *
+ * Presenta las tres tarjetas principales de servicios tecnológicos (Desarrollo Web & Apps,
+ * Sistemas e IA, Ciberseguridad Ofensiva).
+ *
+ * @param dict - Diccionario i18n localizado (es/en).
+ */
 export function Services({ dict }: { dict: Dictionary }) {
   const services = [
     {
