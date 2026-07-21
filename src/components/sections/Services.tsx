@@ -98,25 +98,27 @@ export function Services({ dict }: { dict: Dictionary }) {
             <GlassCard
               key={service.id}
               featured={service.featured}
-              className="h-full pb-4 lg:pb-4 lg:p-6"
+              className="h-full pb-4 lg:pb-6 lg:p-10 lg:min-h-[460px] transition-all duration-500"
             >
-              <div className="mb-6 lg:mb-4 bg-white/5 w-16 h-16 lg:w-12 lg:h-12 rounded-xl flex items-center justify-center backdrop-blur-md border border-white/5">
-                <div className="[&>svg]:w-full [&>svg]:h-full w-8 h-8 lg:w-6 lg:h-6 flex items-center justify-center">
+              <div className="mb-6 lg:mb-6 bg-white/5 w-16 h-16 lg:w-20 lg:h-20 rounded-2xl flex items-center justify-center backdrop-blur-md border border-white/10 group-hover:border-[#FF2D00]/40 transition-all duration-500">
+                <div className="[&>svg]:w-full [&>svg]:h-full w-8 h-8 lg:w-10 lg:h-10 flex items-center justify-center transition-transform duration-500 group-hover:scale-110">
                   {service.icon}
                 </div>
               </div>
 
               <h3
-                className={`text-2xl lg:text-xl font-bold mb-4 lg:mb-2 ${service.featured ? 'text-[#FF2D00]' : 'text-white'}`}
+                className={`text-2xl lg:text-[1.75rem] font-semibold mb-4 lg:mb-6 tracking-tight transition-colors duration-300 ${
+                  service.featured ? 'text-[#FF2D00]' : 'text-white'
+                }`}
               >
                 {service.title}
               </h3>
 
-              <p className="text-white/70 leading-relaxed font-light mb-6 lg:mb-4 text-base lg:text-sm">
+              <p className="text-white/70 leading-relaxed font-light mb-6 lg:mb-8 text-base lg:text-base">
                 {service.description}
               </p>
 
-              <div className="flex flex-wrap gap-2 mb-6 lg:mb-4">
+              <div className="flex flex-wrap gap-2 mb-6 lg:mb-8">
                 {service.badges.map((badge, idx) => (
                   <span
                     key={idx}
