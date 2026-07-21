@@ -158,7 +158,7 @@ export const es = {
         },
         {
           label: 'Modificaciones Estructurales',
-          text: 'No se altera el esqueleto de la plantilla elegida. Cambios fuera del molde se cotizan como ingeniería externa.',
+          text: 'No se altera el esqueleto del modelo gráfico elegido. Cambios fuera del molde se cotizan como ingeniería externa.',
         },
         {
           label: 'Horas No Acumulables',
