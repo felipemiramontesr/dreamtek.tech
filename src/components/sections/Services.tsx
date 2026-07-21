@@ -79,7 +79,7 @@ export function Services({ dict }: { dict: Dictionary }) {
   return (
     <section
       id="servicios"
-      className="min-h-screen lg:h-screen lg:min-h-0 flex flex-col justify-center pt-28 pb-12 lg:py-0 relative overflow-hidden bg-[#00213d]/90"
+      className="min-h-screen lg:h-screen lg:min-h-0 flex flex-col justify-center pt-28 pb-6 lg:py-0 relative overflow-hidden bg-[#00213d]/90"
     >
       {/* Decorative gradient blob */}
       <div className="absolute top-0 right-0 -translate-y-1/2 translate-x-1/2 w-[800px] h-[800px] bg-[#FF2D00]/5 rounded-full blur-[120px] pointer-events-none" />
@@ -95,7 +95,11 @@ export function Services({ dict }: { dict: Dictionary }) {
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 lg:gap-6">
           {services.map((service) => (
-            <GlassCard key={service.id} featured={service.featured} className="h-full lg:p-6">
+            <GlassCard
+              key={service.id}
+              featured={service.featured}
+              className="h-full pb-4 lg:pb-4 lg:p-6"
+            >
               <div className="mb-6 lg:mb-4 bg-white/5 w-16 h-16 lg:w-12 lg:h-12 rounded-xl flex items-center justify-center backdrop-blur-md border border-white/5">
                 <div className="[&>svg]:w-full [&>svg]:h-full w-8 h-8 lg:w-6 lg:h-6 flex items-center justify-center">
                   {service.icon}

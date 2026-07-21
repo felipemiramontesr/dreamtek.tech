@@ -84,23 +84,23 @@ export function Products({ dict }: { dict: Dictionary }) {
   return (
     <section
       id="productos"
-      className="min-h-screen flex flex-col justify-center pt-28 pb-12 relative overflow-hidden bg-black/20"
+      className="min-h-screen lg:h-screen lg:min-h-0 flex flex-col justify-center pt-28 pb-6 lg:py-0 relative overflow-hidden bg-black/20"
     >
       {/* Decorative gradient blob */}
       <div className="absolute top-1/2 left-0 -translate-y-1/2 -translate-x-1/2 w-[600px] h-[600px] bg-[#FF2D00]/5 rounded-full blur-[100px] pointer-events-none" />
 
       <div className="max-w-[1440px] px-6 mx-auto w-full relative z-10">
-        <div className="text-center mb-10">
+        <div className="text-center mb-10 lg:mb-6">
           <h2 className="text-3xl md:text-5xl font-bold text-white mb-4">
             {dict.products.heading1}
             <span className="text-[#FF2D00]">{dict.products.heading2}</span>
           </h2>
-          <p className="text-white/60 max-w-xl mx-auto text-lg font-light mb-8">
+          <p className="text-white/60 max-w-xl mx-auto text-lg lg:text-base font-light mb-8 lg:mb-4">
             {dict.products.subtitle}
           </p>
 
           {/* Billing Toggle Switch */}
-          <div className="flex justify-center items-center gap-4 mt-6">
+          <div className="flex justify-center items-center gap-4 mt-6 lg:mt-3">
             <span
               className={`text-sm font-medium transition-colors duration-200 ${!isAnnual ? 'text-white' : 'text-white/40'}`}
             >
@@ -136,7 +136,7 @@ export function Products({ dict }: { dict: Dictionary }) {
             <GlassCard
               key={plan.id}
               featured={plan.featured}
-              className={`h-full flex flex-col justify-between transition-all duration-500 hover:-translate-y-2 ${
+              className={`h-full flex flex-col justify-between pb-4 lg:pb-4 lg:p-6 transition-all duration-500 hover:-translate-y-2 ${
                 plan.featured ? 'border-[#FF2D00]/40 shadow-[0_0_30px_rgba(255,45,0,0.15)]' : ''
               }`}
             >
@@ -203,7 +203,7 @@ export function Products({ dict }: { dict: Dictionary }) {
                 </ul>
               </div>
 
-              <div className="pt-4">
+              <div className="mt-auto pt-4">
                 {plan.id === 'starterkit' ? (
                   <Button
                     variant={plan.featured ? 'primary' : 'outline'}
