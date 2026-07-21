@@ -62,8 +62,8 @@ export const es = {
     plans: [
       {
         id: 'starterkit',
-        badge: 'Posicionamiento Web',
-        title: 'Escolta Digital',
+        badge: '',
+        title: 'Escolta Digital - Posicionamiento WEB',
         price: '$2,900.00 MXN',
         annualPrice: '$2,900.00 MXN',
         annualTotal: '',

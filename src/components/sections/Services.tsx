@@ -79,36 +79,40 @@ export function Services({ dict }: { dict: Dictionary }) {
   return (
     <section
       id="servicios"
-      className="min-h-screen flex flex-col justify-center pt-28 pb-12 relative overflow-hidden bg-[#00213d]/90"
+      className="min-h-screen lg:h-screen lg:min-h-0 flex flex-col justify-center pt-28 pb-12 lg:py-0 relative overflow-hidden bg-[#00213d]/90"
     >
       {/* Decorative gradient blob */}
       <div className="absolute top-0 right-0 -translate-y-1/2 translate-x-1/2 w-[800px] h-[800px] bg-[#FF2D00]/5 rounded-full blur-[120px] pointer-events-none" />
 
       <div className="max-w-[1440px] px-6 mx-auto w-full relative z-10">
-        <div className="text-center md:text-left mb-10">
-          <h2 className="text-3xl md:text-5xl font-bold text-white mb-4">
+        <div className="text-center md:text-left mb-10 lg:mb-6">
+          <h2 className="text-3xl md:text-5xl lg:text-4xl font-bold text-white mb-4 lg:mb-2">
             {dict.services.heading1}
             <span className="text-[#FF2D00]">{dict.services.heading2}</span>
           </h2>
-          <p className="text-white/60 max-w-xl text-lg">{dict.services.subtitle}</p>
+          <p className="text-white/60 max-w-xl text-lg lg:text-base">{dict.services.subtitle}</p>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 lg:gap-6">
           {services.map((service) => (
-            <GlassCard key={service.id} featured={service.featured} className="h-full">
-              <div className="mb-6 bg-white/5 w-16 h-16 rounded-xl flex items-center justify-center backdrop-blur-md border border-white/5">
-                {service.icon}
+            <GlassCard key={service.id} featured={service.featured} className="h-full lg:p-6">
+              <div className="mb-6 lg:mb-4 bg-white/5 w-16 h-16 lg:w-12 lg:h-12 rounded-xl flex items-center justify-center backdrop-blur-md border border-white/5">
+                <div className="[&>svg]:w-full [&>svg]:h-full w-8 h-8 lg:w-6 lg:h-6 flex items-center justify-center">
+                  {service.icon}
+                </div>
               </div>
 
               <h3
-                className={`text-2xl font-bold mb-4 ${service.featured ? 'text-[#FF2D00]' : 'text-white'}`}
+                className={`text-2xl lg:text-xl font-bold mb-4 lg:mb-2 ${service.featured ? 'text-[#FF2D00]' : 'text-white'}`}
               >
                 {service.title}
               </h3>
 
-              <p className="text-white/70 leading-relaxed font-light mb-6">{service.description}</p>
+              <p className="text-white/70 leading-relaxed font-light mb-6 lg:mb-4 text-base lg:text-sm">
+                {service.description}
+              </p>
 
-              <div className="flex flex-wrap gap-2 mb-6">
+              <div className="flex flex-wrap gap-2 mb-6 lg:mb-4">
                 {service.badges.map((badge, idx) => (
                   <span
                     key={idx}
@@ -119,7 +123,7 @@ export function Services({ dict }: { dict: Dictionary }) {
                 ))}
               </div>
 
-              <div className="mt-auto block transition-all pt-2">
+              <div className="mt-auto block transition-all pt-2 lg:pt-0">
                 <button className="text-sm font-bold tracking-widest uppercase text-white hover:text-[#FF2D00] flex items-center gap-2 group/btn transition-colors outline-none focus-visible:ring-1 focus-visible:ring-white">
                   {service.ctaText}
                   <span className="transform group-hover/btn:translate-x-1 transition-transform">
