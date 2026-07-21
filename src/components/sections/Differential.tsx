@@ -7,7 +7,7 @@ export function Differential({ dict }: { dict: Dictionary }) {
   return (
     <section
       id="diferencial"
-      className="min-h-screen flex flex-col justify-center pt-28 pb-12 relative overflow-hidden bg-gradient-to-br from-[#00213d] via-[#00172B] to-black"
+      className="min-h-screen lg:h-screen lg:min-h-0 flex flex-col justify-center pt-24 pb-8 lg:pt-20 lg:pb-6 scroll-mt-20 relative overflow-hidden bg-[#00172B]"
     >
       <SpaceBackground />
       <div className="absolute inset-0 z-0 pointer-events-none opacity-25 bg-[radial-gradient(circle_at_center,rgba(255,45,0,0.15)_0%,transparent_55%)]" />

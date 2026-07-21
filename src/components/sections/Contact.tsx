@@ -127,7 +127,7 @@ export function Contact({ dict }: { dict: Dictionary }) {
   return (
     <section
       id="contacto"
-      className="min-h-screen flex flex-col justify-center pt-28 pb-12 relative overflow-hidden bg-black/40"
+      className="min-h-screen flex flex-col justify-center pt-24 pb-12 lg:pt-20 lg:pb-8 scroll-mt-20 relative overflow-hidden bg-black/40"
     >
       {/* Decorative gradient blob */}
       <div className="absolute bottom-0 right-0 w-[600px] h-[600px] bg-[#FF2D00]/5 rounded-full blur-[100px] pointer-events-none" />

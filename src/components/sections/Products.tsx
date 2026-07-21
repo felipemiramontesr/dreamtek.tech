@@ -92,7 +92,7 @@ export function Products({ dict }: { dict: Dictionary }) {
   return (
     <section
       id="productos"
-      className="min-h-screen lg:h-screen lg:min-h-0 flex flex-col justify-center pt-28 pb-6 lg:py-0 relative overflow-hidden bg-black/20"
+      className="min-h-screen lg:h-screen lg:min-h-0 flex flex-col justify-center pt-24 pb-8 lg:pt-20 lg:pb-6 scroll-mt-20 relative overflow-hidden bg-black/20"
     >
       {/* Decorative gradient blob */}
       <div className="absolute top-1/2 left-0 -translate-y-1/2 -translate-x-1/2 w-[600px] h-[600px] bg-[#FF2D00]/5 rounded-full blur-[100px] pointer-events-none" />
