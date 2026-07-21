@@ -87,7 +87,7 @@ export function Services({ dict }: { dict: Dictionary }) {
   return (
     <section
       id="servicios"
-      className="min-h-screen lg:h-screen lg:min-h-0 flex flex-col justify-center pt-24 pb-8 lg:pt-20 lg:pb-6 scroll-mt-20 relative overflow-hidden bg-[#00213d]/90"
+      className="min-h-screen lg:h-screen lg:min-h-0 flex flex-col justify-center pt-20 pb-6 scroll-mt-0 relative overflow-hidden bg-[#00213d]/90"
     >
       {/* Decorative gradient blob */}
       <div className="absolute top-0 right-0 -translate-y-1/2 translate-x-1/2 w-[800px] h-[800px] bg-[#FF2D00]/5 rounded-full blur-[120px] pointer-events-none" />
