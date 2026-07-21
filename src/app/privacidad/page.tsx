@@ -1,3 +1,18 @@
+import type { Metadata } from 'next';
+
+export const metadata: Metadata = {
+  title: 'Aviso de Privacidad Corporativo',
+  description:
+    'Aviso de privacidad y protección de datos personales de Dreamtek.tech bajo lineamientos del INAI y normatividad vigente.',
+  alternates: {
+    canonical: 'https://dreamtek.tech/privacidad',
+    languages: {
+      es: 'https://dreamtek.tech/privacidad',
+      en: 'https://dreamtek.tech/en/privacidad',
+    },
+  },
+};
+
 export default function Privacidad() {
   return (
     <main className="flex flex-col min-h-screen pt-20">

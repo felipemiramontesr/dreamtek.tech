@@ -1,3 +1,17 @@
+import type { Metadata } from 'next';
+
+export const metadata: Metadata = {
+  title: 'Corporate Privacy Policy',
+  description: 'Corporate Privacy Policy and personal data protection standards at Dreamtek.tech.',
+  alternates: {
+    canonical: 'https://dreamtek.tech/en/privacidad',
+    languages: {
+      es: 'https://dreamtek.tech/privacidad',
+      en: 'https://dreamtek.tech/en/privacidad',
+    },
+  },
+};
+
 export default function Privacy() {
   return (
     <main className="flex flex-col min-h-screen pt-20">

@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import localFont from 'next/font/local';
 import './globals.css';
+import { ClientWrapper } from '@/components/layout/ClientWrapper';
 
 const neueMontreal = localFont({
   src: [
@@ -33,23 +34,23 @@ const neueMontreal = localFont({
 export const metadata: Metadata = {
   metadataBase: new URL('https://dreamtek.tech'),
   title: {
-    default: 'Dreamtek.',
-    template: '%s | Dreamtek.',
+    default: 'Dreamtek | Desarrollo Web, Mobile Apps y Ciberseguridad',
+    template: '%s | Dreamtek',
   },
-
   description:
-    'Convertimos visiones complejas en infraestructura digital robusta. Creadores del ERP modular y mutable ARCHON Fleet Manager, StarterKit Digital y ciberseguridad ofensiva bajo estándar Security by Design.',
+    'Convertimos visiones complejas en infraestructura digital robusta. Desarrollo Web de alto rendimiento, Aplicaciones Nativas, ERP modular ARCHON Fleet Manager y Ciberseguridad Ofensiva bajo estándar Security by Design.',
   keywords: [
-    'ERP mutable',
-    'Software gestion de flotas',
-    'Fleet management corporativo',
-    'Ciberseguridad Mexico',
-    'Hacking etico empresas',
-    'Auditoria forense digital',
-    'Orquestacion de IA',
-    'Desarrollo Next.js',
+    'Dreamtek',
+    'Desarrollo Web Mexico',
+    'Aplicaciones Web Nativas',
+    'ERP mutable ARCHON',
+    'Fleet Management Software',
+    'Ciberseguridad Ofensiva',
+    'Hacking Etico Empresarial',
+    'Auditoria de Ciberseguridad',
+    'Next.js 16 App Router',
     'Security by Design',
-    'Dreamtek tech',
+    'Desarrollo de Software Zacatecas',
   ],
   authors: [{ name: 'Dreamtek Team', url: 'https://dreamtek.tech' }],
   creator: 'Dreamtek',
@@ -57,7 +58,7 @@ export const metadata: Metadata = {
   robots: {
     index: true,
     follow: true,
-    nocache: true,
+    nocache: false,
     googleBot: {
       index: true,
       follow: true,
@@ -70,37 +71,46 @@ export const metadata: Metadata = {
   openGraph: {
     type: 'website',
     locale: 'es_MX',
+    alternateLocale: ['en_US'],
     url: 'https://dreamtek.tech',
-    title: 'Dreamtek.',
+    title: 'Dreamtek | Desarrollo Web, Mobile Apps y Ciberseguridad',
     description:
-      'Convertimos visiones complejas en infraestructura digital robusta. Creadores del ERP modular y mutable ARCHON Fleet Manager, StarterKit Digital y ciberseguridad ofensiva bajo estándar Security by Design.',
+      'Convertimos visiones complejas en infraestructura digital robusta. Desarrollo Web de alto rendimiento, Aplicaciones Nativas, ERP modular ARCHON Fleet Manager y Ciberseguridad Ofensiva bajo estándar Security by Design.',
     siteName: 'Dreamtek',
     images: [
       {
         url: 'https://dreamtek.tech/svg/24_DREAMTEK_LOGO_LOGOTIPO_Teck%20Red.svg',
         width: 1200,
         height: 630,
-        alt: 'Dreamtek Logo',
+        alt: 'Dreamtek Logotipo Oficial',
       },
     ],
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'Dreamtek.',
+    title: 'Dreamtek | Desarrollo Web, Mobile Apps y Ciberseguridad',
     description:
-      'Convertimos visiones complejas en infraestructura digital robusta. Creadores del ERP modular y mutable ARCHON Fleet Manager, StarterKit Digital y ciberseguridad ofensiva bajo estándar Security by Design.',
+      'Convertimos visiones complejas en infraestructura digital robusta. Creadores del ERP modular ARCHON, StarterKit Digital y Ciberseguridad Ofensiva.',
     images: ['https://dreamtek.tech/svg/24_DREAMTEK_LOGO_LOGOTIPO_Teck%20Red.svg'],
+    creator: '@dreamtek_tech',
   },
   alternates: {
+    canonical: 'https://dreamtek.tech',
     languages: {
-      es: 'https://dreamtek.tech',
-      en: 'https://dreamtek.tech/en',
+      'es-MX': 'https://dreamtek.tech',
+      'en-US': 'https://dreamtek.tech/en',
+      'x-default': 'https://dreamtek.tech',
     },
+  },
+  icons: {
+    icon: '/icon.svg',
+    shortcut: '/icon.svg',
+    apple: '/icon.svg',
   },
   appleWebApp: {
     capable: true,
     statusBarStyle: 'black-translucent',
-    title: 'Dreamtek.',
+    title: 'Dreamtek',
   },
   manifest: '/manifest.json',
 };
@@ -108,8 +118,6 @@ export const metadata: Metadata = {
 export const viewport = {
   themeColor: '#00213d',
 };
-
-import { ClientWrapper } from '@/components/layout/ClientWrapper';
 
 export default function RootLayout({
   children,

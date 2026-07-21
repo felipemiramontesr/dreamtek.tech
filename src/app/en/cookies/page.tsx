@@ -1,3 +1,18 @@
+import type { Metadata } from 'next';
+
+export const metadata: Metadata = {
+  title: 'Cookie & Local Storage Policy',
+  description:
+    'Transparent and detailed information about the use of technical, analytical cookies and local storage technologies on Dreamtek.tech.',
+  alternates: {
+    canonical: 'https://dreamtek.tech/en/cookies',
+    languages: {
+      es: 'https://dreamtek.tech/cookies',
+      en: 'https://dreamtek.tech/en/cookies',
+    },
+  },
+};
+
 export default function CookiesPage() {
   return (
     <main className="flex flex-col min-h-screen pt-20">

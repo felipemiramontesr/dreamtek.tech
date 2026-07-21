@@ -1,3 +1,17 @@
+import type { Metadata } from 'next';
+
+export const metadata: Metadata = {
+  title: 'Terms and Conditions of Service',
+  description: 'Terms and conditions of service and software licensing at Dreamtek.tech.',
+  alternates: {
+    canonical: 'https://dreamtek.tech/en/terminos',
+    languages: {
+      es: 'https://dreamtek.tech/terminos',
+      en: 'https://dreamtek.tech/en/terminos',
+    },
+  },
+};
+
 export default function Terms() {
   return (
     <main className="flex flex-col min-h-screen pt-20">
