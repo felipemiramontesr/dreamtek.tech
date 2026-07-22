@@ -235,7 +235,7 @@ export function Products({ dict }: { dict: Dictionary }) {
 
       {/* Focus Full-Screen Modal */}
       {isModalOpen && (
-        <div className="fixed inset-0 z-[300] flex items-center justify-center p-0 md:p-12 overflow-hidden bg-black/75 backdrop-blur-2xl animate-fade-in transition-all duration-300">
+        <div className="fixed inset-0 z-[300] flex items-center justify-center p-0 md:p-12 overflow-hidden bg-gradient-to-br from-[#002e52]/95 via-[#00172B]/95 to-black/98 backdrop-blur-2xl animate-fade-in transition-all duration-300">
           {/* Close modal background click */}
           <div
             className="absolute inset-0 cursor-pointer z-0"
@@ -246,9 +246,9 @@ export function Products({ dict }: { dict: Dictionary }) {
           <SpaceBackground />
 
           {/* Modal Container */}
-          <div className="relative w-full h-full md:h-auto md:max-w-6xl md:max-h-[92vh] bg-gradient-to-br from-[#00213d] via-[#00172B] to-black border-0 md:border border-white/15 rounded-none md:rounded-2xl p-5 md:p-8 shadow-[0_0_50px_rgba(0,0,0,0.8)] overflow-hidden animate-slide-up z-10 flex flex-col justify-between">
+          <div className="relative w-full h-full md:h-auto md:max-w-6xl md:max-h-[92vh] bg-gradient-to-br from-[#002e52] via-[#00172B] to-[#000814] border-0 md:border border-white/20 rounded-none md:rounded-2xl p-5 md:p-8 shadow-[0_0_80px_rgba(0,0,0,0.9)] overflow-hidden animate-slide-up z-10 flex flex-col justify-between">
             {/* Decorative gradient radial glow mirroring Hero */}
-            <div className="absolute inset-0 z-0 pointer-events-none opacity-25 bg-[radial-gradient(circle_at_center,rgba(255,45,0,0.15)_0%,transparent_55%)]" />
+            <div className="absolute inset-0 z-0 pointer-events-none opacity-30 bg-[radial-gradient(circle_at_center,rgba(255,45,0,0.15)_0%,transparent_55%)]" />
 
             {/* Close Button */}
             <button
@@ -319,7 +319,7 @@ export function Products({ dict }: { dict: Dictionary }) {
               {/* Mobile View Content */}
               <div className="flex md:hidden flex-1 overflow-hidden py-1">
                 {activeTab === 'includes' && (
-                  <div className="glass-panel p-4 rounded-xl border border-emerald-500/20 flex-1 flex flex-col justify-between overflow-y-auto bg-black/40">
+                  <div className="glass-panel p-4 rounded-xl border border-emerald-500/20 flex-1 flex flex-col justify-between overflow-y-auto bg-white/[0.04] backdrop-blur-md">
                     <div>
                       <h4 className="text-emerald-400 font-semibold text-xs uppercase tracking-wider border-l-2 border-emerald-400 pl-2.5 mb-3 font-sans">
                         {dict.products.modal.includesTitle}
@@ -343,7 +343,7 @@ export function Products({ dict }: { dict: Dictionary }) {
                 )}
 
                 {activeTab === 'excludes' && (
-                  <div className="glass-panel p-4 rounded-xl border border-sky-500/20 flex-1 flex flex-col justify-between overflow-y-auto bg-black/40">
+                  <div className="glass-panel p-4 rounded-xl border border-sky-500/20 flex-1 flex flex-col justify-between overflow-y-auto bg-white/[0.04] backdrop-blur-md">
                     <div>
                       <h4 className="text-sky-400 font-semibold text-xs uppercase tracking-wider border-l-2 border-sky-400 pl-2.5 mb-3 font-sans">
                         {dict.products.modal.excludesTitle}
@@ -367,7 +367,7 @@ export function Products({ dict }: { dict: Dictionary }) {
                 )}
 
                 {activeTab === 'process' && (
-                  <div className="glass-panel p-4 rounded-xl border border-sky-500/20 flex-1 flex flex-col justify-between overflow-y-auto bg-black/40">
+                  <div className="glass-panel p-4 rounded-xl border border-sky-500/20 flex-1 flex flex-col justify-between overflow-y-auto bg-white/[0.04] backdrop-blur-md">
                     <div>
                       <h4 className="text-sky-400 font-semibold text-xs uppercase tracking-wider border-l-2 border-sky-400 pl-2.5 mb-3 font-sans">
                         {dict.products.modal.processTitle}
@@ -392,7 +392,7 @@ export function Products({ dict }: { dict: Dictionary }) {
               {/* Desktop View Content (3 columns side-by-side) */}
               <div className="hidden md:grid grid-cols-3 gap-5 flex-1 py-2 overflow-hidden items-stretch mb-2">
                 {/* Includes Column */}
-                <div className="glass-panel p-5 rounded-xl border border-emerald-500/20 flex flex-col h-full bg-black/30 hover:border-emerald-500/30 transition-all duration-300">
+                <div className="glass-panel p-5 rounded-xl border border-emerald-500/20 flex flex-col h-full bg-white/[0.04] backdrop-blur-md hover:border-emerald-500/30 transition-all duration-300">
                   <h4 className="text-emerald-400 font-semibold text-xs lg:text-sm uppercase tracking-wider border-l-2 border-emerald-400 pl-3 mb-3 font-sans shrink-0">
                     {dict.products.modal.includesTitle}
                   </h4>
@@ -413,7 +413,7 @@ export function Products({ dict }: { dict: Dictionary }) {
                 </div>
 
                 {/* Excludes Column */}
-                <div className="glass-panel p-5 rounded-xl border border-sky-500/20 flex flex-col h-full bg-black/30 hover:border-sky-500/30 transition-all duration-300">
+                <div className="glass-panel p-5 rounded-xl border border-sky-500/20 flex flex-col h-full bg-white/[0.04] backdrop-blur-md hover:border-sky-500/30 transition-all duration-300">
                   <h4 className="text-sky-400 font-semibold text-xs lg:text-sm uppercase tracking-wider border-l-2 border-sky-400 pl-3 mb-3 font-sans shrink-0">
                     {dict.products.modal.excludesTitle}
                   </h4>
@@ -434,7 +434,7 @@ export function Products({ dict }: { dict: Dictionary }) {
                 </div>
 
                 {/* Process Column */}
-                <div className="glass-panel p-5 rounded-xl border border-sky-500/20 flex flex-col h-full bg-black/30 hover:border-sky-500/30 transition-all duration-300">
+                <div className="glass-panel p-5 rounded-xl border border-sky-500/20 flex flex-col h-full bg-white/[0.04] backdrop-blur-md hover:border-sky-500/30 transition-all duration-300">
                   <h4 className="text-sky-400 font-semibold text-xs lg:text-sm uppercase tracking-wider border-l-2 border-sky-400 pl-3 mb-3 font-sans shrink-0">
                     {dict.products.modal.processTitle}
                   </h4>

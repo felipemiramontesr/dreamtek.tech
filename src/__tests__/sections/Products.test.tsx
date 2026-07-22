@@ -44,7 +44,7 @@ describe('Products Component', () => {
     fireEvent.click(screen.getByRole('button', { name: /Ver Alcance y Detalles/i }));
     expect(screen.getByText(es.products.modal.title)).toBeInTheDocument();
 
-    const backdrop = container.querySelector('.bg-black\\/75 > .absolute.inset-0');
+    const backdrop = container.querySelector('.fixed.inset-0 > .absolute.inset-0');
     expect(backdrop).toBeInTheDocument();
 
     fireEvent.click(backdrop!);
