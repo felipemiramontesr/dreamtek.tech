@@ -1,15 +1,10 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import dynamic from 'next/dynamic';
+import { useState } from 'react';
 import { GlassCard } from '../ui/GlassCard';
 import { Button } from '../ui/Button';
+import { Modal } from '../ui/Modal';
 import type { es } from '@/i18n/dictionaries/es';
-
-const SpaceBackground = dynamic(
-  () => import('../ui/SpaceBackground').then((mod) => mod.SpaceBackground),
-  { ssr: false },
-);
 
 type Dictionary = typeof es;
 
@@ -25,21 +20,6 @@ export function Products({ dict }: { dict: Dictionary }) {
   const [isAnnual, setIsAnnual] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<'includes' | 'excludes' | 'process'>('includes');
-
-  // Prevent scroll and toggle body class when modal is open
-  useEffect(() => {
-    if (isModalOpen) {
-      document.body.style.overflow = 'hidden';
-      document.body.classList.add('modal-open');
-    } else {
-      document.body.style.overflow = '';
-      document.body.classList.remove('modal-open');
-    }
-    return () => {
-      document.body.style.overflow = '';
-      document.body.classList.remove('modal-open');
-    };
-  }, [isModalOpen]);
 
   const plans = [
     {
@@ -233,268 +213,219 @@ export function Products({ dict }: { dict: Dictionary }) {
         </div>
       </div>
 
-      {/* Focus Full-Screen Modal */}
-      {isModalOpen && (
-        <div className="fixed inset-0 z-[300] flex items-center justify-center p-0 md:p-12 overflow-hidden bg-gradient-to-br from-[#002e52]/95 via-[#00172B]/95 to-black/98 backdrop-blur-2xl animate-fade-in transition-all duration-300">
-          {/* Close modal background click */}
-          <div
-            className="absolute inset-0 cursor-pointer z-0"
-            onClick={() => setIsModalOpen(false)}
-          />
-
-          {/* Space Background HTML5 Canvas */}
-          <SpaceBackground />
-
-          {/* Modal Container */}
-          <div className="relative w-full h-full md:h-auto md:max-w-6xl md:max-h-[92vh] bg-gradient-to-br from-[#002e52] via-[#00172B] to-[#000814] border-0 md:border border-white/20 rounded-none md:rounded-2xl p-5 md:p-8 shadow-[0_0_80px_rgba(0,0,0,0.9)] overflow-hidden animate-slide-up z-10 flex flex-col justify-between">
-            {/* Decorative gradient radial glow mirroring Hero */}
-            <div className="absolute inset-0 z-0 pointer-events-none opacity-30 bg-[radial-gradient(circle_at_center,rgba(255,45,0,0.15)_0%,transparent_55%)]" />
-
-            {/* Close Button */}
-            <button
-              onClick={() => setIsModalOpen(false)}
-              className="absolute top-4 right-4 md:top-6 md:right-6 text-white/50 hover:text-white transition-colors duration-200 z-20 w-8 h-8 rounded-full border border-white/10 flex items-center justify-center bg-white/5 backdrop-blur-md"
-              aria-label="Cerrar modal"
-            >
-              <svg
-                className="w-4 h-4"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-                strokeWidth="2.5"
-              >
-                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-              </svg>
-            </button>
-
-            {/* Content */}
-            <div className="relative z-10 flex-1 flex flex-col overflow-hidden">
-              {/* Cabecera */}
-              <div className="mb-3 border-b border-white/10 pb-3 shrink-0">
-                <span className="inline-block text-[10px] sm:text-xs uppercase tracking-widest text-emerald-400 font-semibold mb-1.5 bg-emerald-500/10 px-2.5 py-1 rounded-full border border-emerald-500/20 font-sans">
-                  {dict.products.modal.tag}
+      {/* Focus Full-Screen Modal usando componente reutilizable Modal */}
+      <Modal
+        isOpen={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
+        tag={dict.products.modal.tag}
+        tagColor="emerald"
+        title={dict.products.modal.title}
+        description={dict.products.modal.description}
+        footer={
+          <>
+            <div className="flex flex-col items-center sm:items-start text-center sm:text-left">
+              <div className="flex items-baseline gap-1.5">
+                <span className="text-xl md:text-2xl lg:text-3xl font-bold text-white">
+                  $2,900.00 MXN
                 </span>
-                <h3 className="text-2xl md:text-3xl font-bold text-white mb-1 tracking-tight font-sans">
-                  {dict.products.modal.title}
-                </h3>
-                <p className="text-white/70 font-light text-xs md:text-sm max-w-2xl leading-relaxed">
-                  {dict.products.modal.description}
-                </p>
+                <span className="text-white/40 text-xs md:text-sm font-light">
+                  {dict.products.modal.priceSuffix}
+                </span>
               </div>
+              <span className="text-[10px] md:text-xs text-white/50 font-light mt-0.5">
+                {dict.products.modal.taxNote}
+              </span>
+            </div>
+            <Button
+              variant="primary"
+              onClick={() => {
+                // Cierra el modal
+                setIsModalOpen(false);
 
-              {/* Mobile Tabbed Switcher */}
-              <div className="flex border-b border-white/10 mb-3 justify-between md:hidden shrink-0">
-                <button
-                  onClick={() => setActiveTab('includes')}
-                  className={`flex-1 text-center py-2 text-[10px] font-bold tracking-widest transition-all ${
-                    activeTab === 'includes'
-                      ? 'text-emerald-400 border-b-2 border-emerald-400'
-                      : 'text-white/40'
-                  }`}
-                >
-                  {dict.whatsapp.help === 'Can we help you?' ? 'INCLUDES' : 'INCLUYE'}
-                </button>
-                <button
-                  onClick={() => setActiveTab('excludes')}
-                  className={`flex-1 text-center py-2 text-[10px] font-bold tracking-widest transition-all ${
-                    activeTab === 'excludes'
-                      ? 'text-sky-400 border-b-2 border-sky-400'
-                      : 'text-white/40'
-                  }`}
-                >
-                  {dict.whatsapp.help === 'Can we help you?' ? 'UPON QUOTE' : 'BAJO COTIZACIÓN'}
-                </button>
-                <button
-                  onClick={() => setActiveTab('process')}
-                  className={`flex-1 text-center py-2 text-[10px] font-bold tracking-widest transition-all ${
-                    activeTab === 'process'
-                      ? 'text-sky-400 border-b-2 border-sky-400'
-                      : 'text-white/40'
-                  }`}
-                >
-                  {dict.whatsapp.help === 'Can we help you?' ? 'PROCESS' : 'PROCESO'}
-                </button>
-              </div>
+                // Inyecta el valor 'starterkit' en el select
+                const event = new CustomEvent('select-service', { detail: 'starterkit' });
+                window.dispatchEvent(event);
 
-              {/* Mobile View Content */}
-              <div className="flex md:hidden flex-1 overflow-hidden py-1">
-                {activeTab === 'includes' && (
-                  <div className="glass-panel p-4 rounded-xl border border-emerald-500/20 flex-1 flex flex-col justify-between overflow-y-auto bg-white/[0.04] backdrop-blur-md">
-                    <div>
-                      <h4 className="text-emerald-400 font-semibold text-xs uppercase tracking-wider border-l-2 border-emerald-400 pl-2.5 mb-3 font-sans">
-                        {dict.products.modal.includesTitle}
-                      </h4>
-                      <ul className="space-y-2.5">
-                        {dict.products.modal.includes.map((item, idx) => (
-                          <li
-                            key={idx}
-                            className="flex items-start gap-2 text-xs text-white/80 font-light leading-relaxed"
-                          >
-                            <span className="text-emerald-400 font-bold shrink-0">✓</span>
-                            <div>
-                              <strong className="text-white font-medium">{item.label}:</strong>{' '}
-                              {item.text}
-                            </div>
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                  </div>
-                )}
+                // Realiza scroll-smooth
+                setTimeout(() => {
+                  const contactSection = document.getElementById('contacto');
+                  if (contactSection) {
+                    contactSection.scrollIntoView({ behavior: 'smooth' });
+                  }
+                }, 100);
+              }}
+              className="w-full sm:w-auto px-6 md:px-8 py-2.5 md:py-3 text-xs md:text-sm font-medium tracking-wide uppercase transition-all duration-300 shadow-[0_0_20px_rgba(255,45,0,0.3)] hover:shadow-[0_0_30px_rgba(255,45,0,0.5)]"
+            >
+              {dict.products.modal.ctaText}
+            </Button>
+          </>
+        }
+      >
+        {/* Mobile Tabbed Switcher */}
+        <div className="flex border-b border-white/10 mb-3 justify-between md:hidden shrink-0">
+          <button
+            onClick={() => setActiveTab('includes')}
+            className={`flex-1 text-center py-2 text-[10px] font-bold tracking-widest transition-all ${
+              activeTab === 'includes'
+                ? 'text-emerald-400 border-b-2 border-emerald-400'
+                : 'text-white/40'
+            }`}
+          >
+            {dict.whatsapp.help === 'Can we help you?' ? 'INCLUDES' : 'INCLUYE'}
+          </button>
+          <button
+            onClick={() => setActiveTab('excludes')}
+            className={`flex-1 text-center py-2 text-[10px] font-bold tracking-widest transition-all ${
+              activeTab === 'excludes' ? 'text-sky-400 border-b-2 border-sky-400' : 'text-white/40'
+            }`}
+          >
+            {dict.whatsapp.help === 'Can we help you?' ? 'UPON QUOTE' : 'BAJO COTIZACIÓN'}
+          </button>
+          <button
+            onClick={() => setActiveTab('process')}
+            className={`flex-1 text-center py-2 text-[10px] font-bold tracking-widest transition-all ${
+              activeTab === 'process' ? 'text-sky-400 border-b-2 border-sky-400' : 'text-white/40'
+            }`}
+          >
+            {dict.whatsapp.help === 'Can we help you?' ? 'PROCESS' : 'PROCESO'}
+          </button>
+        </div>
 
-                {activeTab === 'excludes' && (
-                  <div className="glass-panel p-4 rounded-xl border border-sky-500/20 flex-1 flex flex-col justify-between overflow-y-auto bg-white/[0.04] backdrop-blur-md">
-                    <div>
-                      <h4 className="text-sky-400 font-semibold text-xs uppercase tracking-wider border-l-2 border-sky-400 pl-2.5 mb-3 font-sans">
-                        {dict.products.modal.excludesTitle}
-                      </h4>
-                      <ul className="space-y-2.5">
-                        {dict.products.modal.excludes.map((item, idx) => (
-                          <li
-                            key={idx}
-                            className="flex items-start gap-2 text-xs text-white/80 font-light leading-relaxed"
-                          >
-                            <span className="text-sky-400 font-bold shrink-0">✦</span>
-                            <div>
-                              <strong className="text-white font-medium">{item.label}:</strong>{' '}
-                              {item.text}
-                            </div>
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                  </div>
-                )}
-
-                {activeTab === 'process' && (
-                  <div className="glass-panel p-4 rounded-xl border border-sky-500/20 flex-1 flex flex-col justify-between overflow-y-auto bg-white/[0.04] backdrop-blur-md">
-                    <div>
-                      <h4 className="text-sky-400 font-semibold text-xs uppercase tracking-wider border-l-2 border-sky-400 pl-2.5 mb-3 font-sans">
-                        {dict.products.modal.processTitle}
-                      </h4>
-                      <div className="space-y-3">
-                        {dict.products.modal.processSteps.map((step, idx) => (
-                          <div key={idx} className="flex flex-col gap-0.5 relative z-10">
-                            <span className="text-[10px] uppercase tracking-widest text-sky-400 font-bold font-sans">
-                              {step.title}
-                            </span>
-                            <p className="text-white/80 font-light text-[11px] leading-relaxed">
-                              {step.text}
-                            </p>
-                          </div>
-                        ))}
+        {/* Mobile View Content */}
+        <div className="flex md:hidden flex-1 overflow-hidden py-1">
+          {activeTab === 'includes' && (
+            <div className="glass-panel p-4 rounded-xl border border-emerald-500/20 flex-1 flex flex-col justify-between overflow-y-auto bg-white/[0.04] backdrop-blur-md">
+              <div>
+                <h4 className="text-emerald-400 font-semibold text-xs uppercase tracking-wider border-l-2 border-emerald-400 pl-2.5 mb-3 font-sans">
+                  {dict.products.modal.includesTitle}
+                </h4>
+                <ul className="space-y-2.5">
+                  {dict.products.modal.includes.map((item, idx) => (
+                    <li
+                      key={idx}
+                      className="flex items-start gap-2 text-xs text-white/80 font-light leading-relaxed"
+                    >
+                      <span className="text-emerald-400 font-bold shrink-0">✓</span>
+                      <div>
+                        <strong className="text-white font-medium">{item.label}:</strong>{' '}
+                        {item.text}
                       </div>
-                    </div>
-                  </div>
-                )}
+                    </li>
+                  ))}
+                </ul>
               </div>
+            </div>
+          )}
 
-              {/* Desktop View Content (3 columns side-by-side) */}
-              <div className="hidden md:grid grid-cols-3 gap-5 flex-1 py-2 overflow-hidden items-stretch mb-2">
-                {/* Includes Column */}
-                <div className="glass-panel p-5 rounded-xl border border-emerald-500/20 flex flex-col h-full bg-white/[0.04] backdrop-blur-md hover:border-emerald-500/30 transition-all duration-300">
-                  <h4 className="text-emerald-400 font-semibold text-xs lg:text-sm uppercase tracking-wider border-l-2 border-emerald-400 pl-3 mb-3 font-sans shrink-0">
-                    {dict.products.modal.includesTitle}
-                  </h4>
-                  <ul className="space-y-3 overflow-y-auto pr-2 pb-6 max-h-[42vh] md:max-h-[45vh]">
-                    {dict.products.modal.includes.map((item, idx) => (
-                      <li
-                        key={idx}
-                        className="flex items-start gap-2.5 text-xs lg:text-sm text-white/80 font-light leading-relaxed"
-                      >
-                        <span className="text-emerald-400 font-bold shrink-0">✓</span>
-                        <div>
-                          <strong className="text-white font-medium">{item.label}:</strong>{' '}
-                          {item.text}
-                        </div>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-
-                {/* Excludes Column */}
-                <div className="glass-panel p-5 rounded-xl border border-sky-500/20 flex flex-col h-full bg-white/[0.04] backdrop-blur-md hover:border-sky-500/30 transition-all duration-300">
-                  <h4 className="text-sky-400 font-semibold text-xs lg:text-sm uppercase tracking-wider border-l-2 border-sky-400 pl-3 mb-3 font-sans shrink-0">
-                    {dict.products.modal.excludesTitle}
-                  </h4>
-                  <ul className="space-y-3 overflow-y-auto pr-2 pb-6 max-h-[42vh] md:max-h-[45vh]">
-                    {dict.products.modal.excludes.map((item, idx) => (
-                      <li
-                        key={idx}
-                        className="flex items-start gap-2.5 text-xs lg:text-sm text-white/80 font-light leading-relaxed"
-                      >
-                        <span className="text-sky-400 font-bold shrink-0">✦</span>
-                        <div>
-                          <strong className="text-white font-medium">{item.label}:</strong>{' '}
-                          {item.text}
-                        </div>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-
-                {/* Process Column */}
-                <div className="glass-panel p-5 rounded-xl border border-sky-500/20 flex flex-col h-full bg-white/[0.04] backdrop-blur-md hover:border-sky-500/30 transition-all duration-300">
-                  <h4 className="text-sky-400 font-semibold text-xs lg:text-sm uppercase tracking-wider border-l-2 border-sky-400 pl-3 mb-3 font-sans shrink-0">
-                    {dict.products.modal.processTitle}
-                  </h4>
-                  <div className="space-y-4 overflow-y-auto pr-2 pb-6 max-h-[42vh] md:max-h-[45vh]">
-                    {dict.products.modal.processSteps.map((step, idx) => (
-                      <div key={idx} className="flex flex-col gap-0.5 relative z-10">
-                        <span className="text-xs uppercase tracking-widest text-sky-400 font-bold font-sans">
-                          {step.title}
-                        </span>
-                        <p className="text-white/80 font-light text-xs lg:text-sm leading-relaxed">
-                          {step.text}
-                        </p>
+          {activeTab === 'excludes' && (
+            <div className="glass-panel p-4 rounded-xl border border-sky-500/20 flex-1 flex flex-col justify-between overflow-y-auto bg-white/[0.04] backdrop-blur-md">
+              <div>
+                <h4 className="text-sky-400 font-semibold text-xs uppercase tracking-wider border-l-2 border-sky-400 pl-2.5 mb-3 font-sans">
+                  {dict.products.modal.excludesTitle}
+                </h4>
+                <ul className="space-y-2.5">
+                  {dict.products.modal.excludes.map((item, idx) => (
+                    <li
+                      key={idx}
+                      className="flex items-start gap-2 text-xs text-white/80 font-light leading-relaxed"
+                    >
+                      <span className="text-sky-400 font-bold shrink-0">✦</span>
+                      <div>
+                        <strong className="text-white font-medium">{item.label}:</strong>{' '}
+                        {item.text}
                       </div>
-                    ))}
-                  </div>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            </div>
+          )}
+
+          {activeTab === 'process' && (
+            <div className="glass-panel p-4 rounded-xl border border-sky-500/20 flex-1 flex flex-col justify-between overflow-y-auto bg-white/[0.04] backdrop-blur-md">
+              <div>
+                <h4 className="text-sky-400 font-semibold text-xs uppercase tracking-wider border-l-2 border-sky-400 pl-2.5 mb-3 font-sans">
+                  {dict.products.modal.processTitle}
+                </h4>
+                <div className="space-y-3">
+                  {dict.products.modal.processSteps.map((step, idx) => (
+                    <div key={idx} className="flex flex-col gap-0.5 relative z-10">
+                      <span className="text-[10px] uppercase tracking-widest text-sky-400 font-bold font-sans">
+                        {step.title}
+                      </span>
+                      <p className="text-white/80 font-light text-[11px] leading-relaxed">
+                        {step.text}
+                      </p>
+                    </div>
+                  ))}
                 </div>
               </div>
             </div>
+          )}
+        </div>
 
-            {/* Footer / CTA del modal */}
-            <div className="border-t border-white/10 pt-3 md:pt-4 flex flex-col sm:flex-row justify-between items-center gap-4 md:gap-6 mt-auto shrink-0 z-20">
-              <div className="flex flex-col items-center sm:items-start text-center sm:text-left">
-                <div className="flex items-baseline gap-1.5">
-                  <span className="text-xl md:text-2xl lg:text-3xl font-bold text-white">
-                    $2,900.00 MXN
+        {/* Desktop View Content (3 columns side-by-side) */}
+        <div className="hidden md:grid grid-cols-3 gap-5 flex-1 py-2 overflow-hidden items-stretch mb-2">
+          {/* Includes Column */}
+          <div className="glass-panel p-5 rounded-xl border border-emerald-500/20 flex flex-col h-full bg-white/[0.04] backdrop-blur-md hover:border-emerald-500/30 transition-all duration-300">
+            <h4 className="text-emerald-400 font-semibold text-xs lg:text-sm uppercase tracking-wider border-l-2 border-emerald-400 pl-3 mb-3 font-sans shrink-0">
+              {dict.products.modal.includesTitle}
+            </h4>
+            <ul className="space-y-3 overflow-y-auto pr-2 pb-6 max-h-[42vh] md:max-h-[45vh]">
+              {dict.products.modal.includes.map((item, idx) => (
+                <li
+                  key={idx}
+                  className="flex items-start gap-2.5 text-xs lg:text-sm text-white/80 font-light leading-relaxed"
+                >
+                  <span className="text-emerald-400 font-bold shrink-0">✓</span>
+                  <div>
+                    <strong className="text-white font-medium">{item.label}:</strong> {item.text}
+                  </div>
+                </li>
+              ))}
+            </ul>
+          </div>
+
+          {/* Excludes Column */}
+          <div className="glass-panel p-5 rounded-xl border border-sky-500/20 flex flex-col h-full bg-white/[0.04] backdrop-blur-md hover:border-sky-500/30 transition-all duration-300">
+            <h4 className="text-sky-400 font-semibold text-xs lg:text-sm uppercase tracking-wider border-l-2 border-sky-400 pl-3 mb-3 font-sans shrink-0">
+              {dict.products.modal.excludesTitle}
+            </h4>
+            <ul className="space-y-3 overflow-y-auto pr-2 pb-6 max-h-[42vh] md:max-h-[45vh]">
+              {dict.products.modal.excludes.map((item, idx) => (
+                <li
+                  key={idx}
+                  className="flex items-start gap-2.5 text-xs lg:text-sm text-white/80 font-light leading-relaxed"
+                >
+                  <span className="text-sky-400 font-bold shrink-0">✦</span>
+                  <div>
+                    <strong className="text-white font-medium">{item.label}:</strong> {item.text}
+                  </div>
+                </li>
+              ))}
+            </ul>
+          </div>
+
+          {/* Process Column */}
+          <div className="glass-panel p-5 rounded-xl border border-sky-500/20 flex flex-col h-full bg-white/[0.04] backdrop-blur-md hover:border-sky-500/30 transition-all duration-300">
+            <h4 className="text-sky-400 font-semibold text-xs lg:text-sm uppercase tracking-wider border-l-2 border-sky-400 pl-3 mb-3 font-sans shrink-0">
+              {dict.products.modal.processTitle}
+            </h4>
+            <div className="space-y-4 overflow-y-auto pr-2 pb-6 max-h-[42vh] md:max-h-[45vh]">
+              {dict.products.modal.processSteps.map((step, idx) => (
+                <div key={idx} className="flex flex-col gap-0.5 relative z-10">
+                  <span className="text-xs uppercase tracking-widest text-sky-400 font-bold font-sans">
+                    {step.title}
                   </span>
-                  <span className="text-white/40 text-xs md:text-sm font-light">
-                    {dict.products.modal.priceSuffix}
-                  </span>
+                  <p className="text-white/80 font-light text-xs lg:text-sm leading-relaxed">
+                    {step.text}
+                  </p>
                 </div>
-                <span className="text-[10px] md:text-xs text-white/50 font-light mt-0.5">
-                  {dict.products.modal.taxNote}
-                </span>
-              </div>
-              <Button
-                variant="primary"
-                onClick={() => {
-                  // Cierra el modal
-                  setIsModalOpen(false);
-
-                  // Inyecta el valor 'starterkit' en el select
-                  const event = new CustomEvent('select-service', { detail: 'starterkit' });
-                  window.dispatchEvent(event);
-
-                  // Realiza scroll-smooth
-                  setTimeout(() => {
-                    const contactSection = document.getElementById('contacto');
-                    if (contactSection) {
-                      contactSection.scrollIntoView({ behavior: 'smooth' });
-                    }
-                  }, 100);
-                }}
-                className="w-full sm:w-auto px-6 md:px-8 py-2.5 md:py-3 text-xs md:text-sm font-medium tracking-wide uppercase transition-all duration-300 shadow-[0_0_20px_rgba(255,45,0,0.3)] hover:shadow-[0_0_30px_rgba(255,45,0,0.5)]"
-              >
-                {dict.products.modal.ctaText}
-              </Button>
+              ))}
             </div>
           </div>
         </div>
-      )}
+      </Modal>
     </section>
   );
 }
