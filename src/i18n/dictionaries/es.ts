@@ -123,7 +123,7 @@ export const es = {
       },
     ],
     modal: {
-      tag: 'Suscripción Tecnológica PyME',
+      tag: 'Suscripción tecnológica para PyMEs y Profesionales',
       title: 'Escolta Digital — StarterKit',
       description:
         'Tu presencia en internet llave en mano, diseñada para PyMEs y profesionales que desean visibilidad absoluta y olvidarse por completo de la complejidad tecnológica.',
@@ -146,23 +146,23 @@ export const es = {
           text: 'Hasta 3 horas incluidas al mes de soporte técnico para actualizar textos, cambiar fotografías o ajustar horarios.',
         },
       ],
-      excludesTitle: 'Fuera de este alcance (NO INCLUYE)',
+      excludesTitle: 'Funciones Integrables (BAJO COTIZACIÓN)',
       excludes: [
         {
-          label: 'Módulos de Comercio Electrónico',
-          text: 'No incluye pasarelas de pago automatizadas, carritos de compra ni inventarios dinámicos.',
+          label: 'E-Commerce y Pasarelas de Pago',
+          text: 'Carritos de compra, pasarelas automatizadas (Stripe/PayPal) e inventarios dinámicos integrables bajo cotización previa.',
         },
         {
-          label: 'Áreas de Miembros',
-          text: 'No incluye creación de cuentas de usuario, sistemas de contraseñas ni paneles de clientes internos.',
+          label: 'Plataformas y Áreas Privadas',
+          text: 'Módulos de inicio de sesión de usuario, paneles de clientes e intranets personalizables según los requerimientos de tu empresa.',
         },
         {
-          label: 'Modificaciones Estructurales',
-          text: 'No se altera el esqueleto del modelo gráfico elegido. Cambios fuera del molde se cotizan como ingeniería externa.',
+          label: 'Ingeniería y Módulos a la Medida',
+          text: 'Desarrollos a la medida, componentes exclusivos y flujos complejos construibles mediante cotización adicional.',
         },
         {
-          label: 'Horas No Acumulables',
-          text: 'Las 3 horas de soporte expiran al término del mes correspondiente y no se transfieren al siguiente periodo.',
+          label: 'Bolsas de Soporte Extendido',
+          text: 'Puedes cotizar paquetes de horas adicionales y mantenimiento técnico continuo para expandir tu proyecto bajo demanda.',
         },
       ],
       processTitle: 'Pipeline de Despliegue Atómico (Tu proceso en 5 días)',

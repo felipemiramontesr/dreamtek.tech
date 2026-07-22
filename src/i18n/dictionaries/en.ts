@@ -123,7 +123,7 @@ export const en = {
       },
     ],
     modal: {
-      tag: 'SME Technology Subscription',
+      tag: 'Technology Subscription for SMBs & Professionals',
       title: 'Digital Escort — StarterKit',
       description:
         'Your internet presence turnkey, designed for SMEs and professionals who want absolute visibility and to completely forget about technological complexity.',
@@ -146,23 +146,23 @@ export const en = {
           text: 'Up to 3 hours of technical support included per month to update texts, change photos, or adjust business hours.',
         },
       ],
-      excludesTitle: 'Out of this scope (DOES NOT INCLUDE)',
+      excludesTitle: 'Integrable Features (UPON QUOTE)',
       excludes: [
         {
-          label: 'E-commerce Modules',
-          text: 'Does not include automated payment gateways, shopping carts, or dynamic inventories.',
+          label: 'E-Commerce & Payment Gateways',
+          text: 'Custom shopping carts, automated payment gateways (Stripe/PayPal), and dynamic inventories integrable upon prior quote.',
         },
         {
-          label: 'Member Areas',
-          text: 'Does not include user account creation, password systems, or internal client portals.',
+          label: 'User Platforms & Member Portals',
+          text: 'User login modules, client dashboards, and private intranets customizable according to your company requirements.',
         },
         {
-          label: 'Structural Modifications',
-          text: 'The skeleton of the chosen template is not altered. Changes outside the template are quoted as external engineering.',
+          label: 'Custom Engineering & Modules',
+          text: 'Bespoke features, exclusive components, and complex workflows buildable via additional quotation.',
         },
         {
-          label: 'Non-Accumulative Hours',
-          text: 'The 3 hours of support expire at the end of the corresponding month and are not transferred to the next period.',
+          label: 'Extended Support Packages',
+          text: 'You can request extra support hour packages and continuous technical maintenance to expand your project on demand.',
         },
       ],
       processTitle: 'Atomic Deployment Pipeline (Your process in 5 days)',

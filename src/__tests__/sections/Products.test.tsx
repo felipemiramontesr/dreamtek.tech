@@ -51,23 +51,23 @@ describe('Products Component', () => {
     expect(screen.queryByText(es.products.modal.title)).not.toBeInTheDocument();
   });
 
-  it('debe cambiar entre pestañas móviles (INCLUYE, NO INCLUYE, PROCESO) dentro del modal', () => {
+  it('debe cambiar entre pestañas móviles (INCLUYE, BAJO COTIZACIÓN, PROCESO) dentro del modal', () => {
     render(<Products dict={es} />);
 
     fireEvent.click(screen.getByRole('button', { name: /Ver Alcance y Detalles/i }));
 
     const includesTab = screen.getByRole('button', { name: /^INCLUYE$/i });
-    const excludesTab = screen.getByRole('button', { name: /^NO INCLUYE$/i });
+    const excludesTab = screen.getByRole('button', { name: /^BAJO COTIZACIÓN$/i });
     const processTab = screen.getByRole('button', { name: /^PROCESO$/i });
 
     fireEvent.click(excludesTab);
-    expect(excludesTab.className).toContain('border-[#FF2D00]');
+    expect(excludesTab.className).toContain('border-sky-400');
 
     fireEvent.click(processTab);
-    expect(processTab.className).toContain('border-[#FF2D00]');
+    expect(processTab.className).toContain('border-emerald-400');
 
     fireEvent.click(includesTab);
-    expect(includesTab.className).toContain('border-[#FF2D00]');
+    expect(includesTab.className).toContain('border-emerald-400');
   });
 
   it('debe disparar el evento custom "select-service" y realizar scroll-smooth al hacer clic en el CTA del modal', () => {

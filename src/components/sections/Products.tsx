@@ -246,7 +246,7 @@ export function Products({ dict }: { dict: Dictionary }) {
           <SpaceBackground />
 
           {/* Modal Container */}
-          <div className="relative w-full h-full md:h-auto md:max-w-6xl md:max-h-[90vh] bg-[#001529]/95 border-0 md:border border-[#FF2D00]/15 rounded-none md:rounded-2xl p-6 md:p-10 shadow-2xl overflow-hidden animate-slide-up z-10 flex flex-col justify-between">
+          <div className="relative w-full h-full md:h-auto md:max-w-6xl md:max-h-[92vh] bg-[#001529]/95 border-0 md:border border-white/15 rounded-none md:rounded-2xl p-5 md:p-8 shadow-[0_0_50px_rgba(0,0,0,0.8)] overflow-hidden animate-slide-up z-10 flex flex-col justify-between">
             {/* Close Button */}
             <button
               onClick={() => setIsModalOpen(false)}
@@ -267,25 +267,25 @@ export function Products({ dict }: { dict: Dictionary }) {
             {/* Content */}
             <div className="relative z-10 flex-1 flex flex-col overflow-hidden">
               {/* Cabecera */}
-              <div className="mb-6 border-b border-white/10 pb-4 shrink-0">
-                <span className="inline-block text-[10px] sm:text-xs uppercase tracking-widest text-[#FF2D00] font-semibold mb-2 bg-[#FF2D00]/10 px-2.5 py-1 rounded-full border border-[#FF2D00]/20 font-sans">
+              <div className="mb-3 border-b border-white/10 pb-3 shrink-0">
+                <span className="inline-block text-[10px] sm:text-xs uppercase tracking-widest text-emerald-400 font-semibold mb-1.5 bg-emerald-500/10 px-2.5 py-1 rounded-full border border-emerald-500/20 font-sans">
                   {dict.products.modal.tag}
                 </span>
-                <h3 className="text-2xl md:text-4xl font-bold text-white mb-2 tracking-tight font-sans">
+                <h3 className="text-2xl md:text-3xl font-bold text-white mb-1 tracking-tight font-sans">
                   {dict.products.modal.title}
                 </h3>
-                <p className="text-white/70 font-light text-xs md:text-base max-w-2xl leading-relaxed">
+                <p className="text-white/70 font-light text-xs md:text-sm max-w-2xl leading-relaxed">
                   {dict.products.modal.description}
                 </p>
               </div>
 
               {/* Mobile Tabbed Switcher */}
-              <div className="flex border-b border-white/10 mb-4 justify-between md:hidden shrink-0">
+              <div className="flex border-b border-white/10 mb-3 justify-between md:hidden shrink-0">
                 <button
                   onClick={() => setActiveTab('includes')}
-                  className={`flex-1 text-center py-2.5 text-[10px] font-bold tracking-widest transition-all ${
+                  className={`flex-1 text-center py-2 text-[10px] font-bold tracking-widest transition-all ${
                     activeTab === 'includes'
-                      ? 'text-white border-b-2 border-[#FF2D00]'
+                      ? 'text-emerald-400 border-b-2 border-emerald-400'
                       : 'text-white/40'
                   }`}
                 >
@@ -293,19 +293,19 @@ export function Products({ dict }: { dict: Dictionary }) {
                 </button>
                 <button
                   onClick={() => setActiveTab('excludes')}
-                  className={`flex-1 text-center py-2.5 text-[10px] font-bold tracking-widest transition-all ${
+                  className={`flex-1 text-center py-2 text-[10px] font-bold tracking-widest transition-all ${
                     activeTab === 'excludes'
-                      ? 'text-white border-b-2 border-[#FF2D00]'
+                      ? 'text-sky-400 border-b-2 border-sky-400'
                       : 'text-white/40'
                   }`}
                 >
-                  {dict.whatsapp.help === 'Can we help you?' ? 'EXCLUDES' : 'NO INCLUYE'}
+                  {dict.whatsapp.help === 'Can we help you?' ? 'UPON QUOTE' : 'BAJO COTIZACIÓN'}
                 </button>
                 <button
                   onClick={() => setActiveTab('process')}
-                  className={`flex-1 text-center py-2.5 text-[10px] font-bold tracking-widest transition-all ${
+                  className={`flex-1 text-center py-2 text-[10px] font-bold tracking-widest transition-all ${
                     activeTab === 'process'
-                      ? 'text-white border-b-2 border-[#FF2D00]'
+                      ? 'text-emerald-400 border-b-2 border-emerald-400'
                       : 'text-white/40'
                   }`}
                 >
@@ -314,20 +314,20 @@ export function Products({ dict }: { dict: Dictionary }) {
               </div>
 
               {/* Mobile View Content */}
-              <div className="flex md:hidden flex-1 overflow-hidden py-2">
+              <div className="flex md:hidden flex-1 overflow-hidden py-1">
                 {activeTab === 'includes' && (
-                  <div className="glass-panel p-5 rounded-xl border border-white/10 flex-1 flex flex-col justify-between overflow-y-auto bg-black/40">
+                  <div className="glass-panel p-4 rounded-xl border border-emerald-500/20 flex-1 flex flex-col justify-between overflow-y-auto bg-black/40">
                     <div>
-                      <h4 className="text-white font-semibold text-xs uppercase tracking-wider border-l-2 border-[#FF2D00] pl-3 mb-3 font-sans">
+                      <h4 className="text-emerald-400 font-semibold text-xs uppercase tracking-wider border-l-2 border-emerald-400 pl-2.5 mb-3 font-sans">
                         {dict.products.modal.includesTitle}
                       </h4>
-                      <ul className="space-y-3">
+                      <ul className="space-y-2.5">
                         {dict.products.modal.includes.map((item, idx) => (
                           <li
                             key={idx}
                             className="flex items-start gap-2 text-xs text-white/80 font-light leading-relaxed"
                           >
-                            <span className="text-[#FF2D00] font-bold shrink-0">✓</span>
+                            <span className="text-emerald-400 font-bold shrink-0">✓</span>
                             <div>
                               <strong className="text-white font-medium">{item.label}:</strong>{' '}
                               {item.text}
@@ -340,18 +340,18 @@ export function Products({ dict }: { dict: Dictionary }) {
                 )}
 
                 {activeTab === 'excludes' && (
-                  <div className="glass-panel p-5 rounded-xl border border-white/10 flex-1 flex flex-col justify-between overflow-y-auto bg-black/40">
+                  <div className="glass-panel p-4 rounded-xl border border-sky-500/20 flex-1 flex flex-col justify-between overflow-y-auto bg-black/40">
                     <div>
-                      <h4 className="text-white font-semibold text-xs uppercase tracking-wider border-l-2 border-[#FF2D00] pl-3 mb-3 font-sans">
+                      <h4 className="text-sky-400 font-semibold text-xs uppercase tracking-wider border-l-2 border-sky-400 pl-2.5 mb-3 font-sans">
                         {dict.products.modal.excludesTitle}
                       </h4>
-                      <ul className="space-y-3">
+                      <ul className="space-y-2.5">
                         {dict.products.modal.excludes.map((item, idx) => (
                           <li
                             key={idx}
                             className="flex items-start gap-2 text-xs text-white/80 font-light leading-relaxed"
                           >
-                            <span className="text-[#FF2D00]/40 font-bold shrink-0">✕</span>
+                            <span className="text-sky-400 font-bold shrink-0">✦</span>
                             <div>
                               <strong className="text-white font-medium">{item.label}:</strong>{' '}
                               {item.text}
@@ -364,15 +364,15 @@ export function Products({ dict }: { dict: Dictionary }) {
                 )}
 
                 {activeTab === 'process' && (
-                  <div className="glass-panel p-5 rounded-xl border border-white/10 flex-1 flex flex-col justify-between overflow-y-auto bg-black/40">
+                  <div className="glass-panel p-4 rounded-xl border border-emerald-500/20 flex-1 flex flex-col justify-between overflow-y-auto bg-black/40">
                     <div>
-                      <h4 className="text-white font-semibold text-xs uppercase tracking-wider border-l-2 border-[#FF2D00] pl-3 mb-3 font-sans">
+                      <h4 className="text-emerald-400 font-semibold text-xs uppercase tracking-wider border-l-2 border-emerald-400 pl-2.5 mb-3 font-sans">
                         {dict.products.modal.processTitle}
                       </h4>
-                      <div className="space-y-4">
+                      <div className="space-y-3">
                         {dict.products.modal.processSteps.map((step, idx) => (
-                          <div key={idx} className="flex flex-col gap-1 relative z-10">
-                            <span className="text-[10px] uppercase tracking-widest text-[#FF2D00] font-bold font-sans">
+                          <div key={idx} className="flex flex-col gap-0.5 relative z-10">
+                            <span className="text-[10px] uppercase tracking-widest text-emerald-400 font-bold font-sans">
                               {step.title}
                             </span>
                             <p className="text-white/80 font-light text-[11px] leading-relaxed">
@@ -387,19 +387,19 @@ export function Products({ dict }: { dict: Dictionary }) {
               </div>
 
               {/* Desktop View Content (3 columns side-by-side) */}
-              <div className="hidden md:grid grid-cols-3 gap-6 flex-1 py-4 overflow-hidden items-stretch">
+              <div className="hidden md:grid grid-cols-3 gap-5 flex-1 py-2 overflow-hidden items-stretch mb-2">
                 {/* Includes Column */}
-                <div className="glass-panel p-6 rounded-xl border border-white/10 flex flex-col h-full bg-black/20">
-                  <h4 className="text-white font-semibold text-xs lg:text-sm uppercase tracking-wider border-l-2 border-[#FF2D00] pl-3 mb-4 font-sans shrink-0">
+                <div className="glass-panel p-5 rounded-xl border border-emerald-500/20 flex flex-col h-full bg-black/30 hover:border-emerald-500/30 transition-all duration-300">
+                  <h4 className="text-emerald-400 font-semibold text-xs lg:text-sm uppercase tracking-wider border-l-2 border-emerald-400 pl-3 mb-3 font-sans shrink-0">
                     {dict.products.modal.includesTitle}
                   </h4>
-                  <ul className="space-y-3.5 overflow-y-auto pr-1">
+                  <ul className="space-y-3 overflow-y-auto pr-2 pb-6 max-h-[42vh] md:max-h-[45vh]">
                     {dict.products.modal.includes.map((item, idx) => (
                       <li
                         key={idx}
                         className="flex items-start gap-2.5 text-xs lg:text-sm text-white/80 font-light leading-relaxed"
                       >
-                        <span className="text-[#FF2D00] font-bold shrink-0">✓</span>
+                        <span className="text-emerald-400 font-bold shrink-0">✓</span>
                         <div>
                           <strong className="text-white font-medium">{item.label}:</strong>{' '}
                           {item.text}
@@ -410,17 +410,17 @@ export function Products({ dict }: { dict: Dictionary }) {
                 </div>
 
                 {/* Excludes Column */}
-                <div className="glass-panel p-6 rounded-xl border border-white/10 flex flex-col h-full bg-black/20">
-                  <h4 className="text-white font-semibold text-xs lg:text-sm uppercase tracking-wider border-l-2 border-[#FF2D00] pl-3 mb-4 font-sans shrink-0">
+                <div className="glass-panel p-5 rounded-xl border border-sky-500/20 flex flex-col h-full bg-black/30 hover:border-sky-500/30 transition-all duration-300">
+                  <h4 className="text-sky-400 font-semibold text-xs lg:text-sm uppercase tracking-wider border-l-2 border-sky-400 pl-3 mb-3 font-sans shrink-0">
                     {dict.products.modal.excludesTitle}
                   </h4>
-                  <ul className="space-y-3.5 overflow-y-auto pr-1">
+                  <ul className="space-y-3 overflow-y-auto pr-2 pb-6 max-h-[42vh] md:max-h-[45vh]">
                     {dict.products.modal.excludes.map((item, idx) => (
                       <li
                         key={idx}
                         className="flex items-start gap-2.5 text-xs lg:text-sm text-white/80 font-light leading-relaxed"
                       >
-                        <span className="text-[#FF2D00]/40 font-bold shrink-0">✕</span>
+                        <span className="text-sky-400 font-bold shrink-0">✦</span>
                         <div>
                           <strong className="text-white font-medium">{item.label}:</strong>{' '}
                           {item.text}
@@ -431,14 +431,14 @@ export function Products({ dict }: { dict: Dictionary }) {
                 </div>
 
                 {/* Process Column */}
-                <div className="glass-panel p-6 rounded-xl border border-white/10 flex flex-col h-full bg-black/20">
-                  <h4 className="text-white font-semibold text-xs lg:text-sm uppercase tracking-wider border-l-2 border-[#FF2D00] pl-3 mb-4 font-sans shrink-0">
+                <div className="glass-panel p-5 rounded-xl border border-emerald-500/20 flex flex-col h-full bg-black/30 hover:border-emerald-500/30 transition-all duration-300">
+                  <h4 className="text-emerald-400 font-semibold text-xs lg:text-sm uppercase tracking-wider border-l-2 border-emerald-400 pl-3 mb-3 font-sans shrink-0">
                     {dict.products.modal.processTitle}
                   </h4>
-                  <div className="space-y-5 overflow-y-auto pr-1">
+                  <div className="space-y-4 overflow-y-auto pr-2 pb-6 max-h-[42vh] md:max-h-[45vh]">
                     {dict.products.modal.processSteps.map((step, idx) => (
-                      <div key={idx} className="flex flex-col gap-1 relative z-10">
-                        <span className="text-xs uppercase tracking-widest text-[#FF2D00] font-bold font-sans">
+                      <div key={idx} className="flex flex-col gap-0.5 relative z-10">
+                        <span className="text-xs uppercase tracking-widest text-emerald-400 font-bold font-sans">
                           {step.title}
                         </span>
                         <p className="text-white/80 font-light text-xs lg:text-sm leading-relaxed">
@@ -452,7 +452,7 @@ export function Products({ dict }: { dict: Dictionary }) {
             </div>
 
             {/* Footer / CTA del modal */}
-            <div className="border-t border-white/10 pt-4 md:pt-6 flex flex-col sm:flex-row justify-between items-center gap-4 md:gap-6 mt-auto shrink-0">
+            <div className="border-t border-white/10 pt-3 md:pt-4 flex flex-col sm:flex-row justify-between items-center gap-4 md:gap-6 mt-auto shrink-0 z-20">
               <div className="flex flex-col items-center sm:items-start text-center sm:text-left">
                 <div className="flex items-baseline gap-1.5">
                   <span className="text-xl md:text-2xl lg:text-3xl font-bold text-white">
