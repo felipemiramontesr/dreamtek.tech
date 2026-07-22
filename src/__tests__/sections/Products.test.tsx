@@ -64,7 +64,7 @@ describe('Products Component', () => {
     expect(excludesTab.className).toContain('border-sky-400');
 
     fireEvent.click(processTab);
-    expect(processTab.className).toContain('border-emerald-400');
+    expect(processTab.className).toContain('border-sky-400');
 
     fireEvent.click(includesTab);
     expect(includesTab.className).toContain('border-emerald-400');

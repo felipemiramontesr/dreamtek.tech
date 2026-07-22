@@ -246,7 +246,10 @@ export function Products({ dict }: { dict: Dictionary }) {
           <SpaceBackground />
 
           {/* Modal Container */}
-          <div className="relative w-full h-full md:h-auto md:max-w-6xl md:max-h-[92vh] bg-[#001529]/95 border-0 md:border border-white/15 rounded-none md:rounded-2xl p-5 md:p-8 shadow-[0_0_50px_rgba(0,0,0,0.8)] overflow-hidden animate-slide-up z-10 flex flex-col justify-between">
+          <div className="relative w-full h-full md:h-auto md:max-w-6xl md:max-h-[92vh] bg-gradient-to-br from-[#00213d] via-[#00172B] to-black border-0 md:border border-white/15 rounded-none md:rounded-2xl p-5 md:p-8 shadow-[0_0_50px_rgba(0,0,0,0.8)] overflow-hidden animate-slide-up z-10 flex flex-col justify-between">
+            {/* Decorative gradient radial glow mirroring Hero */}
+            <div className="absolute inset-0 z-0 pointer-events-none opacity-25 bg-[radial-gradient(circle_at_center,rgba(255,45,0,0.15)_0%,transparent_55%)]" />
+
             {/* Close Button */}
             <button
               onClick={() => setIsModalOpen(false)}
@@ -305,7 +308,7 @@ export function Products({ dict }: { dict: Dictionary }) {
                   onClick={() => setActiveTab('process')}
                   className={`flex-1 text-center py-2 text-[10px] font-bold tracking-widest transition-all ${
                     activeTab === 'process'
-                      ? 'text-emerald-400 border-b-2 border-emerald-400'
+                      ? 'text-sky-400 border-b-2 border-sky-400'
                       : 'text-white/40'
                   }`}
                 >
@@ -364,15 +367,15 @@ export function Products({ dict }: { dict: Dictionary }) {
                 )}
 
                 {activeTab === 'process' && (
-                  <div className="glass-panel p-4 rounded-xl border border-emerald-500/20 flex-1 flex flex-col justify-between overflow-y-auto bg-black/40">
+                  <div className="glass-panel p-4 rounded-xl border border-sky-500/20 flex-1 flex flex-col justify-between overflow-y-auto bg-black/40">
                     <div>
-                      <h4 className="text-emerald-400 font-semibold text-xs uppercase tracking-wider border-l-2 border-emerald-400 pl-2.5 mb-3 font-sans">
+                      <h4 className="text-sky-400 font-semibold text-xs uppercase tracking-wider border-l-2 border-sky-400 pl-2.5 mb-3 font-sans">
                         {dict.products.modal.processTitle}
                       </h4>
                       <div className="space-y-3">
                         {dict.products.modal.processSteps.map((step, idx) => (
                           <div key={idx} className="flex flex-col gap-0.5 relative z-10">
-                            <span className="text-[10px] uppercase tracking-widest text-emerald-400 font-bold font-sans">
+                            <span className="text-[10px] uppercase tracking-widest text-sky-400 font-bold font-sans">
                               {step.title}
                             </span>
                             <p className="text-white/80 font-light text-[11px] leading-relaxed">
@@ -431,14 +434,14 @@ export function Products({ dict }: { dict: Dictionary }) {
                 </div>
 
                 {/* Process Column */}
-                <div className="glass-panel p-5 rounded-xl border border-emerald-500/20 flex flex-col h-full bg-black/30 hover:border-emerald-500/30 transition-all duration-300">
-                  <h4 className="text-emerald-400 font-semibold text-xs lg:text-sm uppercase tracking-wider border-l-2 border-emerald-400 pl-3 mb-3 font-sans shrink-0">
+                <div className="glass-panel p-5 rounded-xl border border-sky-500/20 flex flex-col h-full bg-black/30 hover:border-sky-500/30 transition-all duration-300">
+                  <h4 className="text-sky-400 font-semibold text-xs lg:text-sm uppercase tracking-wider border-l-2 border-sky-400 pl-3 mb-3 font-sans shrink-0">
                     {dict.products.modal.processTitle}
                   </h4>
                   <div className="space-y-4 overflow-y-auto pr-2 pb-6 max-h-[42vh] md:max-h-[45vh]">
                     {dict.products.modal.processSteps.map((step, idx) => (
                       <div key={idx} className="flex flex-col gap-0.5 relative z-10">
-                        <span className="text-xs uppercase tracking-widest text-emerald-400 font-bold font-sans">
+                        <span className="text-xs uppercase tracking-widest text-sky-400 font-bold font-sans">
                           {step.title}
                         </span>
                         <p className="text-white/80 font-light text-xs lg:text-sm leading-relaxed">
