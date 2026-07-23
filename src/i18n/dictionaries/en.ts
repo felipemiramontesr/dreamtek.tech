@@ -63,7 +63,7 @@ export const en = {
       {
         id: 'starterkit',
         badge: '',
-        title: 'Digital Escort - Web Positioning',
+        title: 'Web Escort — Positioning',
         price: '$2,900.00 MXN',
         annualPrice: '$2,900.00 MXN',
         annualTotal: '',
