@@ -271,7 +271,7 @@ export function Products({ dict }: { dict: Dictionary }) {
                 : 'text-white/40'
             }`}
           >
-            {dict.whatsapp.help === 'Can we help you?' ? 'INCLUDES' : 'INCLUYE'}
+            {dict.products.modal.tabs.includes}
           </button>
           <button
             onClick={() => setActiveTab('excludes')}
@@ -279,7 +279,7 @@ export function Products({ dict }: { dict: Dictionary }) {
               activeTab === 'excludes' ? 'text-sky-400 border-b-2 border-sky-400' : 'text-white/40'
             }`}
           >
-            {dict.whatsapp.help === 'Can we help you?' ? 'UPON QUOTE' : 'BAJO COTIZACIÓN'}
+            {dict.products.modal.tabs.excludes}
           </button>
           <button
             onClick={() => setActiveTab('process')}
@@ -287,7 +287,7 @@ export function Products({ dict }: { dict: Dictionary }) {
               activeTab === 'process' ? 'text-sky-400 border-b-2 border-sky-400' : 'text-white/40'
             }`}
           >
-            {dict.whatsapp.help === 'Can we help you?' ? 'PROCESS' : 'PROCESO'}
+            {dict.products.modal.tabs.process}
           </button>
         </div>
 

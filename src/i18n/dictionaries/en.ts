@@ -83,7 +83,7 @@ export const en = {
       {
         id: 'archon-fleet',
         badge: '',
-        title: 'ARCHON — Fleet Manager',
+        title: 'ARCHON — Fleet Management',
         price: 'Bespoke',
         annualPrice: 'Bespoke',
         annualTotal: 'Subject to SLA',
@@ -125,7 +125,12 @@ export const en = {
     ],
     modal: {
       tag: 'Technology Subscription for SMBs & Professionals',
-      title: 'Digital Escort — StarterKit',
+      title: 'Web Escort — Positioning',
+      tabs: {
+        includes: 'INCLUDES',
+        excludes: 'UPON QUOTE',
+        process: 'PROCESS',
+      },
       description:
         'Your internet presence turnkey, designed for SMEs and professionals who want absolute visibility and to completely forget about technological complexity.',
       includesTitle: 'What is resolved for you (INCLUDES)',

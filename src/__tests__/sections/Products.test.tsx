@@ -28,13 +28,13 @@ describe('Products Component', () => {
     const openModalBtn = screen.getByRole('button', { name: /Ver Alcance y Detalles/i });
     fireEvent.click(openModalBtn);
 
-    expect(screen.getByText(es.products.modal.title)).toBeInTheDocument();
+    expect(screen.getByText(es.products.modal.description)).toBeInTheDocument();
     expect(document.body.classList.contains('modal-open')).toBe(true);
 
     const closeModalBtn = screen.getByRole('button', { name: /Cerrar modal/i });
     fireEvent.click(closeModalBtn);
 
-    expect(screen.queryByText(es.products.modal.title)).not.toBeInTheDocument();
+    expect(screen.queryByText(es.products.modal.description)).not.toBeInTheDocument();
     expect(document.body.classList.contains('modal-open')).toBe(false);
   });
 
@@ -42,13 +42,13 @@ describe('Products Component', () => {
     const { container } = render(<Products dict={es} />);
 
     fireEvent.click(screen.getByRole('button', { name: /Ver Alcance y Detalles/i }));
-    expect(screen.getByText(es.products.modal.title)).toBeInTheDocument();
+    expect(screen.getByText(es.products.modal.description)).toBeInTheDocument();
 
     const backdrop = container.querySelector('.fixed.inset-0 > .absolute.inset-0');
     expect(backdrop).toBeInTheDocument();
 
     fireEvent.click(backdrop!);
-    expect(screen.queryByText(es.products.modal.title)).not.toBeInTheDocument();
+    expect(screen.queryByText(es.products.modal.description)).not.toBeInTheDocument();
   });
 
   it('debe cambiar entre pestañas móviles (INCLUYE, BAJO COTIZACIÓN, PROCESO) dentro del modal', () => {

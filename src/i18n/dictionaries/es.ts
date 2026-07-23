@@ -83,7 +83,7 @@ export const es = {
       {
         id: 'archon-fleet',
         badge: '',
-        title: 'ARCHON — Fleet Manager',
+        title: 'ARCHON — Gestión de Flotas',
         price: 'Bespoke',
         annualPrice: 'Bespoke',
         annualTotal: 'Sujeto a SLA',
@@ -104,7 +104,7 @@ export const es = {
       {
         id: 'cyber-audit',
         badge: '',
-        title: 'Forensic & Cyber Audit',
+        title: 'Auditoría Forense & Ciberseguridad',
         price: '$1,800',
         annualPrice: '$1,800',
         annualTotal: '$1,800',
@@ -125,7 +125,12 @@ export const es = {
     ],
     modal: {
       tag: 'Suscripción tecnológica para PyMEs y Profesionales',
-      title: 'Escolta Digital — StarterKit',
+      title: 'Escolta WEB — Posicionamiento',
+      tabs: {
+        includes: 'INCLUYE',
+        excludes: 'BAJO COTIZACIÓN',
+        process: 'PROCESO',
+      },
       description:
         'Tu presencia en internet llave en mano, diseñada para PyMEs y profesionales que desean visibilidad absoluta y olvidarse por completo de la complejidad tecnológica.',
       includesTitle: 'Lo que está resuelto para ti (INCLUYE)',
