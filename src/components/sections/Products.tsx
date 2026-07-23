@@ -226,7 +226,7 @@ export function Products({ dict }: { dict: Dictionary }) {
             <div className="flex flex-col items-center sm:items-start text-center sm:text-left">
               <div className="flex items-baseline gap-1.5">
                 <span className="text-xl md:text-2xl lg:text-3xl font-bold text-white">
-                  $2,900.00 MXN
+                  {dict.products.plans[0].price}
                 </span>
                 <span className="text-white/40 text-xs md:text-sm font-light">
                   {dict.products.modal.priceSuffix}
