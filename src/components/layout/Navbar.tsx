@@ -36,6 +36,7 @@ export function Navbar({ dict, lang = 'es' }: { dict: Dictionary; lang?: 'es' | 
   }, [isOpen]);
 
   const NAV_LINKS = [
+    { label: dict.navbar.home, href: '#inicio' },
     { label: dict.navbar.services, href: '#servicios' },
     { label: dict.navbar.products, href: '#productos' },
     { label: dict.navbar.differential, href: '#diferencial' },

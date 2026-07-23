@@ -28,6 +28,7 @@ describe('Navbar Component', () => {
     render(<Navbar dict={es} lang="es" />);
 
     expect(screen.getByText('Dreamtek')).toBeInTheDocument();
+    expect(screen.getAllByRole('link', { name: es.navbar.home }).length).toBeGreaterThan(0);
     expect(screen.getAllByRole('link', { name: es.navbar.services }).length).toBeGreaterThan(0);
     expect(screen.getAllByRole('link', { name: es.navbar.products }).length).toBeGreaterThan(0);
     expect(screen.getAllByRole('link', { name: es.navbar.differential }).length).toBeGreaterThan(0);

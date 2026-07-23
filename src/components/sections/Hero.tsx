@@ -13,7 +13,10 @@ type Dictionary = typeof es;
 
 export function Hero({ dict }: { dict: Dictionary }) {
   return (
-    <section className="relative min-h-screen flex items-center justify-center pt-20 overflow-hidden bg-gradient-to-br from-[#00213d] via-[#00172B] to-black">
+    <section
+      id="inicio"
+      className="relative min-h-screen flex items-center justify-center pt-20 scroll-mt-0 overflow-hidden bg-gradient-to-br from-[#00213d] via-[#00172B] to-black"
+    >
       {/* Space Background HTML5 Canvas */}
       <SpaceBackground />
 

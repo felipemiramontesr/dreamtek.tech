@@ -3,6 +3,7 @@ export const en = {
     help: 'Can we help you?',
   },
   navbar: {
+    home: 'Home',
     services: 'Services',
     products: 'Products',
     differential: 'Differential',
