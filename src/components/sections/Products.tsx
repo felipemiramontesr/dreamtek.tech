@@ -318,7 +318,7 @@ export function Products({ dict }: { dict: Dictionary }) {
           )}
 
           {activeTab === 'excludes' && (
-            <div className="glass-panel p-4 rounded-xl border border-sky-500/20 flex-1 flex flex-col justify-between overflow-y-auto bg-white/[0.04] backdrop-blur-md">
+            <div className="glass-panel p-4 rounded-xl border border-sky-500/20 flex-1 flex flex-col justify-between overflow-hidden bg-white/[0.04] backdrop-blur-md">
               <div>
                 <h4 className="text-sky-400 font-semibold text-xs uppercase tracking-wider border-l-2 border-sky-400 pl-2.5 mb-3 font-sans">
                   {dict.products.modal.excludesTitle}
@@ -391,7 +391,7 @@ export function Products({ dict }: { dict: Dictionary }) {
             <h4 className="text-sky-400 font-semibold text-xs lg:text-sm uppercase tracking-wider border-l-2 border-sky-400 pl-3 mb-3 font-sans shrink-0">
               {dict.products.modal.excludesTitle}
             </h4>
-            <ul className="space-y-3 overflow-y-auto pr-2 pb-6 max-h-[42vh] md:max-h-[45vh]">
+            <ul className="space-y-3">
               {dict.products.modal.excludes.map((item, idx) => (
                 <li
                   key={idx}
