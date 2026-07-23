@@ -21,12 +21,12 @@ describe('Products Billing Toggle (TDD)', () => {
     expect(screen.getByText(es.products.plans[1].price)).toBeInTheDocument();
     expect(screen.getByText(es.products.plans[2].price)).toBeInTheDocument();
 
-    // No debe haber badge de "20% OFF" o "Ahorra 20%" activo por defecto
-    expect(screen.queryByText(/Ahorra 20%/)).not.toBeInTheDocument();
+    // No debe haber badge de "Ahorra 10%" activo por defecto
+    expect(screen.queryByText(/Ahorra 10%/)).not.toBeInTheDocument();
     expect(screen.queryByText(/facturado al año/i)).not.toBeInTheDocument();
   });
 
-  it('debe aplicar descuento del 20% e indicar cobro anual al activar el toggle', () => {
+  it('debe aplicar descuento del 10% e indicar cobro anual al activar el toggle', () => {
     render(<Products dict={es} />);
 
     const toggle = screen.getByRole('checkbox', { name: /facturación anual/i });
@@ -35,9 +35,9 @@ describe('Products Billing Toggle (TDD)', () => {
     fireEvent.click(toggle);
 
     // Debe mostrarse el badge de ahorro
-    expect(screen.getAllByText(/Ahorra 20%/i).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/Ahorra 10%/i).length).toBeGreaterThan(0);
 
-    // Los precios deben cambiar aplicando el 20% de descuento (usamos valores del dict)
+    // Los precios deben cambiar aplicando el 10% de descuento (usamos valores del dict)
     expect(screen.getByText(es.products.plans[0].annualPrice)).toBeInTheDocument();
     expect(screen.getByText(es.products.plans[1].annualPrice)).toBeInTheDocument();
     expect(screen.getByText(es.products.plans[2].annualPrice)).toBeInTheDocument();
@@ -86,7 +86,7 @@ describe('Products Billing Toggle (TDD)', () => {
     expect(screen.getByText(es.products.plans[1].price)).toBeInTheDocument();
     expect(screen.getByText(es.products.plans[2].price)).toBeInTheDocument();
 
-    expect(screen.queryByText(/Ahorra 20%/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Ahorra 10%/)).not.toBeInTheDocument();
     expect(screen.queryByText(/facturado al año/i)).not.toBeInTheDocument();
   });
 });
