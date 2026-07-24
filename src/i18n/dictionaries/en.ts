@@ -187,7 +187,7 @@ export const en = {
           text: 'We validate your forms, activate the security shield, and your site is officially escorted live.',
         },
       ],
-      ctaText: 'Start my Digital Escort Process',
+      ctaText: 'Start my Web Positioning',
       taxNote: '100% tax-deductible monthly billing',
       annualTaxNote: '100% tax-deductible annual billing',
       priceSuffix: ' + VAT / month',

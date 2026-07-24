@@ -187,7 +187,7 @@ export const es = {
           text: 'Validamos tus formularios, activamos el blindaje de seguridad y tu sitio queda oficialmente escoltado en vivo.',
         },
       ],
-      ctaText: 'Iniciar mi Proceso de Escolta Digital',
+      ctaText: 'Iniciar mi Posicionamiento Web',
       taxNote: 'Facturación mensual 100% deducible',
       annualTaxNote: 'Facturación anual 100% deducible',
       priceSuffix: ' + IVA / mes',
