@@ -231,19 +231,53 @@ export function Products({ dict }: { dict: Dictionary }) {
         tagColor="emerald"
         title={dict.products.modal.title}
         description={dict.products.modal.description}
+        headerAction={
+          <div className="flex items-center gap-3">
+            <span
+              className={`text-xs sm:text-sm font-medium transition-colors duration-200 ${!isAnnual ? 'text-white' : 'text-white/40'}`}
+            >
+              {dict.products.monthly}
+            </span>
+            <label className="relative inline-flex items-center cursor-pointer select-none">
+              <input
+                type="checkbox"
+                aria-label="Facturación anual modal"
+                checked={isAnnual}
+                onChange={(e) => setIsAnnual(e.target.checked)}
+                className="sr-only peer"
+              />
+              <div className="w-11 h-6 bg-white/10 border border-white/20 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-5 after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-[#FF2D00] after:border-none after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-white/15 duration-300 transition-all shadow-[inset_0_0_4px_rgba(0,0,0,0.4)]" />
+            </label>
+            <div className="flex items-center gap-2">
+              <span
+                className={`text-xs sm:text-sm font-medium transition-colors duration-200 ${isAnnual ? 'text-white' : 'text-white/40'}`}
+              >
+                {dict.products.annual}
+              </span>
+              {isAnnual && (
+                <span className="text-[10px] sm:text-xs bg-[#FF2D00] text-white px-2 py-0.5 rounded-full font-bold shadow-[0_0_10px_rgba(255,45,0,0.4)] animate-pulse">
+                  {dict.products.save}
+                </span>
+              )}
+            </div>
+          </div>
+        }
         footer={
           <>
             <div className="flex flex-col items-center sm:items-start text-center sm:text-left">
               <div className="flex items-baseline gap-1.5">
-                <span className="text-xl md:text-2xl lg:text-3xl font-bold text-white">
-                  {dict.products.plans[0].price}
+                <span className="text-xl md:text-2xl lg:text-3xl font-bold text-white transition-all duration-300">
+                  {isAnnual ? dict.products.plans[0].annualPrice : dict.products.plans[0].price}
                 </span>
                 <span className="text-white/40 text-xs md:text-sm font-light">
                   {dict.products.modal.priceSuffix}
                 </span>
               </div>
               <span className="text-[10px] md:text-xs text-white/50 font-light mt-0.5">
-                {dict.products.modal.taxNote}
+                {isAnnual
+                  ? (dict.products.modal as { annualTaxNote?: string }).annualTaxNote ||
+                    dict.products.modal.taxNote
+                  : dict.products.modal.taxNote}
               </span>
             </div>
             <Button

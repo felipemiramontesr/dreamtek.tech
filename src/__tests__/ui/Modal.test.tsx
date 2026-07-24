@@ -28,6 +28,7 @@ describe('Modal Component', () => {
         tagColor="emerald"
         title="Modal Title Test"
         description="Modal Description Test"
+        headerAction={<button>Header Switch Test</button>}
         footer={<button>CTA Footer</button>}
       >
         <div>Modal Children Content</div>
@@ -37,6 +38,7 @@ describe('Modal Component', () => {
     expect(screen.getByText('TAG TEST')).toBeInTheDocument();
     expect(screen.getByText('Modal Title Test')).toBeInTheDocument();
     expect(screen.getByText('Modal Description Test')).toBeInTheDocument();
+    expect(screen.getByText('Header Switch Test')).toBeInTheDocument();
     expect(screen.getByText('Modal Children Content')).toBeInTheDocument();
     expect(screen.getByText('CTA Footer')).toBeInTheDocument();
 

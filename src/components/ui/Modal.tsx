@@ -21,6 +21,8 @@ export interface ModalProps {
   title?: React.ReactNode;
   /** Descripción o subtítulo del modal */
   description?: React.ReactNode;
+  /** Acción o componente extra en la cabecera (ej: switch de facturación) */
+  headerAction?: React.ReactNode;
   /** Contenido principal del cuerpo del modal */
   children: React.ReactNode;
   /** Contenido o barra del footer/CTA */
@@ -42,6 +44,7 @@ export function Modal({
   tagColor = 'emerald',
   title,
   description,
+  headerAction,
   children,
   footer,
   className = '',
@@ -119,24 +122,31 @@ export function Modal({
         {/* Contenido Principal */}
         <div className="relative z-10 flex-1 flex flex-col overflow-hidden">
           {/* Cabecera */}
-          {(tag || title || description) && (
-            <div className="mb-3 border-b border-white/10 pb-3 shrink-0">
-              {tag && (
-                <span
-                  className={`inline-block text-[10px] sm:text-xs uppercase tracking-widest font-semibold mb-1.5 px-2.5 py-1 rounded-full border font-sans ${tagColorClasses}`}
-                >
-                  {tag}
-                </span>
-              )}
-              {title && (
-                <h3 className="text-2xl md:text-3xl font-bold text-white mb-1 tracking-tight font-sans">
-                  {title}
-                </h3>
-              )}
-              {description && (
-                <p className="text-white/70 font-light text-xs md:text-sm max-w-2xl leading-relaxed">
-                  {description}
-                </p>
+          {(tag || title || description || headerAction) && (
+            <div className="mb-3 border-b border-white/10 pb-3 shrink-0 flex flex-col md:flex-row md:items-center justify-between gap-4 pr-10 md:pr-14">
+              <div className="flex-1">
+                {tag && (
+                  <span
+                    className={`inline-block text-[10px] sm:text-xs uppercase tracking-widest font-semibold mb-1.5 px-2.5 py-1 rounded-full border font-sans ${tagColorClasses}`}
+                  >
+                    {tag}
+                  </span>
+                )}
+                {title && (
+                  <h3 className="text-2xl md:text-3xl font-bold text-white mb-1 tracking-tight font-sans">
+                    {title}
+                  </h3>
+                )}
+                {description && (
+                  <p className="text-white/70 font-light text-xs md:text-sm max-w-2xl leading-relaxed">
+                    {description}
+                  </p>
+                )}
+              </div>
+              {headerAction && (
+                <div className="flex items-center shrink-0 self-start md:self-center">
+                  {headerAction}
+                </div>
               )}
             </div>
           )}

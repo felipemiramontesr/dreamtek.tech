@@ -189,6 +189,7 @@ export const en = {
       ],
       ctaText: 'Start my Digital Escort Process',
       taxNote: '100% tax-deductible monthly billing',
+      annualTaxNote: '100% tax-deductible annual billing',
       priceSuffix: ' + VAT / month',
     },
   },

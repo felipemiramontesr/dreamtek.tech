@@ -189,6 +189,7 @@ export const es = {
       ],
       ctaText: 'Iniciar mi Proceso de Escolta Digital',
       taxNote: 'Facturación mensual 100% deducible',
+      annualTaxNote: 'Facturación anual 100% deducible',
       priceSuffix: ' + IVA / mes',
     },
   },
