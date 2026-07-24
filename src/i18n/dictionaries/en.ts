@@ -71,6 +71,7 @@ export const en = {
         period: 'month',
         priceSuffix: ' + VAT / month',
         subPriceText: 'Pure Subscription — 100% tax-deductible monthly billing',
+        annualSubPriceText: 'Pure Subscription — 100% tax-deductible annual billing',
         description:
           'Web presence with total infrastructure. We design, set up, and protect your window to the digital market.',
         features: [

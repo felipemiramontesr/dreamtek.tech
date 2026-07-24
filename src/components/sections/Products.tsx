@@ -36,6 +36,8 @@ export function Products({ dict }: { dict: Dictionary }) {
       badge: dict.products.plans[0].badge,
       priceSuffix: dict.products.plans[0].priceSuffix,
       subPriceText: dict.products.plans[0].subPriceText,
+      annualSubPriceText: (dict.products.plans[0] as { annualSubPriceText?: string })
+        .annualSubPriceText,
     },
     {
       id: 'archon-fleet',
@@ -51,6 +53,8 @@ export function Products({ dict }: { dict: Dictionary }) {
       badge: dict.products.plans[1].badge,
       priceSuffix: dict.products.plans[1].priceSuffix,
       subPriceText: dict.products.plans[1].subPriceText,
+      annualSubPriceText: (dict.products.plans[1] as { annualSubPriceText?: string })
+        .annualSubPriceText,
     },
     {
       id: 'cyber-audit',
@@ -66,6 +70,8 @@ export function Products({ dict }: { dict: Dictionary }) {
       badge: dict.products.plans[2].badge,
       priceSuffix: dict.products.plans[2].priceSuffix,
       subPriceText: dict.products.plans[2].subPriceText,
+      annualSubPriceText: (dict.products.plans[2] as { annualSubPriceText?: string })
+        .annualSubPriceText,
     },
   ];
 
@@ -159,7 +165,9 @@ export function Products({ dict }: { dict: Dictionary }) {
                   </div>
                   {plan.subPriceText && (
                     <span className="text-xs text-white/50 font-light mt-2 block">
-                      {plan.subPriceText}
+                      {isAnnual && plan.annualSubPriceText
+                        ? plan.annualSubPriceText
+                        : plan.subPriceText}
                     </span>
                   )}
                   {isAnnual && plan.annualTotal && (

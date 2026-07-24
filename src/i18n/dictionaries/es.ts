@@ -71,6 +71,7 @@ export const es = {
         period: 'mes',
         priceSuffix: ' + IVA / mes',
         subPriceText: 'Suscripción Pura — Facturación mensual 100% deducible',
+        annualSubPriceText: 'Suscripción Pura — Facturación anual 100% deducible',
         description:
           'Presencia Web con infraestructura total. Diseñamos, montamos y protegemos tu ventana al mercado digital.',
         features: [
