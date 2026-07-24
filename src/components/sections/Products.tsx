@@ -170,12 +170,14 @@ export function Products({ dict }: { dict: Dictionary }) {
                         : plan.subPriceText}
                     </span>
                   )}
-                  {isAnnual && plan.annualTotal && (
-                    <span className="text-xs text-[#FF2D00] font-medium tracking-wide mt-2 animate-fade-in block">
-                      {dict.products.billedAnnually}
-                      {plan.annualTotal}
-                    </span>
-                  )}
+                  <span
+                    className={`text-xs text-[#FF2D00] font-medium tracking-wide mt-2 block transition-opacity duration-300 min-h-[20px] ${
+                      isAnnual && plan.annualTotal ? 'opacity-100' : 'opacity-0 pointer-events-none'
+                    }`}
+                  >
+                    {dict.products.billedAnnually}
+                    {plan.annualTotal || '\u00A0'}
+                  </span>
                 </div>
 
                 <ul className="space-y-4 mb-8">

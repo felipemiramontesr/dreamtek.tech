@@ -21,9 +21,13 @@ describe('Products Billing Toggle (TDD)', () => {
     expect(screen.getByText(es.products.plans[1].price)).toBeInTheDocument();
     expect(screen.getByText(es.products.plans[2].price)).toBeInTheDocument();
 
-    // No debe haber badge de "Ahorra 10%" activo por defecto
-    expect(screen.queryByText(/Ahorra 10%/)).not.toBeInTheDocument();
-    expect(screen.queryByText(/facturado al año/i)).not.toBeInTheDocument();
+    // El texto de cobro anual debe estar oculto con opacity-0 por defecto
+    const annualTotalElement = screen.getByText(
+      (content) =>
+        content.includes(es.products.billedAnnually.trim()) &&
+        content.includes(es.products.plans[0].annualTotal),
+    );
+    expect(annualTotalElement.className).toContain('opacity-0');
   });
 
   it('debe aplicar descuento del 10% e indicar cobro anual al activar el toggle', () => {
@@ -42,34 +46,13 @@ describe('Products Billing Toggle (TDD)', () => {
     expect(screen.getByText(es.products.plans[1].annualPrice)).toBeInTheDocument();
     expect(screen.getByText(es.products.plans[2].annualPrice)).toBeInTheDocument();
 
-    // Debe mostrar la etiqueta de cobro anual para los planes que tengan total anual definido
-    if (es.products.plans[0].annualTotal) {
-      expect(
-        screen.getByText(
-          (content) =>
-            content.includes(es.products.billedAnnually.trim()) &&
-            content.includes(es.products.plans[0].annualTotal),
-        ),
-      ).toBeInTheDocument();
-    }
-    if (es.products.plans[1].annualTotal) {
-      expect(
-        screen.getByText(
-          (content) =>
-            content.includes(es.products.billedAnnually.trim()) &&
-            content.includes(es.products.plans[1].annualTotal),
-        ),
-      ).toBeInTheDocument();
-    }
-    if (es.products.plans[2].annualTotal) {
-      expect(
-        screen.getByText(
-          (content) =>
-            content.includes(es.products.billedAnnually.trim()) &&
-            content.includes(es.products.plans[2].annualTotal),
-        ),
-      ).toBeInTheDocument();
-    }
+    // Debe mostrar la etiqueta de cobro anual visible (opacity-100) para el plan con total anual
+    const annualTotalElementActive = screen.getByText(
+      (content) =>
+        content.includes(es.products.billedAnnually.trim()) &&
+        content.includes(es.products.plans[0].annualTotal),
+    );
+    expect(annualTotalElementActive.className).toContain('opacity-100');
   });
 
   it('debe retornar a precios mensuales al desactivar el toggle', () => {
@@ -87,6 +70,11 @@ describe('Products Billing Toggle (TDD)', () => {
     expect(screen.getByText(es.products.plans[2].price)).toBeInTheDocument();
 
     expect(screen.queryByText(/Ahorra 10%/)).not.toBeInTheDocument();
-    expect(screen.queryByText(/facturado al año/i)).not.toBeInTheDocument();
+    const annualTotalElementHidden = screen.getByText(
+      (content) =>
+        content.includes(es.products.billedAnnually.trim()) &&
+        content.includes(es.products.plans[0].annualTotal),
+    );
+    expect(annualTotalElementHidden.className).toContain('opacity-0');
   });
 });
