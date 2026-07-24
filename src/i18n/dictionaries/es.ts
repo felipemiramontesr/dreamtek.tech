@@ -67,7 +67,7 @@ export const es = {
         title: 'Escolta WEB — Posicionamiento',
         price: '$2,899.00 MXN',
         annualPrice: '$2,599.00 MXN',
-        annualTotal: '$31,188.00 MXN',
+        annualTotal: '$31,188.00 MXN + IVA',
         period: 'mes',
         priceSuffix: ' + IVA / mes',
         subPriceText: 'Suscripción Pura — Facturación mensual 100% deducible',

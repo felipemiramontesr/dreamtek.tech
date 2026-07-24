@@ -67,7 +67,7 @@ export const en = {
         title: 'Web Escort — Positioning',
         price: '$2,899.00 MXN',
         annualPrice: '$2,599.00 MXN',
-        annualTotal: '$31,188.00 MXN',
+        annualTotal: '$31,188.00 MXN + VAT',
         period: 'month',
         priceSuffix: ' + VAT / month',
         subPriceText: 'Pure Subscription — 100% tax-deductible monthly billing',
