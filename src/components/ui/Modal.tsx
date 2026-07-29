@@ -36,6 +36,11 @@ export interface ModalProps {
 /**
  * Componente Modal Reutilizable con el fondo de degradado diagonal en dos tonos del Hero,
  * lienzo espacial `SpaceBackground`, accesibilidad ARIA, manejo de tecla ESC y bloqueo de scroll.
+ * 
+ * Regla de Espaciado Matemático (Reglas 1 y 2):
+ * Espacio Superior (Top) = 1/2 del Espacio Lateral (Left/Right)
+ * Espacio Inferior (Bottom) = 1/2 del Espacio Lateral (Left/Right)
+ * Overlay: px-[4vw] py-[2vw] (Top/Bottom = 2vw, Left/Right = 4vw -> Top/Bottom = 1/2 Left/Right).
  */
 export function Modal({
   isOpen,
@@ -48,7 +53,7 @@ export function Modal({
   children,
   footer,
   className = '',
-  maxWidth = 'md:max-w-6xl',
+  maxWidth = 'max-w-[92vw] lg:max-w-7xl',
 }: ModalProps) {
   // Manejador de tecla ESC y bloqueo de scroll en body
   useEffect(() => {
@@ -81,7 +86,7 @@ export function Modal({
 
   return (
     <div
-      className="fixed inset-0 z-[300] flex items-center justify-center p-0 md:p-12 overflow-hidden bg-gradient-to-br from-[#002e52]/95 via-[#00172B]/95 to-black/98 backdrop-blur-2xl animate-fade-in transition-all duration-300"
+      className="fixed inset-0 z-[300] flex items-center justify-center px-[3vw] py-[1.5vw] md:px-[4vw] md:py-[2vw] overflow-hidden bg-gradient-to-br from-[#002e52]/95 via-[#00172B]/95 to-black/98 backdrop-blur-2xl animate-fade-in transition-all duration-300"
       role="dialog"
       aria-modal="true"
     >
@@ -97,7 +102,7 @@ export function Modal({
 
       {/* Contenedor del Modal */}
       <div
-        className={`relative w-full h-full md:h-auto ${maxWidth} md:max-h-[92vh] bg-gradient-to-br from-[#002e52] via-[#00172B] to-[#000814] border-0 md:border border-white/20 rounded-none md:rounded-2xl p-5 md:p-8 shadow-[0_0_80px_rgba(0,0,0,0.9)] overflow-hidden animate-slide-up z-10 flex flex-col justify-between ${className}`}
+        className={`relative w-full h-full ${maxWidth} bg-gradient-to-br from-[#002e52] via-[#00172B] to-[#000814] border border-white/20 rounded-2xl p-4 md:p-6 lg:p-7 shadow-[0_0_80px_rgba(0,0,0,0.9)] overflow-hidden animate-slide-up z-10 flex flex-col justify-between ${className}`}
       >
         {/* Resplandor radial decorativo idéntico al Hero */}
         <div className="absolute inset-0 z-0 pointer-events-none opacity-30 bg-[radial-gradient(circle_at_center,rgba(255,45,0,0.15)_0%,transparent_55%)]" />
@@ -151,13 +156,13 @@ export function Modal({
             </div>
           )}
 
-          {/* Cuerpo inyectado */}
-          {children}
+          {/* Cuerpo Principal (Zero Scrollbars) */}
+          <div className="flex-1 flex flex-col overflow-hidden py-1">{children}</div>
         </div>
 
-        {/* Footer / Barra de CTA inyectada */}
+        {/* Pie de Modal / Footer CTA */}
         {footer && (
-          <div className="border-t border-white/10 pt-3 md:pt-4 flex flex-col sm:flex-row justify-between items-center gap-4 md:gap-6 mt-auto shrink-0 z-20">
+          <div className="relative z-10 pt-3 border-t border-white/10 flex flex-col sm:flex-row items-center justify-between gap-4 shrink-0 mt-2">
             {footer}
           </div>
         )}

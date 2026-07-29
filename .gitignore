@@ -1,7 +1,10 @@
 # See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
 
 # dependencies
+node_modules
 /node_modules
+server/node_modules
+server/dist
 /.pnp
 .pnp.*
 .yarn/*
@@ -32,6 +35,7 @@ yarn-error.log*
 
 # env files (can opt-in for committing if needed)
 .env*
+!.env.example
 
 # vercel
 .vercel
@@ -40,4 +44,15 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 /public/api/smtp_config.php
+
+# --- Protocol L · governancePublish=local-only (FC 000) ---
+# Raptors/SSOT on Ω disk only. Not shipped via product remote / not product CI.
+protocols/
+l-harness.config.json
+owaspCoverageMap.json
+L_HARNESS_NOTICE.md
+scripts/verifyL.mjs
+scripts/hPost.mjs
+scripts/olrSign.mjs
+# --- end Protocol L local-only ---
 

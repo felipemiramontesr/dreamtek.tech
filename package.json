@@ -8,7 +8,9 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build && next-export-optimize-images",
+    "build:server": "npm --prefix server install && npm --prefix server run build",
     "start": "next start",
+    "start:server": "npm --prefix server start",
     "lint": "eslint",
     "lint:oxlint": "oxlint .",
     "format": "prettier --write .",
@@ -19,8 +21,8 @@
     "prepare": "node -e \"if(process.env.NODE_ENV !== 'production'){require('child_process').execSync('husky')}\""
   },
   "lint-staged": {
-    "*.{js,jsx,ts,tsx}": [
-      "eslint --fix",
+    "!(server)/**/*.{js,jsx,ts,tsx}": [
+      "eslint --fix --no-warn-ignored",
       "prettier --write"
     ],
     "*.{json,css,md}": [
