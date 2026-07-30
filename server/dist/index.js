@@ -40,6 +40,13 @@ app.use((0, cors_1.default)({
 app.use(express_1.default.json());
 app.use(express_1.default.urlencoded({ extended: true }));
 app.use((0, cookie_parser_1.default)());
+// Root and health fallback routes
+app.get('/', (_req, res) => {
+    res.json({ status: 'ok', service: 'Dreamtek Node.js API', version: '1.0.0' });
+});
+app.get('/health', (_req, res) => {
+    res.json({ status: 'ok', service: 'Dreamtek Node.js API', version: '1.0.0' });
+});
 // Subruta principal del API
 app.use('/api/v1', health_js_1.healthRouter);
 app.use('/api/v1/auth', auth_js_1.authRouter);
