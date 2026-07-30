@@ -30,7 +30,7 @@ authRouter.post('/login', async (req: Request, res: Response): Promise<void> => 
     const token = jwt.sign(
       { uid: user.id, email: user.email, role: user.role, name: user.full_name },
       JWT_SECRET,
-      { expiresIn: '7d' }
+      { algorithm: 'HS512', expiresIn: '7d' }
     );
 
     res.cookie(COOKIE_NAME, token, {
@@ -74,7 +74,7 @@ authRouter.get('/me', async (req: Request, res: Response): Promise<void> => {
       return;
     }
 
-    const payload = jwt.verify(token, JWT_SECRET) as any;
+    const payload = jwt.verify(token, JWT_SECRET, { algorithms: ['HS512'] }) as any;
     const users = await query<any[]>('SELECT id, email, role, full_name FROM users WHERE id = ? LIMIT 1', [payload.uid]);
     const user = users[0];
 

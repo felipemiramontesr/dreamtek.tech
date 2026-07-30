@@ -27,7 +27,7 @@ exports.authRouter.post('/login', async (req, res) => {
             res.status(401).json({ status: 'error', message: 'Credenciales inválidas.' });
             return;
         }
-        const token = jsonwebtoken_1.default.sign({ uid: user.id, email: user.email, role: user.role, name: user.full_name }, JWT_SECRET, { expiresIn: '7d' });
+        const token = jsonwebtoken_1.default.sign({ uid: user.id, email: user.email, role: user.role, name: user.full_name }, JWT_SECRET, { algorithm: 'HS512', expiresIn: '7d' });
         res.cookie(COOKIE_NAME, token, {
             httpOnly: true,
             secure: process.env.NODE_ENV === 'production',
@@ -65,7 +65,7 @@ exports.authRouter.get('/me', async (req, res) => {
             res.status(401).json({ status: 'error', message: 'No autenticado.' });
             return;
         }
-        const payload = jsonwebtoken_1.default.verify(token, JWT_SECRET);
+        const payload = jsonwebtoken_1.default.verify(token, JWT_SECRET, { algorithms: ['HS512'] });
         const users = await (0, db_js_1.query)('SELECT id, email, role, full_name FROM users WHERE id = ? LIMIT 1', [payload.uid]);
         const user = users[0];
         if (!user) {
