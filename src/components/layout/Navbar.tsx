@@ -8,7 +8,13 @@ import type { es } from '@/i18n/dictionaries/es';
 
 type Dictionary = typeof es;
 
-export function Navbar({ dict, lang = 'es' }: { dict: Dictionary; lang?: 'es' | 'en' }) {
+interface NavbarProps {
+  dict: Dictionary;
+  lang?: 'es' | 'en';
+  onOpenAuthModal?: () => void;
+}
+
+export function Navbar({ dict, lang = 'es', onOpenAuthModal }: NavbarProps) {
   const pathname = usePathname();
   const router = useRouter();
   const isLegalPage = [
@@ -128,8 +134,16 @@ export function Navbar({ dict, lang = 'es' }: { dict: Dictionary; lang?: 'es' | 
                 ))}
               </nav>
 
+              {/* Client Area Button (Desktop) */}
+              <button
+                onClick={onOpenAuthModal}
+                className="hidden md:flex items-center ml-8 px-4 py-2 rounded-full bg-white/5 border border-white/10 text-xs font-bold tracking-wider text-white hover:border-[#FF2D00] hover:bg-[#FF2D00]/10 transition-all cursor-pointer"
+              >
+                {dict.navbar.clientArea}
+              </button>
+
               {/* Desktop Language Toggle Pill */}
-              <div className="hidden md:flex items-center ml-8 relative p-1 rounded-full bg-white/5 border border-white/10 backdrop-blur-md shadow-[inset_0_0_10px_rgba(255,255,255,0.02)]">
+              <div className="hidden md:flex items-center ml-4 relative p-1 rounded-full bg-white/5 border border-white/10 backdrop-blur-md shadow-[inset_0_0_10px_rgba(255,255,255,0.02)]">
                 <div
                   className={`absolute top-1 bottom-1 w-[36px] rounded-full bg-[#FF2D00]/20 border border-[#FF2D00]/50 shadow-[0_0_15px_rgba(255,45,0,0.3)] transition-transform duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] ${lang === 'es' ? 'translate-x-0' : 'translate-x-[36px]'}`}
                 />

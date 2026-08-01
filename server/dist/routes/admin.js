@@ -7,8 +7,8 @@ exports.adminRouter = void 0;
 const express_1 = require("express");
 const jsonwebtoken_1 = __importDefault(require("jsonwebtoken"));
 const db_js_1 = require("../db.js");
+const crypto_js_1 = require("../utils/crypto.js");
 exports.adminRouter = (0, express_1.Router)();
-const JWT_SECRET = process.env.JWT_SECRET || 'dreamtek_secret_jwt_key_2026';
 const COOKIE_NAME = 'dreamtek_session';
 /**
  * Middleware para requerir rol ADMIN.
@@ -20,7 +20,7 @@ function requireAdmin(req, res, next) {
         return;
     }
     try {
-        const payload = jsonwebtoken_1.default.verify(token, JWT_SECRET);
+        const payload = jsonwebtoken_1.default.verify(token, (0, crypto_js_1.getJwtSecret)(), { algorithms: ['HS512'] });
         if (payload.role !== 'ADMIN') {
             res.status(403).json({ status: 'error', message: 'Acceso denegado. Se requiere rol ADMIN.' });
             return;

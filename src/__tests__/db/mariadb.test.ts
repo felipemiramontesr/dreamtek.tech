@@ -9,9 +9,14 @@ import type {
   SupportTicketEntity,
 } from '@/lib/db/types';
 
-describe('MariaDB Schema & Host Model Verification (FC 001a)', () => {
+describe('MariaDB Schema & Host Model Verification (FC 001a & ADR 005)', () => {
   it('debe existir el archivo DDL de migración inicial y contener la estructura de 5 tablas relacionales con FK RESTRICT/CASCADE', () => {
-    const migrationPath = path.join(process.cwd(), 'database', 'migrations', '001_initial_schema.sql');
+    const migrationPath = path.join(
+      process.cwd(),
+      'database',
+      'migrations',
+      '001_initial_schema.sql',
+    );
     expect(fs.existsSync(migrationPath)).toBe(true);
 
     const sqlContent = fs.readFileSync(migrationPath, 'utf-8');
@@ -33,24 +38,14 @@ describe('MariaDB Schema & Host Model Verification (FC 001a)', () => {
     expect(sqlContent).toContain('INDEX `idx_tickets_user_id`');
   });
 
-  it('debe contener las reglas de denegación web .htaccess para proteger .env (OWASP A02/A05)', () => {
-    const htaccessPath = path.join(process.cwd(), 'public', 'api', '.htaccess');
-    expect(fs.existsSync(htaccessPath)).toBe(true);
+  it('debe existir el módulo de conexión MariaDB/MySQL server/src/db.ts con soporte para pool de conexiones', () => {
+    const dbServerPath = path.join(process.cwd(), 'server', 'src', 'db.ts');
+    expect(fs.existsSync(dbServerPath)).toBe(true);
 
-    const htaccessContent = fs.readFileSync(htaccessPath, 'utf-8');
-    expect(htaccessContent).toContain('<FilesMatch "^\\.env">');
-    expect(htaccessContent).toContain('Deny from all');
-  });
-
-  it('debe existir la helper de conexión PHP PDO en public/api/config/db.php con soporte para sentencias preparadas y fail-closed', () => {
-    const dbPhpPath = path.join(process.cwd(), 'public', 'api', 'config', 'db.php');
-    expect(fs.existsSync(dbPhpPath)).toBe(true);
-
-    const phpContent = fs.readFileSync(dbPhpPath, 'utf-8');
-    expect(phpContent).toContain('function getDbConnection(): PDO');
-    expect(phpContent).toContain('function executeQuery(string $sql, array $params = []): PDOStatement');
-    expect(phpContent).toContain('PDO::ATTR_PERSISTENT');
-    expect(phpContent).toContain('Database credentials not configured.');
+    const tsContent = fs.readFileSync(dbServerPath, 'utf-8');
+    expect(tsContent).toContain('createPool');
+    expect(tsContent).toContain('mysql2/promise');
+    expect(tsContent).toContain('export async function query');
   });
 
   it('debe validar la congruencia de los tipos de entidad TypeScript', () => {
@@ -58,52 +53,54 @@ describe('MariaDB Schema & Host Model Verification (FC 001a)', () => {
       id: 1,
       email: 'cliente@empresa.com',
       full_name: 'Juan Pérez',
+      password_hash: 'hashed_pw',
       role: 'CLIENT',
-      created_at: '2026-07-25 12:00:00',
+      created_at: '2026-07-25 00:00:00',
     };
 
     const mockSub: SubscriptionEntity = {
       id: 10,
       user_id: mockUser.id,
-      plan_id: 'starterkit',
-      billing_cycle: 'monthly',
-      amount: 2899.0,
+      plan_id: 'escolta_web',
       status: 'active',
-      renews_at: '2026-08-25 12:00:00',
+      start_date: '2026-07-25',
+      end_date: '2027-07-25',
+      auto_renew: 1,
     };
 
     const mockSite: SiteEntity = {
       id: 100,
       subscription_id: mockSub.id,
-      domain_name: 'miempresa.com',
-      ssl_active: true,
-      template_id: 'corporate_v1',
-      status: 'live',
+      domain_name: 'empresa.com',
+      created_at: '2026-07-25 00:00:00',
     };
 
     const mockOrder: OrderEntity = {
       id: 1000,
       user_id: mockUser.id,
-      subscription_id: mockSub.id,
-      amount: 2899.0,
+      checkout_session_id: 'cs_test_123',
+      billing_cycle: 'monthly',
+      subtotal: 100,
+      tax: 16,
+      total_amount: 116,
       status: 'paid',
-      created_at: '2026-07-25 12:00:00',
+      created_at: '2026-07-25 00:00:00',
     };
 
     const mockTicket: SupportTicketEntity = {
       id: 500,
       user_id: mockUser.id,
       site_id: mockSite.id,
-      title: 'Cambio de horario de atención',
-      description: 'Favor de actualizar el horario en la sección contacto.',
-      hours_spent: 0.5,
+      subject: 'Error 500 en producción',
+      description: 'El sitio no responde.',
       status: 'open',
+      created_at: '2026-07-25 00:00:00',
     };
 
     expect(mockUser.role).toBe('CLIENT');
-    expect(mockSub.amount).toBe(2899.0);
-    expect(mockSite.ssl_active).toBe(true);
-    expect(mockOrder.status).toBe('paid');
-    expect(mockTicket.hours_spent).toBe(0.5);
+    expect(mockSub.plan_id).toBe('escolta_web');
+    expect(mockSite.subscription_id).toBe(mockSub.id);
+    expect(mockOrder.total_amount).toBe(116);
+    expect(mockTicket.status).toBe('open');
   });
 });

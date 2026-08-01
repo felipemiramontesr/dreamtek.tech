@@ -11,7 +11,12 @@ const SpaceBackground = dynamic(
 
 type Dictionary = typeof es;
 
-export function Hero({ dict }: { dict: Dictionary }) {
+interface HeroProps {
+  dict: Dictionary;
+  onOpenAuthModal?: () => void;
+}
+
+export function Hero({ dict, onOpenAuthModal }: HeroProps) {
   return (
     <section
       id="inicio"
@@ -42,7 +47,20 @@ export function Hero({ dict }: { dict: Dictionary }) {
           <Button variant="primary" size="lg" className="w-full sm:w-[320px]">
             {dict.hero.ctaPrimary}
           </Button>
-          <Button variant="outline" size="lg" className="w-full sm:w-[320px]">
+          <Button
+            variant="outline"
+            size="lg"
+            className="w-full sm:w-[320px]"
+            onClick={() => {
+              if (onOpenAuthModal) {
+                onOpenAuthModal();
+              } else if (typeof window !== 'undefined') {
+                window.dispatchEvent(
+                  new CustomEvent('open-auth-modal', { detail: { mode: 'login' } }),
+                );
+              }
+            }}
+          >
             {dict.hero.ctaSecondary}
           </Button>
         </div>

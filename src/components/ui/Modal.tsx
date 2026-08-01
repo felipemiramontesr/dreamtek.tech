@@ -29,14 +29,16 @@ export interface ModalProps {
   footer?: React.ReactNode;
   /** Clase CSS adicional para el contenedor del modal */
   className?: string;
-  /** Ancho máximo personalizado */
+  /** Variante de tamaño ('sm' compacto / 'md' medio / 'lg' amplio) */
+  size?: 'sm' | 'md' | 'lg';
+  /** Ancho máximo personalizado (precedencia sobre size) */
   maxWidth?: string;
 }
 
 /**
  * Componente Modal Reutilizable con el fondo de degradado diagonal en dos tonos del Hero,
  * lienzo espacial `SpaceBackground`, accesibilidad ARIA, manejo de tecla ESC y bloqueo de scroll.
- * 
+ *
  * Regla de Espaciado Matemático (Reglas 1 y 2):
  * Espacio Superior (Top) = 1/2 del Espacio Lateral (Left/Right)
  * Espacio Inferior (Bottom) = 1/2 del Espacio Lateral (Left/Right)
@@ -53,7 +55,8 @@ export function Modal({
   children,
   footer,
   className = '',
-  maxWidth = 'max-w-[92vw] lg:max-w-7xl',
+  size = 'lg',
+  maxWidth,
 }: ModalProps) {
   // Manejador de tecla ESC y bloqueo de scroll en body
   useEffect(() => {
@@ -84,6 +87,17 @@ export function Modal({
     red: 'text-[#FF2D00] bg-[#FF2D00]/10 border-[#FF2D00]/20',
   }[tagColor];
 
+  // Cálculo de clases de tamaño con regla de precedencia para maxWidth
+  const defaultSizeClasses = {
+    sm: 'max-w-md md:max-w-lg h-auto max-h-[85vh] my-auto flex flex-col justify-start overflow-y-auto',
+    md: 'max-w-3xl h-auto max-h-[90vh] my-auto flex flex-col justify-start overflow-y-auto',
+    lg: 'max-w-[92vw] lg:max-w-7xl h-full flex flex-col justify-between',
+  }[size];
+
+  const resolvedContainerClasses = maxWidth
+    ? `${maxWidth} ${size === 'sm' ? 'h-auto max-h-[85vh] my-auto' : 'h-full'}`
+    : defaultSizeClasses;
+
   return (
     <div
       className="fixed inset-0 z-[300] flex items-center justify-center px-[3vw] py-[1.5vw] md:px-[4vw] md:py-[2vw] overflow-hidden bg-gradient-to-br from-[#002e52]/95 via-[#00172B]/95 to-black/98 backdrop-blur-2xl animate-fade-in transition-all duration-300"
@@ -102,7 +116,7 @@ export function Modal({
 
       {/* Contenedor del Modal */}
       <div
-        className={`relative w-full h-full ${maxWidth} bg-gradient-to-br from-[#002e52] via-[#00172B] to-[#000814] border border-white/20 rounded-2xl p-4 md:p-6 lg:p-7 shadow-[0_0_80px_rgba(0,0,0,0.9)] overflow-hidden animate-slide-up z-10 flex flex-col justify-between ${className}`}
+        className={`relative w-full ${resolvedContainerClasses} bg-gradient-to-br from-[#002e52] via-[#00172B] to-[#000814] border border-white/20 rounded-2xl p-4 md:p-6 lg:p-7 shadow-[0_0_80px_rgba(0,0,0,0.9)] overflow-hidden animate-slide-up z-10 ${className}`}
       >
         {/* Resplandor radial decorativo idéntico al Hero */}
         <div className="absolute inset-0 z-0 pointer-events-none opacity-30 bg-[radial-gradient(circle_at_center,rgba(255,45,0,0.15)_0%,transparent_55%)]" />

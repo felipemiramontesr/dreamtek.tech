@@ -10,6 +10,7 @@ import { onboardingRouter } from './routes/onboarding.js';
 import { checkoutRouter } from './routes/checkout.js';
 import { clientRouter } from './routes/client.js';
 import { adminRouter } from './routes/admin.js';
+import { contactRouter } from './routes/contact.js';
 
 dotenv.config({ path: path.join(__dirname, '../.env') });
 
@@ -60,6 +61,7 @@ app.use('/api/v1/onboarding', onboardingRouter);
 app.use('/api/v1/checkout', checkoutRouter);
 app.use('/api/v1/client', clientRouter);
 app.use('/api/v1/admin', adminRouter);
+app.use('/api/v1/contact', contactRouter);
 
 app.listen(PORT, () => {
   console.log(`🚀 Dreamtek Node.js API Server running on port ${PORT}`);

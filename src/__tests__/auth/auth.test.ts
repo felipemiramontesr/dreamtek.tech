@@ -3,19 +3,28 @@ import fs from 'fs';
 import path from 'path';
 import { registerUser, loginUser, logoutUser, getCurrentUser } from '@/lib/auth/client';
 
+const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || 'https://apiv1.dreamtek.tech/api/v1';
+
 describe('Auth Engine & RBAC Verification (FC 001b)', () => {
   beforeEach(() => {
     vi.restoreAllMocks();
   });
 
   it('debe existir el script de migración DDL 002_sessions_and_rate_limit.sql con las tablas sessions y login_attempts', () => {
-    const migrationPath = path.join(process.cwd(), 'database', 'migrations', '002_sessions_and_rate_limit.sql');
+    const migrationPath = path.join(
+      process.cwd(),
+      'database',
+      'migrations',
+      '002_sessions_and_rate_limit.sql',
+    );
     expect(fs.existsSync(migrationPath)).toBe(true);
 
     const sqlContent = fs.readFileSync(migrationPath, 'utf-8');
     expect(sqlContent).toContain('CREATE TABLE IF NOT EXISTS `sessions`');
     expect(sqlContent).toContain('CREATE TABLE IF NOT EXISTS `login_attempts`');
-    expect(sqlContent).toContain('CONSTRAINT `fk_sessions_user` FOREIGN KEY (`user_id`) REFERENCES `users`(`id`) ON DELETE CASCADE');
+    expect(sqlContent).toContain(
+      'CONSTRAINT `fk_sessions_user` FOREIGN KEY (`user_id`) REFERENCES `users`(`id`) ON DELETE CASCADE',
+    );
   });
 
   it('debe existir el script seed 001_admin_bootstrap.sql con la insercion del rol ADMIN', () => {
@@ -23,18 +32,14 @@ describe('Auth Engine & RBAC Verification (FC 001b)', () => {
     expect(fs.existsSync(seedPath)).toBe(true);
 
     const seedContent = fs.readFileSync(seedPath, 'utf-8');
-    expect(seedContent).toContain("INSERT INTO `users`");
+    expect(seedContent).toContain('INSERT INTO `users`');
     expect(seedContent).toContain("'ADMIN'");
   });
 
-  it('deben existir los endpoints PHP PDO de autenticación y middleware RBAC', () => {
-    const apiDir = path.join(process.cwd(), 'public', 'api');
-    expect(fs.existsSync(path.join(apiDir, 'auth', 'register.php'))).toBe(true);
-    expect(fs.existsSync(path.join(apiDir, 'auth', 'login.php'))).toBe(true);
-    expect(fs.existsSync(path.join(apiDir, 'auth', 'logout.php'))).toBe(true);
-    expect(fs.existsSync(path.join(apiDir, 'auth', 'me.php'))).toBe(true);
-    expect(fs.existsSync(path.join(apiDir, 'middleware', 'auth.php'))).toBe(true);
-    expect(fs.existsSync(path.join(apiDir, 'admin', '_ping.php'))).toBe(true);
+  it('deben existir los endpoints Express de autenticación en /server/src/routes/auth.ts', () => {
+    const serverDir = path.join(process.cwd(), 'server', 'src');
+    expect(fs.existsSync(path.join(serverDir, 'routes', 'auth.ts'))).toBe(true);
+    expect(fs.existsSync(path.join(serverDir, 'routes', 'contact.ts'))).toBe(true);
   });
 
   it('el cliente TS registerUser debe enviar payload con credentials: include', async () => {
@@ -55,11 +60,11 @@ describe('Auth Engine & RBAC Verification (FC 001b)', () => {
     });
 
     expect(fetchSpy).toHaveBeenCalledWith(
-      '/api/auth/register.php',
+      `${API_BASE}/auth/register`,
       expect.objectContaining({
         method: 'POST',
         credentials: 'include',
-      })
+      }),
     );
     expect(result.user?.email).toBe('test@empresa.com');
   });
@@ -81,11 +86,11 @@ describe('Auth Engine & RBAC Verification (FC 001b)', () => {
     });
 
     expect(fetchSpy).toHaveBeenCalledWith(
-      '/api/auth/login.php',
+      `${API_BASE}/auth/login`,
       expect.objectContaining({
         method: 'POST',
         credentials: 'include',
-      })
+      }),
     );
     expect(result.user?.role).toBe('CLIENT');
   });
@@ -97,22 +102,24 @@ describe('Auth Engine & RBAC Verification (FC 001b)', () => {
     } as Response);
 
     await expect(loginUser({ email: 'test@empresa.com', password: 'wrong' })).rejects.toThrow(
-      'Credenciales invalidas'
+      'Credenciales invalidas',
     );
   });
 
   it('el cliente TS loginUser debe manejar bloqueo por rate limiting (HTTP 429)', async () => {
     vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce({
       ok: false,
-      json: async () => ({ error: 'Demasiados intentos fallidos. Intente de nuevo en 15 minutos.' }),
+      json: async () => ({
+        error: 'Demasiados intentos fallidos. Intente de nuevo en 15 minutos.',
+      }),
     } as Response);
 
     await expect(loginUser({ email: 'test@empresa.com', password: 'wrong' })).rejects.toThrow(
-      'Demasiados intentos fallidos.'
+      'Demasiados intentos fallidos.',
     );
   });
 
-  it('el cliente TS getCurrentUser debe solicitar /api/auth/me.php con credentials: include', async () => {
+  it('el cliente TS getCurrentUser debe solicitar /auth/me con credentials: include', async () => {
     const mockResponse = {
       user: { id: 1, email: 'test@empresa.com', full_name: 'Test User', role: 'CLIENT' },
     };
@@ -125,11 +132,11 @@ describe('Auth Engine & RBAC Verification (FC 001b)', () => {
     const result = await getCurrentUser();
 
     expect(fetchSpy).toHaveBeenCalledWith(
-      '/api/auth/me.php',
+      `${API_BASE}/auth/me`,
       expect.objectContaining({
         method: 'GET',
         credentials: 'include',
-      })
+      }),
     );
     expect(result.user?.id).toBe(1);
   });
@@ -143,7 +150,7 @@ describe('Auth Engine & RBAC Verification (FC 001b)', () => {
     await expect(getCurrentUser()).rejects.toThrow('No autenticado. Sesion requerida.');
   });
 
-  it('el cliente TS logoutUser debe llamar a /api/auth/logout.php', async () => {
+  it('el cliente TS logoutUser debe llamar a /auth/logout', async () => {
     const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce({
       ok: true,
       json: async () => ({ message: 'Sesion cerrada exitosamente' }),
@@ -152,11 +159,11 @@ describe('Auth Engine & RBAC Verification (FC 001b)', () => {
     const result = await logoutUser();
 
     expect(fetchSpy).toHaveBeenCalledWith(
-      '/api/auth/logout.php',
+      `${API_BASE}/auth/logout`,
       expect.objectContaining({
         method: 'POST',
         credentials: 'include',
-      })
+      }),
     );
     expect(result.message).toBe('Sesion cerrada exitosamente');
   });

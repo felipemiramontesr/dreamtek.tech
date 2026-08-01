@@ -1,6 +1,6 @@
 /**
  * Client Onboarding & Stripe Checkout TypeScript Wrapper
- * Consumes API endpoints (Node.js API or relative fallback) with credentials: 'include'
+ * Consumes Express API endpoints (Node.js API) with credentials: 'include'
  */
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || 'https://apiv1.dreamtek.tech/api/v1';
@@ -57,9 +57,10 @@ export interface VerifySuccessResponse {
 /**
  * Submit / Upsert Lead details (Step 1)
  */
-export async function submitLead(payload: LeadPayload): Promise<{ message?: string; error?: string }> {
-  const url = API_BASE.startsWith('http') ? `${API_BASE}/onboarding/lead` : '/api/onboarding/lead.php';
-  const response = await fetch(url, {
+export async function submitLead(
+  payload: LeadPayload,
+): Promise<{ message?: string; error?: string }> {
+  const response = await fetch(`${API_BASE}/onboarding/lead`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     credentials: 'include',
@@ -78,11 +79,7 @@ export async function submitLead(payload: LeadPayload): Promise<{ message?: stri
  * Soft-check domain availability (Step 3)
  */
 export async function checkDomainAvailability(domain: string): Promise<DomainCheckResponse> {
-  const url = API_BASE.startsWith('http')
-    ? `${API_BASE}/onboarding/domain`
-    : `/api/onboarding/domain.php?domain=${encodeURIComponent(domain)}`;
-
-  const response = await fetch(url, {
+  const response = await fetch(`${API_BASE}/onboarding/domain`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     credentials: 'include',
@@ -100,9 +97,10 @@ export async function checkDomainAvailability(domain: string): Promise<DomainChe
 /**
  * Generate Stripe Checkout Session (Step 4)
  */
-export async function createCheckoutSession(payload: CheckoutSessionPayload): Promise<CheckoutSessionResponse> {
-  const url = API_BASE.startsWith('http') ? `${API_BASE}/checkout/session` : '/api/checkout/session.php';
-  const response = await fetch(url, {
+export async function createCheckoutSession(
+  payload: CheckoutSessionPayload,
+): Promise<CheckoutSessionResponse> {
+  const response = await fetch(`${API_BASE}/checkout/session`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     credentials: 'include',
@@ -121,15 +119,14 @@ export async function createCheckoutSession(payload: CheckoutSessionPayload): Pr
  * Verify checkout completion upon Stripe redirect (Step 5)
  */
 export async function verifyCheckoutSuccess(sessionId: string): Promise<VerifySuccessResponse> {
-  const url = API_BASE.startsWith('http')
-    ? `${API_BASE}/checkout/verify?session_id=${encodeURIComponent(sessionId)}`
-    : `/api/checkout/verify_success.php?session_id=${encodeURIComponent(sessionId)}`;
-
-  const response = await fetch(url, {
-    method: 'GET',
-    headers: { 'Content-Type': 'application/json' },
-    credentials: 'include',
-  });
+  const response = await fetch(
+    `${API_BASE}/checkout/verify?session_id=${encodeURIComponent(sessionId)}`,
+    {
+      method: 'GET',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+    },
+  );
 
   const data = await response.json();
   if (!response.ok) {

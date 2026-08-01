@@ -6,6 +6,8 @@ import type { es } from '@/i18n/dictionaries/es';
 
 type Dictionary = typeof es;
 
+const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || 'https://apiv1.dreamtek.tech/api/v1';
+
 export function Contact({ dict }: { dict: Dictionary }) {
   const [formData, setFormData] = useState({
     name: '',
@@ -46,7 +48,7 @@ export function Contact({ dict }: { dict: Dictionary }) {
 
     if (step === 'form') {
       try {
-        const response = await fetch('/api/send_code.php', {
+        const response = await fetch(`${API_BASE}/contact/send-code`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -56,12 +58,12 @@ export function Contact({ dict }: { dict: Dictionary }) {
 
         const data = await response.json();
 
-        if (response.ok && data.success) {
+        if (response.ok) {
           setStatus('idle');
           setStep('code');
         } else {
           setStatus('error');
-          setErrorMessage(data.message || dict.contact.errors.sendCode);
+          setErrorMessage(data.error || data.message || dict.contact.errors.sendCode);
         }
       } catch (error) {
         console.error(error);
@@ -70,7 +72,7 @@ export function Contact({ dict }: { dict: Dictionary }) {
       }
     } else {
       try {
-        const response = await fetch('/api/contact.php', {
+        const response = await fetch(`${API_BASE}/contact`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -80,14 +82,14 @@ export function Contact({ dict }: { dict: Dictionary }) {
 
         const data = await response.json();
 
-        if (response.ok && data.success) {
+        if (response.ok) {
           setStatus('success');
           setStep('form');
           setCode('');
           setFormData({ name: '', email: '', service: 'starterkit', message: '' });
         } else {
           setStatus('error');
-          setErrorMessage(data.message || dict.contact.errors.verifyCode);
+          setErrorMessage(data.error || data.message || dict.contact.errors.verifyCode);
         }
       } catch (error) {
         console.error(error);
@@ -101,7 +103,7 @@ export function Contact({ dict }: { dict: Dictionary }) {
     setStatus('loading');
     setErrorMessage('');
     try {
-      const response = await fetch('/api/send_code.php', {
+      const response = await fetch(`${API_BASE}/contact/send-code`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -109,14 +111,14 @@ export function Contact({ dict }: { dict: Dictionary }) {
         body: JSON.stringify({ email: formData.email, name: formData.name }),
       });
       const data = await response.json();
-      if (response.ok && data.success) {
+      if (response.ok) {
         setStatus('idle');
         setCode('');
         setErrorMessage('');
         alert(dict.contact.code.resendAlert);
       } else {
         setStatus('error');
-        setErrorMessage(data.message || dict.contact.code.resendError);
+        setErrorMessage(data.error || data.message || dict.contact.code.resendError);
       }
     } catch {
       setStatus('error');

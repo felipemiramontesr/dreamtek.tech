@@ -18,6 +18,9 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage --maxWorkers=1",
+    "h:post": "node scripts/hPost.mjs",
+    "h:check": "node scripts/hCheck.mjs",
+    "l:verify": "node scripts/verifyL.mjs",
     "prepare": "node -e \"if(process.env.NODE_ENV !== 'production'){require('child_process').execSync('husky')}\""
   },
   "lint-staged": {

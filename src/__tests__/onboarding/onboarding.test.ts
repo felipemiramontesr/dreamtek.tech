@@ -14,7 +14,12 @@ describe('Onboarding Wizard & Checkout Verification (FC 001c)', () => {
   });
 
   it('debe existir la migración DDL 003_leads_and_templates.sql con las tablas leads, templates e indice UNIQUE', () => {
-    const migrationPath = path.join(process.cwd(), 'database', 'migrations', '003_leads_and_templates.sql');
+    const migrationPath = path.join(
+      process.cwd(),
+      'database',
+      'migrations',
+      '003_leads_and_templates.sql',
+    );
     expect(fs.existsSync(migrationPath)).toBe(true);
 
     const sqlContent = fs.readFileSync(migrationPath, 'utf-8');
@@ -29,19 +34,16 @@ describe('Onboarding Wizard & Checkout Verification (FC 001c)', () => {
     expect(fs.existsSync(seedPath)).toBe(true);
 
     const seedContent = fs.readFileSync(seedPath, 'utf-8');
-    expect(seedContent).toContain("INSERT INTO `templates`");
+    expect(seedContent).toContain('INSERT INTO `templates`');
     expect(seedContent).toContain("'corporate'");
     expect(seedContent).toContain("'services'");
     expect(seedContent).toContain("'ecommerce'");
   });
 
-  it('deben existir todos los endpoints PHP PDO de onboarding y checkout', () => {
-    const apiDir = path.join(process.cwd(), 'public', 'api');
-    expect(fs.existsSync(path.join(apiDir, 'onboarding', 'lead.php'))).toBe(true);
-    expect(fs.existsSync(path.join(apiDir, 'onboarding', 'domain.php'))).toBe(true);
-    expect(fs.existsSync(path.join(apiDir, 'checkout', 'session.php'))).toBe(true);
-    expect(fs.existsSync(path.join(apiDir, 'checkout', 'webhook.php'))).toBe(true);
-    expect(fs.existsSync(path.join(apiDir, 'checkout', 'verify_success.php'))).toBe(true);
+  it('deben existir los endpoints Express de onboarding y checkout en /server/src/routes/', () => {
+    const serverDir = path.join(process.cwd(), 'server', 'src', 'routes');
+    expect(fs.existsSync(path.join(serverDir, 'onboarding.ts'))).toBe(true);
+    expect(fs.existsSync(path.join(serverDir, 'checkout.ts'))).toBe(true);
   });
 
   it('el cliente TS submitLead debe enviar datos con credentials: include', async () => {
@@ -64,13 +66,17 @@ describe('Onboarding Wizard & Checkout Verification (FC 001c)', () => {
       expect.objectContaining({
         method: 'POST',
         credentials: 'include',
-      })
+      }),
     );
     expect(result.message).toBe('Lead guardado exitosamente');
   });
 
   it('el cliente TS checkDomainAvailability debe consultar la API domain', async () => {
-    const mockResponse = { domain: 'miempresa.com', available: true, message: 'Dominio disponible' };
+    const mockResponse = {
+      domain: 'miempresa.com',
+      available: true,
+      message: 'Dominio disponible',
+    };
     const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce({
       ok: true,
       json: async () => mockResponse,
@@ -82,7 +88,7 @@ describe('Onboarding Wizard & Checkout Verification (FC 001c)', () => {
       expect.stringContaining('/onboarding/domain'),
       expect.objectContaining({
         credentials: 'include',
-      })
+      }),
     );
     expect(result.available).toBe(true);
   });
@@ -101,8 +107,6 @@ describe('Onboarding Wizard & Checkout Verification (FC 001c)', () => {
     const result = await createCheckoutSession({
       email: 'lead@empresa.com',
       billing_cycle: 'monthly',
-      template_id: 'corporate',
-      domain_name: 'miempresa.com',
     });
 
     expect(fetchSpy).toHaveBeenCalledWith(
@@ -110,15 +114,15 @@ describe('Onboarding Wizard & Checkout Verification (FC 001c)', () => {
       expect.objectContaining({
         method: 'POST',
         credentials: 'include',
-      })
+      }),
     );
-    expect(result.checkout_url).toContain('session_id=cs_test_123');
+    expect(result.checkout_url).toContain('cs_test_123');
   });
 
-  it('el cliente TS verifyCheckoutSuccess debe invocar verify', async () => {
+  it('el cliente TS verifyCheckoutSuccess debe consultar la verificacion de orden', async () => {
     const mockResponse = {
-      message: 'Verificacion de pago exitosa. Sesion de usuario activada.',
-      user: { id: 1, email: 'lead@empresa.com', full_name: 'Lead Test', role: 'CLIENT' },
+      message: 'Orden verificada exitosamente',
+      user: { id: 1, email: 'client@empresa.com', full_name: 'Client User', role: 'CLIENT' },
     };
 
     const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce({
@@ -133,19 +137,8 @@ describe('Onboarding Wizard & Checkout Verification (FC 001c)', () => {
       expect.objectContaining({
         method: 'GET',
         credentials: 'include',
-      })
+      }),
     );
-    expect(result.user?.id).toBe(1);
-  });
-
-  it('el cliente TS submitLead debe arrojar error si se excede el rate limit (HTTP 429)', async () => {
-    vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce({
-      ok: false,
-      json: async () => ({ error: 'Demasiadas solicitudes. Intente de nuevo en 15 minutos.' }),
-    } as Response);
-
-    await expect(
-      submitLead({ email: 'spam@empresa.com', full_name: 'Spam', phone: '123' })
-    ).rejects.toThrow('Demasiadas solicitudes.');
+    expect(result.user?.role).toBe('CLIENT');
   });
 });

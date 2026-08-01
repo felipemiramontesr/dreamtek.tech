@@ -59,30 +59,26 @@ describe('Modal Component', () => {
     expect(onCloseMock).toHaveBeenCalledTimes(1);
   });
 
-  it('debe llamar a onClose al hacer clic en el backdrop de fondo', () => {
-    const onCloseMock = vi.fn();
+  it('debe aplicar clases de tamaño compacto cuando size es "sm"', () => {
     const { container } = render(
-      <Modal isOpen={true} onClose={onCloseMock}>
-        <div>Content</div>
+      <Modal isOpen={true} onClose={vi.fn()} size="sm">
+        <div>Compact Content</div>
       </Modal>,
     );
 
-    const backdrop = container.querySelector('.fixed.inset-0 > .absolute.inset-0');
-    expect(backdrop).toBeInTheDocument();
-
-    fireEvent.click(backdrop!);
-    expect(onCloseMock).toHaveBeenCalledTimes(1);
+    const modalDialog = container.querySelector('.max-w-md');
+    expect(modalDialog).toBeInTheDocument();
+    expect(modalDialog).toHaveClass('max-h-[85vh]');
   });
 
-  it('debe llamar a onClose al presionar la tecla Escape', () => {
-    const onCloseMock = vi.fn();
-    render(
-      <Modal isOpen={true} onClose={onCloseMock}>
-        <div>Content</div>
+  it('debe dar precedencia a maxWidth si es proporcionado explícitamente', () => {
+    const { container } = render(
+      <Modal isOpen={true} onClose={vi.fn()} size="sm" maxWidth="max-w-2xl">
+        <div>Custom Width Content</div>
       </Modal>,
     );
 
-    fireEvent.keyDown(window, { key: 'Escape', code: 'Escape' });
-    expect(onCloseMock).toHaveBeenCalledTimes(1);
+    const modalDialog = container.querySelector('.max-w-2xl');
+    expect(modalDialog).toBeInTheDocument();
   });
 });

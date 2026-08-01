@@ -34,8 +34,8 @@ const neueMontreal = localFont({
 export const metadata: Metadata = {
   metadataBase: new URL('https://dreamtek.tech'),
   title: {
-    default: 'Dreamtek | Desarrollo Web, Mobile Apps y Ciberseguridad',
-    template: '%s | Dreamtek',
+    default: 'Dreamtek.',
+    template: '%s | Dreamtek.',
   },
   description:
     'Convertimos visiones complejas en infraestructura digital robusta. Desarrollo Web de alto rendimiento, Aplicaciones Nativas, ERP modular ARCHON Fleet Manager y Ciberseguridad Ofensiva bajo estándar Security by Design.',
@@ -110,7 +110,7 @@ export const metadata: Metadata = {
   appleWebApp: {
     capable: true,
     statusBarStyle: 'black-translucent',
-    title: 'Dreamtek',
+    title: 'Dreamtek.',
   },
   manifest: '/manifest.json',
 };

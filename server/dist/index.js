@@ -14,6 +14,7 @@ const onboarding_js_1 = require("./routes/onboarding.js");
 const checkout_js_1 = require("./routes/checkout.js");
 const client_js_1 = require("./routes/client.js");
 const admin_js_1 = require("./routes/admin.js");
+const contact_js_1 = require("./routes/contact.js");
 dotenv_1.default.config({ path: path_1.default.join(__dirname, '../.env') });
 const app = (0, express_1.default)();
 const PORT = process.env.PORT || 3001;
@@ -54,6 +55,7 @@ app.use('/api/v1/onboarding', onboarding_js_1.onboardingRouter);
 app.use('/api/v1/checkout', checkout_js_1.checkoutRouter);
 app.use('/api/v1/client', client_js_1.clientRouter);
 app.use('/api/v1/admin', admin_js_1.adminRouter);
+app.use('/api/v1/contact', contact_js_1.contactRouter);
 app.listen(PORT, () => {
     console.log(`🚀 Dreamtek Node.js API Server running on port ${PORT}`);
 });

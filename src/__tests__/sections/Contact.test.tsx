@@ -31,15 +31,15 @@ describe('Contact Component', () => {
 
   it('debe procesar el flujo completo exitoso de 2FA y envío de formulario', async () => {
     global.fetch = vi.fn().mockImplementation((url) => {
-      if (url.includes('send_code.php')) {
+      if (url.includes('/contact/send-code')) {
         return Promise.resolve({
           ok: true,
-          json: () => Promise.resolve({ success: true }),
+          json: () => Promise.resolve({ status: 'success', message: 'Código enviado' }),
         });
       }
       return Promise.resolve({
         ok: true,
-        json: () => Promise.resolve({ success: true }),
+        json: () => Promise.resolve({ status: 'success', message: 'Contacto procesado' }),
       });
     });
 

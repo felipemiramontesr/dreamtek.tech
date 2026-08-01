@@ -3,8 +3,14 @@ import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { query } from '../db.js';
 
+function getJwtSecret(): string {
+  if (process.env.NODE_ENV === 'production' && !process.env.JWT_SECRET) {
+    throw new Error('FATAL SECURITY ERROR: JWT_SECRET environment variable is missing in production.');
+  }
+  return process.env.JWT_SECRET || 'dreamtek_dev_jwt_secret_key_2026';
+}
+
 export const authRouter = Router();
-const JWT_SECRET = process.env.JWT_SECRET || 'dreamtek_secret_jwt_key_2026';
 const COOKIE_NAME = 'dreamtek_session';
 
 /**
@@ -29,7 +35,7 @@ authRouter.post('/login', async (req: Request, res: Response): Promise<void> => 
 
     const token = jwt.sign(
       { uid: user.id, email: user.email, role: user.role, name: user.full_name },
-      JWT_SECRET,
+      getJwtSecret(),
       { algorithm: 'HS512', expiresIn: '7d' }
     );
 
@@ -74,7 +80,7 @@ authRouter.get('/me', async (req: Request, res: Response): Promise<void> => {
       return;
     }
 
-    const payload = jwt.verify(token, JWT_SECRET, { algorithms: ['HS512'] }) as any;
+    const payload = jwt.verify(token, getJwtSecret(), { algorithms: ['HS512'] }) as any;
     const users = await query<any[]>('SELECT id, email, role, full_name FROM users WHERE id = ? LIMIT 1', [payload.uid]);
     const user = users[0];
 

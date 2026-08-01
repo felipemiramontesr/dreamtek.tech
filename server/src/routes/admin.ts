@@ -1,9 +1,9 @@
 import { Router, Request, Response } from 'express';
 import jwt from 'jsonwebtoken';
 import { query } from '../db.js';
+import { getJwtSecret } from '../utils/crypto.js';
 
 export const adminRouter = Router();
-const JWT_SECRET = process.env.JWT_SECRET || 'dreamtek_secret_jwt_key_2026';
 const COOKIE_NAME = 'dreamtek_session';
 
 /**
@@ -17,7 +17,7 @@ function requireAdmin(req: Request, res: Response, next: () => void) {
   }
 
   try {
-    const payload = jwt.verify(token, JWT_SECRET) as any;
+    const payload = jwt.verify(token, getJwtSecret(), { algorithms: ['HS512'] }) as any;
     if (payload.role !== 'ADMIN') {
       res.status(403).json({ status: 'error', message: 'Acceso denegado. Se requiere rol ADMIN.' });
       return;

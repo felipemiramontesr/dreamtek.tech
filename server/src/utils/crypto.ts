@@ -1,7 +1,20 @@
 import crypto from 'crypto';
 
 const ALGORITHM = 'aes-256-cbc';
-const DB_ENCRYPTION_KEY = process.env.DB_ENCRYPTION_KEY || 'dreamtek_default_db_encryption_key_512bits_2026';
+
+export function getJwtSecret(): string {
+  if (process.env.NODE_ENV === 'production' && !process.env.JWT_SECRET) {
+    throw new Error('FATAL SECURITY ERROR: JWT_SECRET environment variable is missing in production.');
+  }
+  return process.env.JWT_SECRET || 'dreamtek_dev_jwt_secret_key_2026';
+}
+
+function getDbEncryptionKey(): string {
+  if (process.env.NODE_ENV === 'production' && !process.env.DB_ENCRYPTION_KEY) {
+    throw new Error('FATAL SECURITY ERROR: DB_ENCRYPTION_KEY environment variable is missing in production.');
+  }
+  return process.env.DB_ENCRYPTION_KEY || 'dreamtek_dev_db_encryption_key_512bits_2026';
+}
 
 /**
  * Derives a 64-byte (512-bit) key material using HMAC-SHA512 with DB_ENCRYPTION_KEY.
@@ -9,7 +22,10 @@ const DB_ENCRYPTION_KEY = process.env.DB_ENCRYPTION_KEY || 'dreamtek_default_db_
  * - Bytes 32..63 (256 bits): Authentication Key for HMAC-SHA512
  */
 function getDerivedKeys(): { encKey: Buffer; macKey: Buffer } {
-  const hmacDigest = crypto.createHmac('sha512', DB_ENCRYPTION_KEY).update('dreamtek_db_encryption_salt_2026').digest();
+  const hmacDigest = crypto
+    .createHmac('sha512', getDbEncryptionKey())
+    .update('dreamtek_db_encryption_salt_2026')
+    .digest();
   return {
     encKey: hmacDigest.subarray(0, 32),
     macKey: hmacDigest.subarray(32, 64),
