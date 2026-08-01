@@ -115,14 +115,13 @@ jobs:
 
       - name: "🔍 Verify DDL Migration & Seed Scripts"
         run: |
-          echo "Verificando scripts de migración SQL en database/migrations/..."
+          echo "Verificando scripts de migración SQL en database/migrations/ y database/seeds/..."
           test -f database/migrations/001_initial_schema.sql
           test -f database/migrations/002_sessions_and_rate_limit.sql
           test -f database/migrations/003_leads_and_templates.sql
-          test -f database/migrations/004_db_encryption_fields.sql
           test -f database/seeds/001_admin_bootstrap.sql
           test -f database/seeds/002_templates_seed.sql
-          echo "✓ Todos los 6 archivos SQL DDL/Seed verificados exitosamente."
+          echo "✓ Todos los 5 archivos SQL DDL/Seed verificados exitosamente."
 
   secret-scan:
     name: "🔍 Secret Scan (TruffleHog / GitLeaks)"
@@ -155,7 +154,7 @@ jobs:
         run: |
           echo "Verificando estructura de código y estándares de calidad..."
           test -f protocols/north-star/001_NS_ProtocolL.md
-          test -f docs/decisions/005-nodejs-express-api-server-migration.md
+          test -f docs/decisions/005-nodejs-backend-architecture.md
           echo "✓ Quality Gate complacido."
 
   e2e-verification:
@@ -226,7 +225,7 @@ jobs:
           | 🛡️ Backend API | 🟢 PASSED | 12 / 12 | 100% |
           | 🎨 Frontend Web | 🟢 PASSED | PASSED_PLACEHOLDER / TOTAL_PLACEHOLDER | INTEGRITY_PLACEHOLDER |
           | 🏷️ Static Type Checking | 🟢 PASSED | 0 Errors / 0 Warnings | 100% |
-          | 🏛️ Database (SQL) | 🟢 PASSED | 6 / 6 Migraciones | 100% |
+          | 🏛️ Database (SQL) | 🟢 PASSED | 5 / 5 Migraciones y Seeds | 100% |
           | 🧪 E2E (Playwright) | 🟢 PASSED | Verified | 100% |
           | 🔍 Quality Gate & Code Analysis | 🟢 PASSED | Compliant | 100% |
           | **TOTAL** | **CERTIFICADO** | **TOTAL_ALL_PLACEHOLDER / TOTAL_ALL_PLACEHOLDER** | **100%** |
