@@ -25,10 +25,10 @@ jobs:
       - name: "📥 Checkout Code"
         uses: actions/checkout@v4
 
-      - name: "⚙️ Setup Node.js 22"
+      - name: "⚙️ Setup Node.js 24"
         uses: actions/setup-node@v4
         with:
-          node-version: '22.x'
+          node-version: '24.x'
           cache: 'npm'
 
       - name: "📦 Install Root & Server Dependencies"
@@ -72,10 +72,10 @@ jobs:
       - name: "📥 Checkout Code"
         uses: actions/checkout@v4
 
-      - name: "⚙️ Setup Node.js 22"
+      - name: "⚙️ Setup Node.js 24"
         uses: actions/setup-node@v4
         with:
-          node-version: '22.x'
+          node-version: '24.x'
           cache: 'npm'
 
       - name: "📦 Install Dependencies"
@@ -88,7 +88,7 @@ jobs:
             npx vitest run --reporter=json --outputFile=vitest-report.json --fileParallelism=false
           elif [ "${{ matrix.job_name }}" = "eslint-next" ]; then
             echo "Running ESLint..."
-            npm run lint || true
+            npm run lint
           elif [ "${{ matrix.job_name }}" = "i18n-dictionaries" ]; then
             echo "Verifying i18n dictionaries..."
             test -f src/i18n/dictionaries/es.ts
@@ -145,10 +145,10 @@ jobs:
       - name: "📥 Checkout Code"
         uses: actions/checkout@v4
 
-      - name: "⚙️ Setup Node.js 22"
+      - name: "⚙️ Setup Node.js 24"
         uses: actions/setup-node@v4
         with:
-          node-version: '22.x'
+          node-version: '24.x'
 
       - name: "📊 Code Structure & Standards Gate"
         run: |
@@ -165,10 +165,10 @@ jobs:
       - name: "📥 Checkout Code"
         uses: actions/checkout@v4
 
-      - name: "⚙️ Setup Node.js 22"
+      - name: "⚙️ Setup Node.js 24"
         uses: actions/setup-node@v4
         with:
-          node-version: '22.x'
+          node-version: '24.x'
 
       - name: "📦 Install Dependencies & Build Application"
         run: |
@@ -264,10 +264,10 @@ jobs:
       - name: "📥 Checkout Code"
         uses: actions/checkout@v4
 
-      - name: "⚙️ Setup Node.js 22"
+      - name: "⚙️ Setup Node.js 24"
         uses: actions/setup-node@v4
         with:
-          node-version: '22.x'
+          node-version: '24.x'
           cache: 'npm'
 
       - name: "📦 Install Dependencies & Build"
