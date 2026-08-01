@@ -27,10 +27,10 @@ jobs:
           - 'server-routes'
     steps:
       - name: "📥 Checkout Code"
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: "⚙️ Setup Node.js 24"
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
           node-version: '24.x'
           cache: 'npm'
@@ -74,10 +74,10 @@ jobs:
           - 'next-build-export'
     steps:
       - name: "📥 Checkout Code"
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: "⚙️ Setup Node.js 24"
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
           node-version: '24.x'
           cache: 'npm'
@@ -104,7 +104,7 @@ jobs:
 
       - name: "📤 Upload Vitest Report Artifact"
         if: matrix.job_name == 'unit-tests-vitest'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: vitest-report
           path: vitest-report.json
@@ -115,7 +115,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: "📥 Checkout Code"
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: "🔍 Verify DDL Migration & Seed Scripts"
         run: |
@@ -132,7 +132,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: "📥 Checkout Code"
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           fetch-depth: 0
 
@@ -147,10 +147,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: "📥 Checkout Code"
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: "⚙️ Setup Node.js 24"
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
           node-version: '24.x'
 
@@ -167,10 +167,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: "📥 Checkout Code"
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: "⚙️ Setup Node.js 24"
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
           node-version: '24.x'
 
@@ -194,10 +194,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: "📥 Checkout Code"
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: "📥 Download Vitest Report Artifact"
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         with:
           name: vitest-report
         continue-on-error: true
@@ -266,10 +266,10 @@ jobs:
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     steps:
       - name: "📥 Checkout Code"
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: "⚙️ Setup Node.js 24"
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
           node-version: '24.x'
           cache: 'npm'
