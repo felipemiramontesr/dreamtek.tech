@@ -153,7 +153,7 @@ jobs:
       - name: "📊 Code Structure & Standards Gate"
         run: |
           echo "Verificando estructura de código y estándares de calidad..."
-          test -f protocols/north-star/001_NS_ProtocolL.md
+          test -f docs/decisions/001-host-model-and-mariadb-connection-pool.md
           test -f docs/decisions/005-nodejs-backend-architecture.md
           echo "✓ Quality Gate complacido."
 
