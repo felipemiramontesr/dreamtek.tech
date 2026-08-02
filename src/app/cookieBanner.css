@@ -57,15 +57,17 @@
 }
 
 .cookie-link {
-  color: #ff2d00; /* teck-red */
+  color: #00bfff;
   text-decoration: none;
   font-weight: 500;
-  transition: opacity 0.2s ease;
+  transition:
+    opacity 0.2s ease,
+    color 0.2s ease;
 }
 
 .cookie-link:hover {
-  text-decoration: underline;
-  opacity: 0.8;
+  text-decoration: none;
+  opacity: 0.85;
 }
 
 .cookie-actions {
