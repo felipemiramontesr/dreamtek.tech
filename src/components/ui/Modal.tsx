@@ -116,7 +116,7 @@ export function Modal({
 
       {/* Contenedor del Modal */}
       <div
-        className={`relative w-full ${resolvedContainerClasses} bg-gradient-to-br from-[#002e52] via-[#00172B] to-[#000814] border border-white/20 rounded-2xl p-4 md:p-6 lg:p-7 shadow-[0_0_80px_rgba(0,0,0,0.9)] overflow-hidden animate-slide-up transition-all duration-1000 ease-[cubic-bezier(0.16,1,0.3,1)] z-10 ${className}`}
+        className={`relative w-full ${resolvedContainerClasses} bg-gradient-to-br from-[#002e52] via-[#00172B] to-[#000814] border border-white/20 rounded-2xl p-4 md:p-6 lg:p-7 shadow-[0_0_80px_rgba(0,0,0,0.9)] overflow-hidden animate-slide-up transition-all duration-[2000ms] ease-[cubic-bezier(0.16,1,0.3,1)] z-10 ${className}`}
       >
         {/* Resplandor radial decorativo idéntico al Hero */}
         <div className="absolute inset-0 z-0 pointer-events-none opacity-30 bg-[radial-gradient(circle_at_center,rgba(255,45,0,0.15)_0%,transparent_55%)]" />

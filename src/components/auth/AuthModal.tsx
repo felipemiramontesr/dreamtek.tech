@@ -110,17 +110,17 @@ export const AuthModal: React.FC<AuthModalProps> = ({
       title={dict.auth?.title || 'Área de Clientes'}
     >
       <div className="space-y-5">
-        {/* Sliding Pill Tab Switcher (1000ms Synchronized Cubic-Bezier Motion) */}
+        {/* Sliding Pill Tab Switcher (2000ms Silky Ultra-Smooth Ease-Out Motion) */}
         <div className="relative flex p-1 bg-white/5 border border-white/10 rounded-xl overflow-hidden backdrop-blur-md">
           <div
-            className={`absolute top-1 bottom-1 w-[calc(50%-4px)] bg-[#FF2D00] rounded-lg shadow-lg shadow-[#FF2D00]/30 transition-transform duration-1000 ease-[cubic-bezier(0.16,1,0.3,1)] ${
+            className={`absolute top-1 bottom-1 w-[calc(50%-4px)] bg-[#FF2D00] rounded-lg shadow-lg shadow-[#FF2D00]/30 transition-transform duration-[2000ms] ease-[cubic-bezier(0.16,1,0.3,1)] ${
               mode === 'login' ? 'translate-x-0' : 'translate-x-full'
             }`}
           />
           <button
             type="button"
             onClick={() => handleModeSwitch('login')}
-            className={`relative z-10 flex-1 py-2.5 text-xs md:text-sm font-medium transition-colors duration-500 ${
+            className={`relative z-10 flex-1 py-2.5 text-xs md:text-sm font-medium transition-colors duration-[1000ms] ${
               mode === 'login' ? 'text-white font-semibold' : 'text-white/60 hover:text-white'
             }`}
           >
@@ -129,7 +129,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
           <button
             type="button"
             onClick={() => handleModeSwitch('register')}
-            className={`relative z-10 flex-1 py-2.5 text-xs md:text-sm font-medium transition-colors duration-500 ${
+            className={`relative z-10 flex-1 py-2.5 text-xs md:text-sm font-medium transition-colors duration-[1000ms] ${
               mode === 'register' ? 'text-white font-semibold' : 'text-white/60 hover:text-white'
             }`}
           >
@@ -139,7 +139,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
 
         {/* Error Alert Box */}
         {errorMsg && (
-          <div className="p-3 rounded-xl bg-red-500/10 border border-red-500/30 text-red-300 text-xs flex items-center gap-2.5 transition-all duration-500 ease-out">
+          <div className="p-3 rounded-xl bg-red-500/10 border border-red-500/30 text-red-300 text-xs flex items-center gap-2.5 transition-all duration-[1000ms] ease-out">
             <svg
               className="w-4 h-4 flex-shrink-0 text-red-400"
               fill="none"
@@ -157,14 +157,14 @@ export const AuthModal: React.FC<AuthModalProps> = ({
           </div>
         )}
 
-        {/* Form Body with Synchronized 1000ms Smooth Transition */}
+        {/* Form Body with Synchronized 2000ms Smooth Transition */}
         <form
           onSubmit={handleSubmit}
-          className="space-y-3.5 transition-all duration-1000 ease-[cubic-bezier(0.16,1,0.3,1)]"
+          className="space-y-3.5 transition-all duration-[2000ms] ease-[cubic-bezier(0.16,1,0.3,1)]"
         >
           {/* Register Field: Full Name */}
           {mode === 'register' && (
-            <div className="space-y-1 transition-all duration-1000 ease-[cubic-bezier(0.16,1,0.3,1)] animate-fadeIn">
+            <div className="space-y-1 transition-all duration-[2000ms] ease-[cubic-bezier(0.16,1,0.3,1)] animate-fadeIn">
               <label className="block text-[11px] font-semibold text-white/80 uppercase tracking-wider">
                 {dict.auth?.fullNameLabel || 'Nombre Completo'}
               </label>
@@ -174,7 +174,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                 value={fullName}
                 onChange={(e) => setFullName(e.target.value)}
                 placeholder={dict.auth?.fullNamePlaceholder || 'ej. Carlos Mendoza'}
-                className="w-full px-3.5 py-2.5 bg-black/40 border border-white/10 rounded-lg text-sm text-white placeholder-white/30 focus:outline-none focus:border-[#FF2D00] focus:ring-1 focus:ring-[#FF2D00] transition-all duration-500"
+                className="w-full px-3.5 py-2.5 bg-black/40 border border-white/10 rounded-lg text-sm text-white placeholder-white/30 focus:outline-none focus:border-[#FF2D00] focus:ring-1 focus:ring-[#FF2D00] transition-all duration-[1000ms]"
               />
             </div>
           )}
@@ -190,13 +190,13 @@ export const AuthModal: React.FC<AuthModalProps> = ({
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               placeholder={dict.auth?.emailPlaceholder || 'carlos@empresa.com'}
-              className="w-full px-3.5 py-2.5 bg-black/40 border border-white/10 rounded-lg text-sm text-white placeholder-white/30 focus:outline-none focus:border-[#FF2D00] focus:ring-1 focus:ring-[#FF2D00] transition-all duration-500"
+              className="w-full px-3.5 py-2.5 bg-black/40 border border-white/10 rounded-lg text-sm text-white placeholder-white/30 focus:outline-none focus:border-[#FF2D00] focus:ring-1 focus:ring-[#FF2D00] transition-all duration-[1000ms]"
             />
           </div>
 
           {/* Register Field: Phone */}
           {mode === 'register' && (
-            <div className="space-y-1 transition-all duration-1000 ease-[cubic-bezier(0.16,1,0.3,1)] animate-fadeIn">
+            <div className="space-y-1 transition-all duration-[2000ms] ease-[cubic-bezier(0.16,1,0.3,1)] animate-fadeIn">
               <label className="block text-[11px] font-semibold text-white/80 uppercase tracking-wider">
                 {dict.auth?.phoneLabel || 'Teléfono'}
               </label>
@@ -205,7 +205,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                 value={phone}
                 onChange={(e) => setPhone(e.target.value)}
                 placeholder={dict.auth?.phonePlaceholder || '+52 55 1234 5678'}
-                className="w-full px-3.5 py-2.5 bg-black/40 border border-white/10 rounded-lg text-sm text-white placeholder-white/30 focus:outline-none focus:border-[#FF2D00] focus:ring-1 focus:ring-[#FF2D00] transition-all duration-500"
+                className="w-full px-3.5 py-2.5 bg-black/40 border border-white/10 rounded-lg text-sm text-white placeholder-white/30 focus:outline-none focus:border-[#FF2D00] focus:ring-1 focus:ring-[#FF2D00] transition-all duration-[1000ms]"
               />
             </div>
           )}
@@ -221,13 +221,13 @@ export const AuthModal: React.FC<AuthModalProps> = ({
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               placeholder={dict.auth?.passwordPlaceholder || '••••••••'}
-              className="w-full px-3.5 py-2.5 bg-black/40 border border-white/10 rounded-lg text-sm text-white placeholder-white/30 focus:outline-none focus:border-[#FF2D00] focus:ring-1 focus:ring-[#FF2D00] transition-all duration-500"
+              className="w-full px-3.5 py-2.5 bg-black/40 border border-white/10 rounded-lg text-sm text-white placeholder-white/30 focus:outline-none focus:border-[#FF2D00] focus:ring-1 focus:ring-[#FF2D00] transition-all duration-[1000ms]"
             />
           </div>
 
           {/* Register Field: Confirm Password */}
           {mode === 'register' && (
-            <div className="space-y-1 transition-all duration-1000 ease-[cubic-bezier(0.16,1,0.3,1)] animate-fadeIn">
+            <div className="space-y-1 transition-all duration-[2000ms] ease-[cubic-bezier(0.16,1,0.3,1)] animate-fadeIn">
               <label className="block text-[11px] font-semibold text-white/80 uppercase tracking-wider">
                 {dict.auth?.confirmPasswordLabel || 'Confirmar Contraseña'}
               </label>
@@ -237,7 +237,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                 value={confirmPassword}
                 onChange={(e) => setConfirmPassword(e.target.value)}
                 placeholder={dict.auth?.confirmPasswordPlaceholder || '••••••••'}
-                className="w-full px-3.5 py-2.5 bg-black/40 border border-white/10 rounded-lg text-sm text-white placeholder-white/30 focus:outline-none focus:border-[#FF2D00] focus:ring-1 focus:ring-[#FF2D00] transition-all duration-500"
+                className="w-full px-3.5 py-2.5 bg-black/40 border border-white/10 rounded-lg text-sm text-white placeholder-white/30 focus:outline-none focus:border-[#FF2D00] focus:ring-1 focus:ring-[#FF2D00] transition-all duration-[1000ms]"
               />
             </div>
           )}
@@ -248,7 +248,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
               type="submit"
               variant="primary"
               size="md"
-              className="w-full transition-all duration-500 active:scale-[0.98]"
+              className="w-full transition-all duration-[1000ms] active:scale-[0.98]"
               disabled={loading}
             >
               {loading ? (
@@ -284,7 +284,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
           <button
             type="button"
             onClick={() => handleModeSwitch(mode === 'login' ? 'register' : 'login')}
-            className="text-xs text-[#00A3FF] hover:text-[#00A3FF]/80 transition-colors duration-500 font-medium hover:underline"
+            className="text-xs text-[#00A3FF] hover:text-[#00A3FF]/80 transition-colors duration-[1000ms] font-medium hover:underline"
           >
             {mode === 'login'
               ? dict.auth?.switchToRegister || '¿No tienes cuenta aún? Regístrate aquí'
