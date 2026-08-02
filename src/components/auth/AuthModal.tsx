@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Modal } from '../ui/Modal';
 import { Button } from '../ui/Button';
 import { loginUser, registerUser } from '@/lib/auth/client';
@@ -35,6 +35,25 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   const [phone, setPhone] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+
+  // Synchronized 2-Second Accordion Render State
+  const [shouldRenderRegisterFields, setShouldRenderRegisterFields] = useState(
+    initialMode === 'register',
+  );
+
+  useEffect(() => {
+    if (mode === 'register') {
+      const frame = requestAnimationFrame(() => {
+        setShouldRenderRegisterFields(true);
+      });
+      return () => cancelAnimationFrame(frame);
+    } else {
+      const timer = setTimeout(() => {
+        setShouldRenderRegisterFields(false);
+      }, 2000);
+      return () => clearTimeout(timer);
+    }
+  }, [mode]);
 
   const resetForm = () => {
     setErrorMsg(null);
@@ -99,6 +118,8 @@ export const AuthModal: React.FC<AuthModalProps> = ({
     }
   };
 
+  const isRegisterMode = mode === 'register';
+
   return (
     <Modal
       isOpen={isOpen}
@@ -110,7 +131,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
       title={dict.auth?.title || 'Área de Clientes'}
     >
       <div className="space-y-5">
-        {/* Sliding Pill Tab Switcher (2000ms Silky Ultra-Smooth Ease-Out Motion) */}
+        {/* Sliding Pill Tab Switcher (2000ms Synchronized Motion) */}
         <div className="relative flex p-1 bg-white/5 border border-white/10 rounded-xl overflow-hidden backdrop-blur-md">
           <div
             className={`absolute top-1 bottom-1 w-[calc(50%-4px)] bg-[#FF2D00] rounded-lg shadow-lg shadow-[#FF2D00]/30 transition-transform duration-[2000ms] ease-[cubic-bezier(0.16,1,0.3,1)] ${
@@ -157,30 +178,40 @@ export const AuthModal: React.FC<AuthModalProps> = ({
           </div>
         )}
 
-        {/* Form Body with Synchronized 2000ms Smooth Transition */}
-        <form
-          onSubmit={handleSubmit}
-          className="space-y-3.5 transition-all duration-[2000ms] ease-[cubic-bezier(0.16,1,0.3,1)]"
-        >
+        {/* Form Body with World-Class 2000ms CSS Grid Accordion Height Interpolation */}
+        <form onSubmit={handleSubmit} className="flex flex-col">
           {/* Register Field: Full Name */}
-          {mode === 'register' && (
-            <div className="space-y-1 transition-all duration-[2000ms] ease-[cubic-bezier(0.16,1,0.3,1)] animate-fadeIn">
-              <label className="block text-[11px] font-semibold text-white/80 uppercase tracking-wider">
-                {dict.auth?.fullNameLabel || 'Nombre Completo'}
-              </label>
-              <input
-                type="text"
-                required
-                value={fullName}
-                onChange={(e) => setFullName(e.target.value)}
-                placeholder={dict.auth?.fullNamePlaceholder || 'ej. Carlos Mendoza'}
-                className="w-full px-3.5 py-2.5 bg-black/40 border border-white/10 rounded-lg text-sm text-white placeholder-white/30 focus:outline-none focus:border-[#FF2D00] focus:ring-1 focus:ring-[#FF2D00] transition-all duration-[1000ms]"
-              />
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateRows: isRegisterMode ? '1fr' : '0fr',
+              opacity: isRegisterMode ? 1 : 0,
+              marginBottom: isRegisterMode ? '14px' : '0px',
+              transition:
+                'grid-template-rows 2000ms cubic-bezier(0.16, 1, 0.3, 1), opacity 2000ms cubic-bezier(0.16, 1, 0.3, 1), margin-bottom 2000ms cubic-bezier(0.16, 1, 0.3, 1)',
+            }}
+          >
+            <div className="overflow-hidden">
+              {shouldRenderRegisterFields && (
+                <div className="space-y-1 pb-0.5">
+                  <label className="block text-[11px] font-semibold text-white/80 uppercase tracking-wider">
+                    {dict.auth?.fullNameLabel || 'Nombre Completo'}
+                  </label>
+                  <input
+                    type="text"
+                    required={isRegisterMode}
+                    value={fullName}
+                    onChange={(e) => setFullName(e.target.value)}
+                    placeholder={dict.auth?.fullNamePlaceholder || 'ej. Carlos Mendoza'}
+                    className="w-full px-3.5 py-2.5 bg-black/40 border border-white/10 rounded-lg text-sm text-white placeholder-white/30 focus:outline-none focus:border-[#FF2D00] focus:ring-1 focus:ring-[#FF2D00] transition-all duration-[1000ms]"
+                  />
+                </div>
+              )}
             </div>
-          )}
+          </div>
 
           {/* Email Field (Always visible) */}
-          <div className="space-y-1">
+          <div className="space-y-1 mb-3.5">
             <label className="block text-[11px] font-semibold text-white/80 uppercase tracking-wider">
               {dict.auth?.emailLabel || 'Correo Electrónico'}
             </label>
@@ -195,23 +226,36 @@ export const AuthModal: React.FC<AuthModalProps> = ({
           </div>
 
           {/* Register Field: Phone */}
-          {mode === 'register' && (
-            <div className="space-y-1 transition-all duration-[2000ms] ease-[cubic-bezier(0.16,1,0.3,1)] animate-fadeIn">
-              <label className="block text-[11px] font-semibold text-white/80 uppercase tracking-wider">
-                {dict.auth?.phoneLabel || 'Teléfono'}
-              </label>
-              <input
-                type="tel"
-                value={phone}
-                onChange={(e) => setPhone(e.target.value)}
-                placeholder={dict.auth?.phonePlaceholder || '+52 55 1234 5678'}
-                className="w-full px-3.5 py-2.5 bg-black/40 border border-white/10 rounded-lg text-sm text-white placeholder-white/30 focus:outline-none focus:border-[#FF2D00] focus:ring-1 focus:ring-[#FF2D00] transition-all duration-[1000ms]"
-              />
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateRows: isRegisterMode ? '1fr' : '0fr',
+              opacity: isRegisterMode ? 1 : 0,
+              marginBottom: isRegisterMode ? '14px' : '0px',
+              transition:
+                'grid-template-rows 2000ms cubic-bezier(0.16, 1, 0.3, 1), opacity 2000ms cubic-bezier(0.16, 1, 0.3, 1), margin-bottom 2000ms cubic-bezier(0.16, 1, 0.3, 1)',
+            }}
+          >
+            <div className="overflow-hidden">
+              {shouldRenderRegisterFields && (
+                <div className="space-y-1 pb-0.5">
+                  <label className="block text-[11px] font-semibold text-white/80 uppercase tracking-wider">
+                    {dict.auth?.phoneLabel || 'Teléfono'}
+                  </label>
+                  <input
+                    type="tel"
+                    value={phone}
+                    onChange={(e) => setPhone(e.target.value)}
+                    placeholder={dict.auth?.phonePlaceholder || '+52 55 1234 5678'}
+                    className="w-full px-3.5 py-2.5 bg-black/40 border border-white/10 rounded-lg text-sm text-white placeholder-white/30 focus:outline-none focus:border-[#FF2D00] focus:ring-1 focus:ring-[#FF2D00] transition-all duration-[1000ms]"
+                  />
+                </div>
+              )}
             </div>
-          )}
+          </div>
 
           {/* Password Field (Always visible) */}
-          <div className="space-y-1">
+          <div className="space-y-1 mb-3.5">
             <label className="block text-[11px] font-semibold text-white/80 uppercase tracking-wider">
               {dict.auth?.passwordLabel || 'Contraseña'}
             </label>
@@ -226,21 +270,34 @@ export const AuthModal: React.FC<AuthModalProps> = ({
           </div>
 
           {/* Register Field: Confirm Password */}
-          {mode === 'register' && (
-            <div className="space-y-1 transition-all duration-[2000ms] ease-[cubic-bezier(0.16,1,0.3,1)] animate-fadeIn">
-              <label className="block text-[11px] font-semibold text-white/80 uppercase tracking-wider">
-                {dict.auth?.confirmPasswordLabel || 'Confirmar Contraseña'}
-              </label>
-              <input
-                type="password"
-                required
-                value={confirmPassword}
-                onChange={(e) => setConfirmPassword(e.target.value)}
-                placeholder={dict.auth?.confirmPasswordPlaceholder || '••••••••'}
-                className="w-full px-3.5 py-2.5 bg-black/40 border border-white/10 rounded-lg text-sm text-white placeholder-white/30 focus:outline-none focus:border-[#FF2D00] focus:ring-1 focus:ring-[#FF2D00] transition-all duration-[1000ms]"
-              />
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateRows: isRegisterMode ? '1fr' : '0fr',
+              opacity: isRegisterMode ? 1 : 0,
+              marginBottom: isRegisterMode ? '14px' : '0px',
+              transition:
+                'grid-template-rows 2000ms cubic-bezier(0.16, 1, 0.3, 1), opacity 2000ms cubic-bezier(0.16, 1, 0.3, 1), margin-bottom 2000ms cubic-bezier(0.16, 1, 0.3, 1)',
+            }}
+          >
+            <div className="overflow-hidden">
+              {shouldRenderRegisterFields && (
+                <div className="space-y-1 pb-0.5">
+                  <label className="block text-[11px] font-semibold text-white/80 uppercase tracking-wider">
+                    {dict.auth?.confirmPasswordLabel || 'Confirmar Contraseña'}
+                  </label>
+                  <input
+                    type="password"
+                    required={isRegisterMode}
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    placeholder={dict.auth?.confirmPasswordPlaceholder || '••••••••'}
+                    className="w-full px-3.5 py-2.5 bg-black/40 border border-white/10 rounded-lg text-sm text-white placeholder-white/30 focus:outline-none focus:border-[#FF2D00] focus:ring-1 focus:ring-[#FF2D00] transition-all duration-[1000ms]"
+                  />
+                </div>
+              )}
             </div>
-          )}
+          </div>
 
           {/* Submit Button */}
           <div className="pt-2">
