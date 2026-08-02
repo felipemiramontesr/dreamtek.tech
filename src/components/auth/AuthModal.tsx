@@ -110,7 +110,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
       title={dict.auth?.title || 'Área de Clientes'}
     >
       <div className="space-y-5">
-        {/* Sliding Pill Tab Switcher (1000ms Silky Smooth Ease-Out) */}
+        {/* Sliding Pill Tab Switcher (1000ms Synchronized Cubic-Bezier Motion) */}
         <div className="relative flex p-1 bg-white/5 border border-white/10 rounded-xl overflow-hidden backdrop-blur-md">
           <div
             className={`absolute top-1 bottom-1 w-[calc(50%-4px)] bg-[#FF2D00] rounded-lg shadow-lg shadow-[#FF2D00]/30 transition-transform duration-1000 ease-[cubic-bezier(0.16,1,0.3,1)] ${
@@ -157,11 +157,12 @@ export const AuthModal: React.FC<AuthModalProps> = ({
           </div>
         )}
 
-        {/* Form Body with Fluid 1000ms Motion */}
+        {/* Form Body with Synchronized 1000ms Smooth Transition */}
         <form
           onSubmit={handleSubmit}
           className="space-y-3.5 transition-all duration-1000 ease-[cubic-bezier(0.16,1,0.3,1)]"
         >
+          {/* Register Field: Full Name */}
           {mode === 'register' && (
             <div className="space-y-1 transition-all duration-1000 ease-[cubic-bezier(0.16,1,0.3,1)] animate-fadeIn">
               <label className="block text-[11px] font-semibold text-white/80 uppercase tracking-wider">
@@ -178,6 +179,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
             </div>
           )}
 
+          {/* Email Field (Always visible) */}
           <div className="space-y-1">
             <label className="block text-[11px] font-semibold text-white/80 uppercase tracking-wider">
               {dict.auth?.emailLabel || 'Correo Electrónico'}
@@ -192,6 +194,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
             />
           </div>
 
+          {/* Register Field: Phone */}
           {mode === 'register' && (
             <div className="space-y-1 transition-all duration-1000 ease-[cubic-bezier(0.16,1,0.3,1)] animate-fadeIn">
               <label className="block text-[11px] font-semibold text-white/80 uppercase tracking-wider">
@@ -207,6 +210,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
             </div>
           )}
 
+          {/* Password Field (Always visible) */}
           <div className="space-y-1">
             <label className="block text-[11px] font-semibold text-white/80 uppercase tracking-wider">
               {dict.auth?.passwordLabel || 'Contraseña'}
@@ -221,6 +225,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
             />
           </div>
 
+          {/* Register Field: Confirm Password */}
           {mode === 'register' && (
             <div className="space-y-1 transition-all duration-1000 ease-[cubic-bezier(0.16,1,0.3,1)] animate-fadeIn">
               <label className="block text-[11px] font-semibold text-white/80 uppercase tracking-wider">
