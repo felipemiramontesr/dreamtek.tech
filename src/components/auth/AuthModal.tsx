@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { Modal } from '../ui/Modal';
 import { Button } from '../ui/Button';
 import { loginUser, registerUser } from '@/lib/auth/client';
@@ -35,25 +35,6 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   const [phone, setPhone] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
-
-  // Synchronized 2-Second Accordion Render State
-  const [shouldRenderRegisterFields, setShouldRenderRegisterFields] = useState(
-    initialMode === 'register',
-  );
-
-  useEffect(() => {
-    if (mode === 'register') {
-      const frame = requestAnimationFrame(() => {
-        setShouldRenderRegisterFields(true);
-      });
-      return () => cancelAnimationFrame(frame);
-    } else {
-      const timer = setTimeout(() => {
-        setShouldRenderRegisterFields(false);
-      }, 2000);
-      return () => clearTimeout(timer);
-    }
-  }, [mode]);
 
   const resetForm = () => {
     setErrorMsg(null);
@@ -192,21 +173,21 @@ export const AuthModal: React.FC<AuthModalProps> = ({
             }}
           >
             <div className="overflow-hidden">
-              {shouldRenderRegisterFields && (
-                <div className="space-y-1 pb-0.5">
-                  <label className="block text-[11px] font-semibold text-white/80 uppercase tracking-wider">
-                    {dict.auth?.fullNameLabel || 'Nombre Completo'}
-                  </label>
-                  <input
-                    type="text"
-                    required={isRegisterMode}
-                    value={fullName}
-                    onChange={(e) => setFullName(e.target.value)}
-                    placeholder={dict.auth?.fullNamePlaceholder || 'ej. Carlos Mendoza'}
-                    className="w-full px-3.5 py-2.5 bg-black/40 border border-white/10 rounded-lg text-sm text-white placeholder-white/30 focus:outline-none focus:border-[#FF2D00] focus:ring-1 focus:ring-[#FF2D00] transition-all duration-[1000ms]"
-                  />
-                </div>
-              )}
+              <div className="space-y-1 pb-0.5">
+                <label className="block text-[11px] font-semibold text-white/80 uppercase tracking-wider">
+                  {dict.auth?.fullNameLabel || 'Nombre Completo'}
+                </label>
+                <input
+                  type="text"
+                  required={isRegisterMode}
+                  value={fullName}
+                  onChange={(e) => setFullName(e.target.value)}
+                  placeholder={
+                    isRegisterMode ? dict.auth?.fullNamePlaceholder || 'ej. Carlos Mendoza' : ''
+                  }
+                  className="w-full px-3.5 py-2.5 bg-black/40 border border-white/10 rounded-lg text-sm text-white placeholder-white/30 focus:outline-none focus:border-[#FF2D00] focus:ring-1 focus:ring-[#FF2D00] transition-all duration-[1000ms]"
+                />
+              </div>
             </div>
           </div>
 
@@ -237,20 +218,20 @@ export const AuthModal: React.FC<AuthModalProps> = ({
             }}
           >
             <div className="overflow-hidden">
-              {shouldRenderRegisterFields && (
-                <div className="space-y-1 pb-0.5">
-                  <label className="block text-[11px] font-semibold text-white/80 uppercase tracking-wider">
-                    {dict.auth?.phoneLabel || 'Teléfono'}
-                  </label>
-                  <input
-                    type="tel"
-                    value={phone}
-                    onChange={(e) => setPhone(e.target.value)}
-                    placeholder={dict.auth?.phonePlaceholder || '+52 55 1234 5678'}
-                    className="w-full px-3.5 py-2.5 bg-black/40 border border-white/10 rounded-lg text-sm text-white placeholder-white/30 focus:outline-none focus:border-[#FF2D00] focus:ring-1 focus:ring-[#FF2D00] transition-all duration-[1000ms]"
-                  />
-                </div>
-              )}
+              <div className="space-y-1 pb-0.5">
+                <label className="block text-[11px] font-semibold text-white/80 uppercase tracking-wider">
+                  {dict.auth?.phoneLabel || 'Teléfono'}
+                </label>
+                <input
+                  type="tel"
+                  value={phone}
+                  onChange={(e) => setPhone(e.target.value)}
+                  placeholder={
+                    isRegisterMode ? dict.auth?.phonePlaceholder || '+52 55 1234 5678' : ''
+                  }
+                  className="w-full px-3.5 py-2.5 bg-black/40 border border-white/10 rounded-lg text-sm text-white placeholder-white/30 focus:outline-none focus:border-[#FF2D00] focus:ring-1 focus:ring-[#FF2D00] transition-all duration-[1000ms]"
+                />
+              </div>
             </div>
           </div>
 
@@ -281,21 +262,21 @@ export const AuthModal: React.FC<AuthModalProps> = ({
             }}
           >
             <div className="overflow-hidden">
-              {shouldRenderRegisterFields && (
-                <div className="space-y-1 pb-0.5">
-                  <label className="block text-[11px] font-semibold text-white/80 uppercase tracking-wider">
-                    {dict.auth?.confirmPasswordLabel || 'Confirmar Contraseña'}
-                  </label>
-                  <input
-                    type="password"
-                    required={isRegisterMode}
-                    value={confirmPassword}
-                    onChange={(e) => setConfirmPassword(e.target.value)}
-                    placeholder={dict.auth?.confirmPasswordPlaceholder || '••••••••'}
-                    className="w-full px-3.5 py-2.5 bg-black/40 border border-white/10 rounded-lg text-sm text-white placeholder-white/30 focus:outline-none focus:border-[#FF2D00] focus:ring-1 focus:ring-[#FF2D00] transition-all duration-[1000ms]"
-                  />
-                </div>
-              )}
+              <div className="space-y-1 pb-0.5">
+                <label className="block text-[11px] font-semibold text-white/80 uppercase tracking-wider">
+                  {dict.auth?.confirmPasswordLabel || 'Confirmar Contraseña'}
+                </label>
+                <input
+                  type="password"
+                  required={isRegisterMode}
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  placeholder={
+                    isRegisterMode ? dict.auth?.confirmPasswordPlaceholder || '••••••••' : ''
+                  }
+                  className="w-full px-3.5 py-2.5 bg-black/40 border border-white/10 rounded-lg text-sm text-white placeholder-white/30 focus:outline-none focus:border-[#FF2D00] focus:ring-1 focus:ring-[#FF2D00] transition-all duration-[1000ms]"
+                />
+              </div>
             </div>
           </div>
 
