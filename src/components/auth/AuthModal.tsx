@@ -110,17 +110,17 @@ export const AuthModal: React.FC<AuthModalProps> = ({
       title={dict.auth?.title || 'Área de Clientes'}
     >
       <div className="space-y-5">
-        {/* Sliding Pill Tab Switcher */}
-        <div className="relative flex p-1 bg-white/5 border border-white/10 rounded-xl overflow-hidden">
+        {/* Sliding Pill Tab Switcher (Slower 500ms Apple-like Ease-Out) */}
+        <div className="relative flex p-1 bg-white/5 border border-white/10 rounded-xl overflow-hidden backdrop-blur-md">
           <div
-            className={`absolute top-1 bottom-1 w-[calc(50%-4px)] bg-[#FF2D00] rounded-lg shadow-lg shadow-[#FF2D00]/30 transition-transform duration-300 ease-[cubic-bezier(0.4,0,0.2,1)] ${
+            className={`absolute top-1 bottom-1 w-[calc(50%-4px)] bg-[#FF2D00] rounded-lg shadow-lg shadow-[#FF2D00]/30 transition-transform duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] ${
               mode === 'login' ? 'translate-x-0' : 'translate-x-full'
             }`}
           />
           <button
             type="button"
             onClick={() => handleModeSwitch('login')}
-            className={`relative z-10 flex-1 py-2 text-xs md:text-sm font-medium transition-colors duration-200 ${
+            className={`relative z-10 flex-1 py-2.5 text-xs md:text-sm font-medium transition-colors duration-300 ${
               mode === 'login' ? 'text-white font-semibold' : 'text-white/60 hover:text-white'
             }`}
           >
@@ -129,7 +129,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
           <button
             type="button"
             onClick={() => handleModeSwitch('register')}
-            className={`relative z-10 flex-1 py-2 text-xs md:text-sm font-medium transition-colors duration-200 ${
+            className={`relative z-10 flex-1 py-2.5 text-xs md:text-sm font-medium transition-colors duration-300 ${
               mode === 'register' ? 'text-white font-semibold' : 'text-white/60 hover:text-white'
             }`}
           >
@@ -139,7 +139,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
 
         {/* Error Alert Box */}
         {errorMsg && (
-          <div className="p-3 rounded-xl bg-red-500/10 border border-red-500/30 text-red-300 text-xs flex items-center gap-2.5 animate-fadeIn">
+          <div className="p-3 rounded-xl bg-red-500/10 border border-red-500/30 text-red-300 text-xs flex items-center gap-2.5 transition-all duration-300 ease-out">
             <svg
               className="w-4 h-4 flex-shrink-0 text-red-400"
               fill="none"
@@ -157,88 +157,95 @@ export const AuthModal: React.FC<AuthModalProps> = ({
           </div>
         )}
 
-        {/* Form Body with Smooth Mode Transition */}
-        <form onSubmit={handleSubmit} className="space-y-3">
-          <div key={mode} className="space-y-3 animate-fadeIn">
-            {mode === 'register' && (
-              <div>
-                <label className="block text-[11px] font-semibold text-white/80 uppercase tracking-wider mb-1">
-                  {dict.auth?.fullNameLabel || 'Nombre Completo'}
-                </label>
-                <input
-                  type="text"
-                  required
-                  value={fullName}
-                  onChange={(e) => setFullName(e.target.value)}
-                  placeholder={dict.auth?.fullNamePlaceholder || 'ej. Carlos Mendoza'}
-                  className="w-full px-3.5 py-2.5 bg-black/40 border border-white/10 rounded-lg text-sm text-white placeholder-white/30 focus:outline-none focus:border-[#FF2D00] focus:ring-1 focus:ring-[#FF2D00] transition-colors"
-                />
-              </div>
-            )}
-
-            <div>
-              <label className="block text-[11px] font-semibold text-white/80 uppercase tracking-wider mb-1">
-                {dict.auth?.emailLabel || 'Correo Electrónico'}
+        {/* Form Body with Fluid 500ms Motion */}
+        <form
+          onSubmit={handleSubmit}
+          className="space-y-3.5 transition-all duration-500 ease-[cubic-bezier(0.16,1,0.3,1)]"
+        >
+          {mode === 'register' && (
+            <div className="space-y-1 transition-all duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] animate-fadeIn">
+              <label className="block text-[11px] font-semibold text-white/80 uppercase tracking-wider">
+                {dict.auth?.fullNameLabel || 'Nombre Completo'}
               </label>
               <input
-                type="email"
+                type="text"
                 required
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder={dict.auth?.emailPlaceholder || 'carlos@empresa.com'}
-                className="w-full px-3.5 py-2.5 bg-black/40 border border-white/10 rounded-lg text-sm text-white placeholder-white/30 focus:outline-none focus:border-[#FF2D00] focus:ring-1 focus:ring-[#FF2D00] transition-colors"
+                value={fullName}
+                onChange={(e) => setFullName(e.target.value)}
+                placeholder={dict.auth?.fullNamePlaceholder || 'ej. Carlos Mendoza'}
+                className="w-full px-3.5 py-2.5 bg-black/40 border border-white/10 rounded-lg text-sm text-white placeholder-white/30 focus:outline-none focus:border-[#FF2D00] focus:ring-1 focus:ring-[#FF2D00] transition-all duration-300"
               />
             </div>
+          )}
 
-            {mode === 'register' && (
-              <div>
-                <label className="block text-[11px] font-semibold text-white/80 uppercase tracking-wider mb-1">
-                  {dict.auth?.phoneLabel || 'Teléfono'}
-                </label>
-                <input
-                  type="tel"
-                  value={phone}
-                  onChange={(e) => setPhone(e.target.value)}
-                  placeholder={dict.auth?.phonePlaceholder || '+52 55 1234 5678'}
-                  className="w-full px-3.5 py-2.5 bg-black/40 border border-white/10 rounded-lg text-sm text-white placeholder-white/30 focus:outline-none focus:border-[#FF2D00] focus:ring-1 focus:ring-[#FF2D00] transition-colors"
-                />
-              </div>
-            )}
+          <div className="space-y-1">
+            <label className="block text-[11px] font-semibold text-white/80 uppercase tracking-wider">
+              {dict.auth?.emailLabel || 'Correo Electrónico'}
+            </label>
+            <input
+              type="email"
+              required
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder={dict.auth?.emailPlaceholder || 'carlos@empresa.com'}
+              className="w-full px-3.5 py-2.5 bg-black/40 border border-white/10 rounded-lg text-sm text-white placeholder-white/30 focus:outline-none focus:border-[#FF2D00] focus:ring-1 focus:ring-[#FF2D00] transition-all duration-300"
+            />
+          </div>
 
-            <div>
-              <label className="block text-[11px] font-semibold text-white/80 uppercase tracking-wider mb-1">
-                {dict.auth?.passwordLabel || 'Contraseña'}
+          {mode === 'register' && (
+            <div className="space-y-1 transition-all duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] animate-fadeIn">
+              <label className="block text-[11px] font-semibold text-white/80 uppercase tracking-wider">
+                {dict.auth?.phoneLabel || 'Teléfono'}
+              </label>
+              <input
+                type="tel"
+                value={phone}
+                onChange={(e) => setPhone(e.target.value)}
+                placeholder={dict.auth?.phonePlaceholder || '+52 55 1234 5678'}
+                className="w-full px-3.5 py-2.5 bg-black/40 border border-white/10 rounded-lg text-sm text-white placeholder-white/30 focus:outline-none focus:border-[#FF2D00] focus:ring-1 focus:ring-[#FF2D00] transition-all duration-300"
+              />
+            </div>
+          )}
+
+          <div className="space-y-1">
+            <label className="block text-[11px] font-semibold text-white/80 uppercase tracking-wider">
+              {dict.auth?.passwordLabel || 'Contraseña'}
+            </label>
+            <input
+              type="password"
+              required
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder={dict.auth?.passwordPlaceholder || '••••••••'}
+              className="w-full px-3.5 py-2.5 bg-black/40 border border-white/10 rounded-lg text-sm text-white placeholder-white/30 focus:outline-none focus:border-[#FF2D00] focus:ring-1 focus:ring-[#FF2D00] transition-all duration-300"
+            />
+          </div>
+
+          {mode === 'register' && (
+            <div className="space-y-1 transition-all duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] animate-fadeIn">
+              <label className="block text-[11px] font-semibold text-white/80 uppercase tracking-wider">
+                {dict.auth?.confirmPasswordLabel || 'Confirmar Contraseña'}
               </label>
               <input
                 type="password"
                 required
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder={dict.auth?.passwordPlaceholder || '••••••••'}
-                className="w-full px-3.5 py-2.5 bg-black/40 border border-white/10 rounded-lg text-sm text-white placeholder-white/30 focus:outline-none focus:border-[#FF2D00] focus:ring-1 focus:ring-[#FF2D00] transition-colors"
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                placeholder={dict.auth?.confirmPasswordPlaceholder || '••••••••'}
+                className="w-full px-3.5 py-2.5 bg-black/40 border border-white/10 rounded-lg text-sm text-white placeholder-white/30 focus:outline-none focus:border-[#FF2D00] focus:ring-1 focus:ring-[#FF2D00] transition-all duration-300"
               />
             </div>
-
-            {mode === 'register' && (
-              <div>
-                <label className="block text-[11px] font-semibold text-white/80 uppercase tracking-wider mb-1">
-                  {dict.auth?.confirmPasswordLabel || 'Confirmar Contraseña'}
-                </label>
-                <input
-                  type="password"
-                  required
-                  value={confirmPassword}
-                  onChange={(e) => setConfirmPassword(e.target.value)}
-                  placeholder={dict.auth?.confirmPasswordPlaceholder || '••••••••'}
-                  className="w-full px-3.5 py-2.5 bg-black/40 border border-white/10 rounded-lg text-sm text-white placeholder-white/30 focus:outline-none focus:border-[#FF2D00] focus:ring-1 focus:ring-[#FF2D00] transition-colors"
-                />
-              </div>
-            )}
-          </div>
+          )}
 
           {/* Submit Button */}
           <div className="pt-2">
-            <Button type="submit" variant="primary" size="md" className="w-full" disabled={loading}>
+            <Button
+              type="submit"
+              variant="primary"
+              size="md"
+              className="w-full transition-all duration-300 active:scale-[0.98]"
+              disabled={loading}
+            >
               {loading ? (
                 <div className="flex items-center justify-center gap-2">
                   <svg className="animate-spin h-4 w-4 text-white" fill="none" viewBox="0 0 24 24">
@@ -272,7 +279,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
           <button
             type="button"
             onClick={() => handleModeSwitch(mode === 'login' ? 'register' : 'login')}
-            className="text-xs text-[#00A3FF] hover:text-[#00A3FF]/80 transition-colors font-medium hover:underline"
+            className="text-xs text-[#00A3FF] hover:text-[#00A3FF]/80 transition-colors duration-300 font-medium hover:underline"
           >
             {mode === 'login'
               ? dict.auth?.switchToRegister || '¿No tienes cuenta aún? Regístrate aquí'
