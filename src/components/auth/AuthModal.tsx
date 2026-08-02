@@ -322,7 +322,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
           <button
             type="button"
             onClick={() => handleModeSwitch(mode === 'login' ? 'register' : 'login')}
-            className="text-xs text-[#00A3FF] hover:text-[#00A3FF]/80 transition-colors duration-[1000ms] font-medium hover:underline"
+            className="text-xs text-[#00bfff] hover:text-[#00bfff]/80 transition-colors duration-[1000ms] font-medium hover:no-underline"
           >
             {mode === 'login'
               ? dict.auth?.switchToRegister || '¿No tienes cuenta aún? Regístrate aquí'
