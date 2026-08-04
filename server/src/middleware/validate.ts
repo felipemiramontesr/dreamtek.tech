@@ -1,5 +1,5 @@
 import { Request, Response, NextFunction } from 'express';
-import { ZodSchema } from 'zod';
+import { ZodSchema, ZodIssue } from 'zod';
 
 /**
  * Generic Zod boundary validation middleware (ISO 25010 Functional Suitability & OWASP A04/A05)
@@ -12,9 +12,9 @@ export function validate(
     const result = schema.safeParse(req[target]);
 
     if (!result.success) {
-      const formattedErrors = result.error.errors.map((err) => ({
-        field: err.path.join('.'),
-        message: err.message,
+      const formattedErrors = result.error.issues.map((issue: ZodIssue) => ({
+        field: issue.path.join('.'),
+        message: issue.message,
       }));
 
       res.status(400).json({
