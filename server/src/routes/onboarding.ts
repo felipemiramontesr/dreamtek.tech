@@ -1,12 +1,14 @@
 import { Router, Request, Response } from 'express';
 import { query } from '../db.js';
+import { validate } from '../middleware/validate.js';
+import { leadSchema, domainCheckSchema } from '../schemas/onboarding.schema.js';
 
 export const onboardingRouter = Router();
 
 /**
  * POST /api/v1/onboarding/lead
  */
-onboardingRouter.post('/lead', async (req: Request, res: Response): Promise<void> => {
+onboardingRouter.post('/lead', validate(leadSchema), async (req: Request, res: Response): Promise<void> => {
   try {
     const { email, full_name, phone, company, step_reached } = req.body;
 
@@ -44,7 +46,7 @@ onboardingRouter.post('/lead', async (req: Request, res: Response): Promise<void
 /**
  * POST /api/v1/onboarding/domain
  */
-onboardingRouter.post('/domain', (req: Request, res: Response) => {
+onboardingRouter.post('/domain', validate(domainCheckSchema), (req: Request, res: Response) => {
   const { domain } = req.body;
 
   if (!domain || typeof domain !== 'string') {

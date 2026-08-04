@@ -1,0 +1,178 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Dreamtek.tech API",
+    "version": "1.0.0",
+    "description": "API Enterprise de Dreamtek.tech documentada bajo el estándar OpenAPI 3.1.0 (FC 001i ISO 25010)."
+  },
+  "servers": [
+    {
+      "url": "https://apiv1.dreamtek.tech/api/v1",
+      "description": "Production Server"
+    },
+    {
+      "url": "http://localhost:3001/api/v1",
+      "description": "Local Development Server"
+    }
+  ],
+  "paths": {
+    "/auth/login": {
+      "post": {
+        "summary": "Iniciar Sesión",
+        "tags": ["Authentication"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["email", "password"],
+                "properties": {
+                  "email": {
+                    "type": "string",
+                    "format": "email",
+                    "example": "cliente@empresa.com"
+                  },
+                  "password": { "type": "string", "minLength": 8, "example": "Password123!" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Autenticación exitosa. Retorna galleta HttpOnly." },
+          "400": { "description": "Error de validación de esquema Zod." },
+          "401": { "description": "Credenciales inválidas." },
+          "429": { "description": "Límite de intentos superado (Rate Limit 5/15m)." }
+        }
+      }
+    },
+    "/auth/register": {
+      "post": {
+        "summary": "Crear Cuenta de Cliente",
+        "tags": ["Authentication"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["full_name", "email", "password"],
+                "properties": {
+                  "full_name": { "type": "string", "minLength": 2, "example": "Juan Pérez" },
+                  "email": { "type": "string", "format": "email", "example": "juan@empresa.com" },
+                  "password": { "type": "string", "minLength": 8, "example": "Password123!" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Usuario registrado exitosamente." },
+          "400": { "description": "Error de validación o usuario existente." }
+        }
+      }
+    },
+    "/contact": {
+      "post": {
+        "summary": "Envío de Formulario de Contacto",
+        "tags": ["Contact"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["name", "email", "subject", "message"],
+                "properties": {
+                  "name": { "type": "string", "minLength": 2 },
+                  "email": { "type": "string", "format": "email" },
+                  "subject": { "type": "string", "maxLength": 200 },
+                  "message": { "type": "string", "maxLength": 2000 }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Mensaje enviado exitosamente." },
+          "400": { "description": "Error de validación Zod." }
+        }
+      }
+    },
+    "/contact/send-code": {
+      "post": {
+        "summary": "Generación y Envío de Código 2FA",
+        "tags": ["Contact"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["email"],
+                "properties": {
+                  "email": { "type": "string", "format": "email" },
+                  "name": { "type": "string" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Código de verificación enviado." }
+        }
+      }
+    },
+    "/onboarding/lead": {
+      "post": {
+        "summary": "Ingesta de Prospecto Onboarding",
+        "tags": ["Onboarding"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["name", "email"],
+                "properties": {
+                  "name": { "type": "string" },
+                  "email": { "type": "string", "format": "email" },
+                  "phone": { "type": "string" },
+                  "company": { "type": "string" },
+                  "planId": { "type": "string" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Lead registrado." }
+        }
+      }
+    },
+    "/onboarding/domain": {
+      "post": {
+        "summary": "Verificación FQDN de Dominio",
+        "tags": ["Onboarding"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["domain"],
+                "properties": {
+                  "domain": { "type": "string", "example": "miempresa.com" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Estado de disponibilidad del dominio." }
+        }
+      }
+    }
+  }
+}

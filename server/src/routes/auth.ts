@@ -3,6 +3,8 @@ import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { query } from '../db.js';
 import { logSecurityEvent } from '../middleware/auditLogger.js';
+import { validate } from '../middleware/validate.js';
+import { loginSchema, registerSchema } from '../schemas/auth.schema.js';
 
 function getJwtSecret(): string {
   if (process.env.NODE_ENV === 'production' && !process.env.JWT_SECRET) {
@@ -17,7 +19,7 @@ const COOKIE_NAME = 'dreamtek_session';
 /**
  * POST /api/v1/auth/login
  */
-authRouter.post('/login', async (req: Request, res: Response): Promise<void> => {
+authRouter.post('/login', validate(loginSchema), async (req: Request, res: Response): Promise<void> => {
   try {
     const { email, password } = req.body;
 

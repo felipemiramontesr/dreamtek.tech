@@ -96,6 +96,11 @@ app.get('/health', (_req, res) => {
   res.json({ status: 'ok', service: 'Dreamtek Node.js API', version: '1.0.0' });
 });
 
+// OpenAPI 3.1 Documentation Endpoint (FC 001i)
+app.get('/api/v1/docs', (_req, res) => {
+  res.sendFile(path.join(__dirname, 'docs/openapi.json'));
+});
+
 // Subruta principal del API
 app.use('/api/v1', healthRouter);
 app.use('/api/v1/auth', sensitiveEndpointLimiter, authRouter);

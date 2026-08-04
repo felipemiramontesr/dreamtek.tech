@@ -1,5 +1,7 @@
 import { Router, Request, Response } from 'express';
 import nodemailer from 'nodemailer';
+import { validate } from '../middleware/validate.js';
+import { contactFormSchema, sendCodeSchema } from '../schemas/contact.schema.js';
 
 export const contactRouter = Router();
 
@@ -18,7 +20,7 @@ const transporter = nodemailer.createTransport({
  * POST /api/v1/contact/send-code
  * Sends 2FA verification code via email for contact form validation
  */
-contactRouter.post('/send-code', async (req: Request, res: Response): Promise<void> => {
+contactRouter.post('/send-code', validate(sendCodeSchema), async (req: Request, res: Response): Promise<void> => {
   const { email } = req.body;
 
   if (!email || !email.includes('@')) {
@@ -52,7 +54,7 @@ contactRouter.post('/send-code', async (req: Request, res: Response): Promise<vo
  * POST /api/v1/contact
  * Processes contact form submissions with verified 2FA code
  */
-contactRouter.post('/', async (req: Request, res: Response): Promise<void> => {
+contactRouter.post('/', validate(contactFormSchema), async (req: Request, res: Response): Promise<void> => {
   const { name, email, phone, company, message, service } = req.body;
 
   if (!name || !email || !message) {
