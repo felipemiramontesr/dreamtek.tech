@@ -2,6 +2,7 @@ import { Router, Request, Response } from 'express';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { query } from '../db.js';
+import { logSecurityEvent } from '../middleware/auditLogger.js';
 
 function getJwtSecret(): string {
   if (process.env.NODE_ENV === 'production' && !process.env.JWT_SECRET) {
@@ -29,9 +30,12 @@ authRouter.post('/login', async (req: Request, res: Response): Promise<void> => 
     const user = users[0];
 
     if (!user || !(await bcrypt.compare(password, user.password_hash))) {
+      await logSecurityEvent(req, { eventType: 'LOGIN_FAILURE', status: 'FAILURE', details: `Failed login attempt for ${email}` });
       res.status(401).json({ status: 'error', message: 'Credenciales inválidas.' });
       return;
     }
+
+    await logSecurityEvent(req, { eventType: 'LOGIN_SUCCESS', userId: user.id, status: 'SUCCESS' });
 
     const token = jwt.sign(
       { uid: user.id, email: user.email, role: user.role, name: user.full_name },
