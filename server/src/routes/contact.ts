@@ -2,6 +2,7 @@ import { Router, Request, Response } from 'express';
 import nodemailer from 'nodemailer';
 import { validate } from '../middleware/validate.js';
 import { contactFormSchema, sendCodeSchema } from '../schemas/contact.schema.js';
+import { invalidateCache } from '../utils/cache.js';
 
 export const contactRouter = Router();
 
@@ -81,9 +82,11 @@ contactRouter.post('/', validate(contactFormSchema), async (req: Request, res: R
       });
     }
 
+    // Condition C-L2: Invalidate contact cache on submission
+    await invalidateCache('contact');
+
     res.json({
       message: 'Mensaje de contacto enviado con éxito.',
-      status: 'ok',
     });
   } catch (err: any) {
     res.status(500).json({ error: 'Error al procesar el mensaje de contacto.' });

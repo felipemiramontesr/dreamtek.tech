@@ -2,6 +2,7 @@ import { Router, Request, Response } from 'express';
 import { query } from '../db.js';
 import { validate } from '../middleware/validate.js';
 import { leadSchema, domainCheckSchema } from '../schemas/onboarding.schema.js';
+import { invalidateCache } from '../utils/cache.js';
 
 export const onboardingRouter = Router();
 
@@ -18,6 +19,9 @@ onboardingRouter.post('/lead', validate(leadSchema), async (req: Request, res: R
     }
 
     const existing = await query<any[]>('SELECT id FROM leads WHERE email = ? LIMIT 1', [email]);
+
+    // Condition C-L2: Invalidate lead cache on write operation
+    await invalidateCache('lead');
 
     if (existing.length > 0) {
       await query('UPDATE leads SET full_name = ?, phone = ?, company = ?, step_reached = ? WHERE id = ?', [
@@ -61,8 +65,5 @@ onboardingRouter.post('/domain', validate(domainCheckSchema), (req: Request, res
     status: 'success',
     available: isAvailable,
     domain: cleanDomain,
-    message: isAvailable
-      ? `El dominio ${cleanDomain} está disponible para registro.`
-      : `El dominio ${cleanDomain} no está disponible. Te sugeriremos alternativas.`,
   });
 });
