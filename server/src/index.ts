@@ -4,6 +4,7 @@ import helmet from 'helmet';
 import cookieParser from 'cookie-parser';
 import dotenv from 'dotenv';
 import path from 'path';
+import fs from 'fs';
 
 import { globalRateLimiter, sensitiveEndpointLimiter } from './middleware/rateLimiter.js';
 import { healthRouter, setShuttingDownState } from './routes/health.js';
@@ -14,6 +15,7 @@ import { clientRouter } from './routes/client.js';
 import { adminRouter } from './routes/admin.js';
 import { contactRouter } from './routes/contact.js';
 import { pool } from './db.js';
+import { getCache, setCache } from './utils/cache.js';
 
 dotenv.config({ path: path.join(__dirname, '../.env') });
 
@@ -87,9 +89,29 @@ app.get('/', (_req, res) => {
   res.json({ status: 'ok', service: 'Dreamtek Node.js API', version: '1.0.0' });
 });
 
-// OpenAPI 3.1 Documentation Endpoint (FC 001i)
-app.get('/api/v1/docs', (_req, res) => {
-  res.sendFile(path.join(__dirname, 'docs/openapi.json'));
+// OpenAPI 3.1 Documentation Endpoint (FC 001i / FC 001l Cached Hot Path - Condition C-L-R1)
+app.get('/api/v1/docs', async (_req, res) => {
+  try {
+    const cacheKey = 'docs:openapi:3.1';
+    const cachedDocs = await getCache<any>(cacheKey);
+
+    if (cachedDocs) {
+      res.json(cachedDocs);
+      return;
+    }
+
+    const openapiPath = path.join(__dirname, 'docs/openapi.json');
+    if (fs.existsSync(openapiPath)) {
+      const rawData = JSON.parse(fs.readFileSync(openapiPath, 'utf-8'));
+      await setCache(cacheKey, rawData, 300);
+      res.json(rawData);
+      return;
+    }
+
+    res.sendFile(openapiPath);
+  } catch (_err) {
+    res.sendFile(path.join(__dirname, 'docs/openapi.json'));
+  }
 });
 
 // Condition C-J1: Mount health probes at Root (/healthz, /readyz) AND /api/v1/
