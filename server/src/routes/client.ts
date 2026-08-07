@@ -24,12 +24,13 @@ clientRouter.get('/dashboard', async (req: AuthenticatedRequest, res: Response):
 
     const user = users[0];
 
-    // Safely query user sites (Condition C-M-R3)
+    // Safely query user sites without fake demo fallbacks (Rule F01 / Condition 001m R3)
     let sites: any[] = [];
     try {
       sites = await query<any[]>('SELECT id, domain, status, ssl FROM client_sites WHERE user_id = ?', [userId]);
-    } catch (_dbErr) {
-      sites = [{ id: 1, domain: 'miempresa.com', status: 'active', ssl: true }];
+    } catch (dbErr: any) {
+      console.error('⚠️ client_sites DB query warning:', dbErr?.message || dbErr);
+      sites = [];
     }
 
     res.json({
@@ -44,7 +45,7 @@ clientRouter.get('/dashboard', async (req: AuthenticatedRequest, res: Response):
       services: [
         { id: 'srv-1', name: 'Escolta WEB — Posicionamiento', status: 'active', billing_cycle: 'annual' },
       ],
-      sites: sites.length > 0 ? sites : [{ id: 1, domain: 'miempresa.com', status: 'active', ssl: true }],
+      sites,
     });
   } catch (err: any) {
     res.status(500).json({ status: 'error', message: err.message || 'Error al obtener el panel de cliente.' });
@@ -53,7 +54,7 @@ clientRouter.get('/dashboard', async (req: AuthenticatedRequest, res: Response):
 
 /**
  * GET /api/v1/client/sites
- * Returns client assigned web sites (Condition C-M3, C-M-R3)
+ * Returns client assigned web sites without fake fallbacks (Condition C-M3, Rule F01)
  */
 clientRouter.get('/sites', async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   try {
@@ -61,13 +62,14 @@ clientRouter.get('/sites', async (req: AuthenticatedRequest, res: Response): Pro
     let sites: any[] = [];
     try {
       sites = await query<any[]>('SELECT id, domain, status, ssl FROM client_sites WHERE user_id = ?', [userId]);
-    } catch (_dbErr) {
-      sites = [{ id: 1, domain: 'miempresa.com', status: 'active', ssl: true }];
+    } catch (dbErr: any) {
+      console.error('⚠️ client_sites DB query warning:', dbErr?.message || dbErr);
+      sites = [];
     }
 
     res.json({
       status: 'success',
-      sites: sites.length > 0 ? sites : [{ id: 1, domain: 'miempresa.com', status: 'active', ssl: true }],
+      sites,
     });
   } catch (err: any) {
     res.status(500).json({ status: 'error', message: err.message || 'Error al obtener sitios web del cliente.' });
