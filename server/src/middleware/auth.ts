@@ -53,7 +53,7 @@ export function requireAuth(req: AuthenticatedRequest, res: Response, next: Next
   }
 
   try {
-    const decoded = jwt.verify(token, getJwtSecret()) as JwtTokenPayload;
+    const decoded = jwt.verify(token, getJwtSecret(), { algorithms: ['HS512'] }) as JwtTokenPayload;
     
     // Condition C-M1 & C-M2: Standardize userId, email, and uppercase role
     req.user = {

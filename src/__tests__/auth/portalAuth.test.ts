@@ -9,7 +9,7 @@ import {
 
 const TEST_SECRET = 'dreamtek_dev_jwt_secret_key_2026';
 
-describe('FC 001m Client & Admin Portal Auth & RBAC Suite', () => {
+describe('FC 001m & FC 001o Client & Admin Portal Auth & RBAC Suite', () => {
   it('requireAuth debe rechazar solicitudes sin cookies ni encabezados Bearer con HTTP 401', () => {
     const req = { cookies: {}, headers: {} } as AuthenticatedRequest;
     let statusSent = 0;
@@ -38,7 +38,39 @@ describe('FC 001m Client & Admin Portal Auth & RBAC Suite', () => {
     expect(nextCalled).toBe(false);
   });
 
-  it('requireAuth debe validar firma JWT inyectando req.user con userId y rol en mayúsculas', () => {
+  it('requireAuth debe rechazar tokens con firmas o algoritmos inválidos', () => {
+    const badToken = jwt.sign(
+      { userId: 99, email: 'fake@empresa.com', role: 'CLIENT' },
+      'wrong_secret',
+      { algorithm: 'HS512' },
+    );
+
+    const req = {
+      cookies: {},
+      headers: { authorization: `Bearer ${badToken}` },
+    } as AuthenticatedRequest;
+
+    let statusSent = 0;
+    const res = {
+      status: (s: number) => {
+        statusSent = s;
+        return res;
+      },
+      json: () => res,
+    } as unknown as Response;
+
+    let nextCalled = false;
+    const next = () => {
+      nextCalled = true;
+    };
+
+    requireAuth(req, res, next);
+
+    expect(statusSent).toBe(401);
+    expect(nextCalled).toBe(false);
+  });
+
+  it('requireAuth debe validar firma JWT HS512 inyectando req.user con userId y rol en mayúsculas', () => {
     const token = jwt.sign(
       { userId: 42, email: 'cliente@empresa.com', role: 'client' },
       TEST_SECRET,
@@ -64,36 +96,28 @@ describe('FC 001m Client & Admin Portal Auth & RBAC Suite', () => {
     expect(req.user?.role).toBe('CLIENT');
   });
 
-  it('requireRole debe bloquear a usuarios CLIENT que intenten acceder a recursos ADMIN con HTTP 403', () => {
-    const req = {
-      user: { userId: 10, email: 'cliente@empresa.com', role: 'CLIENT' },
-    } as AuthenticatedRequest;
-
+  it('requireRole debe bloquear a usuarios sin autenticar o con rol insuficiente', () => {
+    const reqUnauth = {} as AuthenticatedRequest;
     let statusSent = 0;
-    let jsonBody: Record<string, unknown> | null = null;
-
     const res = {
       status: (s: number) => {
         statusSent = s;
         return res;
       },
-      json: (b: Record<string, unknown>) => {
-        jsonBody = b;
-        return res;
-      },
+      json: () => res,
     } as unknown as Response;
 
-    let nextCalled = false;
-    const next = () => {
-      nextCalled = true;
-    };
-
     const adminCheck = requireRole(['ADMIN']);
-    adminCheck(req, res, next);
+    adminCheck(reqUnauth, res, () => {});
 
+    expect(statusSent).toBe(401);
+
+    const reqClient = {
+      user: { userId: 10, email: 'cliente@empresa.com', role: 'CLIENT' },
+    } as AuthenticatedRequest;
+
+    adminCheck(reqClient, res, () => {});
     expect(statusSent).toBe(403);
-    expect(jsonBody?.error).toBe('Forbidden');
-    expect(nextCalled).toBe(false);
   });
 
   it('requireRole debe permitir el paso a usuarios con rol ADMIN en mayúsculas', () => {

@@ -42,7 +42,7 @@ authRouter.post('/login', validate(loginSchema), async (req: Request, res: Respo
     const token = jwt.sign(
       { userId: user.id, uid: user.id, email: user.email, role: (user.role || 'CLIENT').toUpperCase(), name: user.full_name },
       getJwtSecret(),
-      { algorithm: 'HS512', expiresIn: '7d' }
+      { algorithm: 'HS512', expiresIn: '24h' }
     );
 
     res.cookie(COOKIE_NAME, token, {
