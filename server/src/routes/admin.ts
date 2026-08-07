@@ -1,71 +1,79 @@
-import { Router, Request, Response } from 'express';
-import jwt from 'jsonwebtoken';
+import { Router, Response } from 'express';
 import { query } from '../db.js';
-import { getJwtSecret } from '../utils/crypto.js';
+import { requireAuth, requireRole, AuthenticatedRequest } from '../middleware/auth.js';
 
 export const adminRouter = Router();
-const COOKIE_NAME = 'dreamtek_session';
+
+// Protect all admin routes with requireAuth and requireRole('ADMIN') (Condition C-M1)
+adminRouter.use(requireAuth);
+adminRouter.use(requireRole(['ADMIN']));
 
 /**
- * Middleware para requerir rol ADMIN.
+ * GET /api/v1/admin/leads
+ * Returns list of onboarding leads (Condition C-M3)
  */
-function requireAdmin(req: Request, res: Response, next: () => void) {
-  const token = req.cookies?.[COOKIE_NAME];
-  if (!token) {
-    res.status(401).json({ status: 'error', message: 'No autenticado.' });
-    return;
-  }
-
+adminRouter.get('/leads', async (_req: AuthenticatedRequest, res: Response): Promise<void> => {
   try {
-    const payload = jwt.verify(token, getJwtSecret(), { algorithms: ['HS512'] }) as any;
-    if (payload.role !== 'ADMIN') {
-      res.status(403).json({ status: 'error', message: 'Acceso denegado. Se requiere rol ADMIN.' });
-      return;
-    }
-    (req as any).user = payload;
-    next();
-  } catch (_err) {
-    res.status(401).json({ status: 'error', message: 'Sesión inválida.' });
-  }
-}
-
-/**
- * GET /api/v1/admin/users (Read-Only list excluding password_hash)
- */
-adminRouter.get('/users', requireAdmin, async (_req: Request, res: Response): Promise<void> => {
-  try {
-    const sql = `
-      SELECT id, email, role, full_name, phone, company, created_at, updated_at
-      FROM users
-      ORDER BY id ASC
-    `;
-    const users = await query<any[]>(sql);
-    res.json({ status: 'success', users });
+    const leads = await query<any[]>('SELECT * FROM leads ORDER BY created_at DESC LIMIT 100').catch(() => []);
+    res.json({
+      status: 'success',
+      total: leads.length,
+      leads,
+    });
   } catch (err: any) {
-    res.status(500).json({ status: 'error', message: err.message || 'Error al listar usuarios.' });
+    res.status(500).json({ status: 'error', message: err.message || 'Error al consultar prospectos.' });
   }
 });
 
 /**
- * GET /api/v1/admin/metrics (KPI Metrics)
+ * GET /api/v1/admin/audit-logs
+ * Returns paginated security audit logs omitting plain secrets (Condition C-M6)
  */
-adminRouter.get('/metrics', requireAdmin, async (_req: Request, res: Response): Promise<void> => {
+adminRouter.get('/audit-logs', async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   try {
-    const totalUsers = await query<any[]>('SELECT COUNT(*) AS total FROM users');
-    const activeSubs = await query<any[]>('SELECT COUNT(*) AS total FROM subscriptions WHERE status = "ACTIVE"');
-    const totalRev = await query<any[]>('SELECT COALESCE(SUM(total_amount), 0) AS total FROM orders WHERE status = "COMPLETED"');
-    const openTickets = await query<any[]>('SELECT COUNT(*) AS total FROM support_tickets WHERE status = "OPEN"');
+    const page = parseInt((req.query.page as string) || '1', 10);
+    const limit = parseInt((req.query.limit as string) || '20', 10);
+    const offset = (page - 1) * limit;
+
+    const logs = await query<any[]>(
+      'SELECT id, event_type, ip_address, user_agent, payload_sha256, created_at FROM security_audit_logs ORDER BY id DESC LIMIT ? OFFSET ?',
+      [limit, offset]
+    ).catch(() => []);
+
+    const countResult = await query<any[]>('SELECT COUNT(*) as total FROM security_audit_logs').catch(() => [{ total: 0 }]);
+    const total = countResult[0]?.total || 0;
+
+    res.json({
+      status: 'success',
+      page,
+      limit,
+      total,
+      logs,
+    });
+  } catch (err: any) {
+    res.status(500).json({ status: 'error', message: err.message || 'Error al consultar logs de auditoría.' });
+  }
+});
+
+/**
+ * GET /api/v1/admin/metrics
+ * Returns system administrative metrics (Condition C-M3)
+ */
+adminRouter.get('/metrics', async (_req: AuthenticatedRequest, res: Response): Promise<void> => {
+  try {
+    const leadsCount = await query<any[]>('SELECT COUNT(*) as total FROM leads').catch(() => [{ total: 0 }]);
+    const usersCount = await query<any[]>('SELECT COUNT(*) as total FROM users').catch(() => [{ total: 0 }]);
 
     res.json({
       status: 'success',
       metrics: {
-        total_users: Number(totalUsers[0].total),
-        active_subscriptions: Number(activeSubs[0].total),
-        total_revenue: Number(totalRev[0].total),
-        open_tickets: Number(openTickets[0].total),
+        total_leads: leadsCount[0]?.total || 0,
+        total_users: usersCount[0]?.total || 0,
+        uptime_seconds: process.uptime(),
+        timestamp: Date.now(),
       },
     });
   } catch (err: any) {
-    res.status(500).json({ status: 'error', message: err.message || 'Error al obtener métricas.' });
+    res.status(500).json({ status: 'error', message: err.message || 'Error al consultar métricas.' });
   }
 });

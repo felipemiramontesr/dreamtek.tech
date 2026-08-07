@@ -40,7 +40,7 @@ authRouter.post('/login', validate(loginSchema), async (req: Request, res: Respo
     await logSecurityEvent(req, { eventType: 'LOGIN_SUCCESS', userId: user.id, status: 'SUCCESS' });
 
     const token = jwt.sign(
-      { uid: user.id, email: user.email, role: user.role, name: user.full_name },
+      { userId: user.id, uid: user.id, email: user.email, role: (user.role || 'CLIENT').toUpperCase(), name: user.full_name },
       getJwtSecret(),
       { algorithm: 'HS512', expiresIn: '7d' }
     );
