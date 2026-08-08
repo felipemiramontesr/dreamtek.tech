@@ -19,9 +19,10 @@ checkoutRouter.post('/session', async (req: Request, res: Response): Promise<voi
     }
 
     const priceBase = billing_cycle === 'annual' ? 2599 : 2899;
+    const currentKey = process.env.STRIPE_SECRET_KEY || 'sk_test_mock';
 
     // Si Stripe no está configurado con clave real, retornar URL simulada de retorno directo
-    if (stripeKey === 'sk_test_mock') {
+    if (currentKey === 'sk_test_mock') {
       const mockSessionId = `cs_test_mock_${Date.now()}`;
       res.json({
         status: 'success',

@@ -79,6 +79,7 @@ describe('FC 001h Security Hardening Suite & auditLogger 100% Coverage', () => {
     await expect(
       logSecurityEvent(reqEmpty, {
         eventType: 'TEST_EVENT_EMPTY_IP',
+        details: 'Long details text '.repeat(50),
       }),
     ).resolves.not.toThrow();
   });

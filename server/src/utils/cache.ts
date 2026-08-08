@@ -11,30 +11,37 @@ const l1Cache = new Map<string, CacheEntry<any>>();
 let redisClient: Redis | null = null;
 let isRedisConnected = false;
 
-// Condition C-L5: Support TLS/Auth (rediss://) if REDIS_URL is configured
-if (process.env.REDIS_URL) {
-  try {
-    redisClient = new Redis(process.env.REDIS_URL, {
-      maxRetriesPerRequest: 1,
-      enableOfflineQueue: false,
-      connectTimeout: 2000,
-      tls: process.env.REDIS_URL.startsWith('rediss://') ? {} : undefined,
-    });
+export function initRedisFromEnv(): void {
+  if (process.env.REDIS_URL) {
+    try {
+      redisClient = new Redis(process.env.REDIS_URL, {
+        maxRetriesPerRequest: 1,
+        enableOfflineQueue: false,
+        connectTimeout: 2000,
+        tls: process.env.REDIS_URL.startsWith('rediss://') ? {} : undefined,
+      });
 
-    redisClient.on('connect', () => {
-      isRedisConnected = true;
-      console.log('✅ Connected to L2 Redis Cache.');
-    });
+      redisClient.on('connect', () => {
+        isRedisConnected = true;
+        console.log('✅ Connected to L2 Redis Cache.');
+      });
 
-    redisClient.on('error', (err) => {
+      redisClient.on('error', (err) => {
+        isRedisConnected = false;
+        console.warn('⚠️ L2 Redis Cache Warning (Fail-Open Fallback to L1):', err.message);
+      });
+    } catch (_err) {
+      redisClient = null;
       isRedisConnected = false;
-      console.warn('⚠️ L2 Redis Cache Warning (Fail-Open Fallback to L1):', err.message);
-    });
-  } catch (_err) {
+    }
+  } else {
     redisClient = null;
     isRedisConnected = false;
   }
 }
+
+// Condition C-L5: Support TLS/Auth (rediss://) if REDIS_URL is configured
+initRedisFromEnv();
 
 /**
  * Clean up expired L1 entries and enforce LRU max size limit (Condition C-L3)

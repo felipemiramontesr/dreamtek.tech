@@ -5,11 +5,38 @@ import {
   invalidateCache,
   resetL1Cache,
   setRedisStateForTest,
+  initRedisFromEnv,
 } from '../../../server/src/utils/cache';
 
 describe('FC 001l Multi-Tier Caching & Fail-Open Resilience Suite', () => {
+  const originalEnv = process.env.REDIS_URL;
+
   beforeEach(() => {
     resetL1Cache();
+    process.env.REDIS_URL = originalEnv;
+  });
+
+  it('initRedisFromEnv debe inicializar Redis con o sin TLS (rediss:// y redis://)', () => {
+    process.env.REDIS_URL = 'rediss://default:password@localhost:6379';
+    expect(() => initRedisFromEnv()).not.toThrow();
+
+    process.env.REDIS_URL = 'redis://localhost:6379';
+    expect(() => initRedisFromEnv()).not.toThrow();
+
+    delete process.env.REDIS_URL;
+    expect(() => initRedisFromEnv()).not.toThrow();
+  });
+
+  it('evictL1IfNeeded debe limpiar llaves expiradas en L1 al insertar nuevos elementos', async () => {
+    // Insert an item with TTL 0 to expire immediately
+    await setCache('expired:key:1', { expired: true }, 0);
+    await new Promise((resolve) => setTimeout(resolve, 15));
+
+    // Inserting another key triggers evictL1IfNeeded which deletes expired:key:1
+    await setCache('valid:key:1', { valid: true }, 60);
+
+    const expiredResult = await getCache('expired:key:1');
+    expect(expiredResult).toBeNull();
   });
 
   it('debe almacenar y recuperar valores del caché L1 en memoria (Hits & Misses)', async () => {

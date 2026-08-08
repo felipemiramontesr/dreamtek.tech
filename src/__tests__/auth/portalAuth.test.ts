@@ -125,4 +125,16 @@ describe('FC 001m Portal Authentication & RBAC Suite', () => {
     expect(statusSent).toBe(401);
     expect(jsonSent?.message).toBe('Usuario no autenticado.');
   });
+
+  it('requireAuth middleware debe asignar userId = 0 si no existe uid, userId ni id en el token', async () => {
+    const noIdToken = jwt.sign({ email: 'noid@empresa.com', role: 'CLIENT' }, TEST_SECRET, {
+      algorithm: 'HS512',
+    });
+    const res = await supertest(app)
+      .get('/protected-client')
+      .set('Authorization', `Bearer ${noIdToken}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body.user.userId).toBe(0);
+  });
 });

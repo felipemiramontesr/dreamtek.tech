@@ -325,6 +325,11 @@ describe('Server Express Routes 100% Comprehensive Suite', () => {
     expect(resHealth.status).toBe(200);
     expect(resHealth.body.status).toBe('ok');
 
+    delete process.env.NODE_ENV;
+    const resHealthDev = await supertest(healthApp).get('/health-test/health');
+    expect(resHealthDev.status).toBe(200);
+    expect(resHealthDev.body.env).toBe('development');
+
     const resHealthz = await supertest(healthApp).get('/health-test/healthz');
     expect(resHealthz.status).toBe(200);
 
@@ -359,6 +364,20 @@ describe('Server Express Routes 100% Comprehensive Suite', () => {
       .post('/contact')
       .send({ name: 'Juan', email: 'j@e.com' });
     expect(resMissingForm.status).toBe(400);
+
+    // Direct invocation to test handler branch checks
+    const { contactRouter } = await import('../../../server/src/routes/contact');
+    const rawApp = express();
+    rawApp.use(express.json());
+    rawApp.use('/raw-contact', contactRouter);
+
+    const resRaw1 = await supertest(rawApp)
+      .post('/raw-contact/send-code')
+      .send({ email: 'no_at_sign' });
+    expect(resRaw1.status).toBe(400);
+
+    const resRaw2 = await supertest(rawApp).post('/raw-contact').send({ name: '' });
+    expect(resRaw2.status).toBe(400);
   });
 
   it('client.ts y admin.ts deben capturar excepciones síncronas de DB', async () => {
@@ -399,5 +418,48 @@ describe('Server Express Routes 100% Comprehensive Suite', () => {
       .get('/admin/metrics')
       .set('Authorization', `Bearer ${adminToken}`);
     expect(resAdminMetrics.status).toBe(500);
+  });
+
+  it('admin.ts audit-logs debe manejar fallo en la consulta de total count', async () => {
+    vi.mocked(db.query)
+      .mockResolvedValueOnce([{ id: 1, event_type: 'LOGIN_SUCCESS' }]) // logs query
+      .mockRejectedValueOnce(new Error('Count query failed')); // count query fail
+
+    const resLogs = await supertest(app)
+      .get('/admin/audit-logs')
+      .set('Authorization', `Bearer ${adminToken}`);
+    expect(resLogs.status).toBe(200);
+    expect(resLogs.body.total).toBe(0);
+  });
+
+  it('auth.ts debe responder con 500 si falta JWT_SECRET en producción durante login', async () => {
+    process.env.NODE_ENV = 'production';
+    delete process.env.JWT_SECRET;
+
+    const resProdAuth = await supertest(app).post('/auth/login').send({
+      email: 'admin@dreamtek.tech',
+      password: 'SuperPassword123!',
+    });
+    expect(resProdAuth.status).toBe(500);
+  });
+
+  it('checkout.ts debe manejar errores de Stripe cuando STRIPE_SECRET_KEY está configurada', async () => {
+    process.env.STRIPE_SECRET_KEY = 'sk_test_mock_invalid_key_for_testing';
+
+    const resStripeErr = await supertest(app).post('/checkout/session').send({
+      email: 'pago@empresa.com',
+      billing_cycle: 'annual',
+      template_id: 'corporate',
+      domain_name: 'pagoterminado.com',
+    });
+    expect(resStripeErr.status).toBe(500);
+    expect(resStripeErr.body.status).toBe('error');
+  });
+
+  it('onboarding.ts debe validar que el dominio sea una cadena de texto válida', async () => {
+    const resBadDomain = await supertest(app).post('/onboarding/domain').send({
+      domain: 12345,
+    });
+    expect(resBadDomain.status).toBe(400);
   });
 });
