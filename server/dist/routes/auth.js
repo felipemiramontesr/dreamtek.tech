@@ -8,6 +8,9 @@ const express_1 = require("express");
 const bcryptjs_1 = __importDefault(require("bcryptjs"));
 const jsonwebtoken_1 = __importDefault(require("jsonwebtoken"));
 const db_js_1 = require("../db.js");
+const auditLogger_js_1 = require("../middleware/auditLogger.js");
+const validate_js_1 = require("../middleware/validate.js");
+const auth_schema_js_1 = require("../schemas/auth.schema.js");
 function getJwtSecret() {
     if (process.env.NODE_ENV === 'production' && !process.env.JWT_SECRET) {
         throw new Error('FATAL SECURITY ERROR: JWT_SECRET environment variable is missing in production.');
@@ -19,7 +22,7 @@ const COOKIE_NAME = 'dreamtek_session';
 /**
  * POST /api/v1/auth/login
  */
-exports.authRouter.post('/login', async (req, res) => {
+exports.authRouter.post('/login', (0, validate_js_1.validate)(auth_schema_js_1.loginSchema), async (req, res) => {
     try {
         const { email, password } = req.body;
         if (!email || !password) {
@@ -29,10 +32,12 @@ exports.authRouter.post('/login', async (req, res) => {
         const users = await (0, db_js_1.query)('SELECT id, email, password_hash, role, full_name FROM users WHERE email = ? LIMIT 1', [email]);
         const user = users[0];
         if (!user || !(await bcryptjs_1.default.compare(password, user.password_hash))) {
+            await (0, auditLogger_js_1.logSecurityEvent)(req, { eventType: 'LOGIN_FAILURE', status: 'FAILURE', details: `Failed login attempt for ${email}` });
             res.status(401).json({ status: 'error', message: 'Credenciales inválidas.' });
             return;
         }
-        const token = jsonwebtoken_1.default.sign({ uid: user.id, email: user.email, role: user.role, name: user.full_name }, getJwtSecret(), { algorithm: 'HS512', expiresIn: '7d' });
+        await (0, auditLogger_js_1.logSecurityEvent)(req, { eventType: 'LOGIN_SUCCESS', userId: user.id, status: 'SUCCESS' });
+        const token = jsonwebtoken_1.default.sign({ userId: user.id, uid: user.id, email: user.email, role: (user.role || 'CLIENT').toUpperCase(), name: user.full_name }, getJwtSecret(), { algorithm: 'HS512', expiresIn: '24h' });
         res.cookie(COOKIE_NAME, token, {
             httpOnly: true,
             secure: process.env.NODE_ENV === 'production',

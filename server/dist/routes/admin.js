@@ -1,74 +1,73 @@
 "use strict";
-var __importDefault = (this && this.__importDefault) || function (mod) {
-    return (mod && mod.__esModule) ? mod : { "default": mod };
-};
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.adminRouter = void 0;
 const express_1 = require("express");
-const jsonwebtoken_1 = __importDefault(require("jsonwebtoken"));
 const db_js_1 = require("../db.js");
-const crypto_js_1 = require("../utils/crypto.js");
+const auth_js_1 = require("../middleware/auth.js");
 exports.adminRouter = (0, express_1.Router)();
-const COOKIE_NAME = 'dreamtek_session';
+// Protect all admin routes with requireAuth and requireRole('ADMIN') (Condition C-M1)
+exports.adminRouter.use(auth_js_1.requireAuth);
+exports.adminRouter.use((0, auth_js_1.requireRole)(['ADMIN']));
 /**
- * Middleware para requerir rol ADMIN.
+ * GET /api/v1/admin/leads
+ * Returns list of onboarding leads (Condition C-M3)
  */
-function requireAdmin(req, res, next) {
-    const token = req.cookies?.[COOKIE_NAME];
-    if (!token) {
-        res.status(401).json({ status: 'error', message: 'No autenticado.' });
-        return;
-    }
+exports.adminRouter.get('/leads', async (_req, res) => {
     try {
-        const payload = jsonwebtoken_1.default.verify(token, (0, crypto_js_1.getJwtSecret)(), { algorithms: ['HS512'] });
-        if (payload.role !== 'ADMIN') {
-            res.status(403).json({ status: 'error', message: 'Acceso denegado. Se requiere rol ADMIN.' });
-            return;
-        }
-        req.user = payload;
-        next();
-    }
-    catch (_err) {
-        res.status(401).json({ status: 'error', message: 'Sesión inválida.' });
-    }
-}
-/**
- * GET /api/v1/admin/users (Read-Only list excluding password_hash)
- */
-exports.adminRouter.get('/users', requireAdmin, async (_req, res) => {
-    try {
-        const sql = `
-      SELECT id, email, role, full_name, phone, company, created_at, updated_at
-      FROM users
-      ORDER BY id ASC
-    `;
-        const users = await (0, db_js_1.query)(sql);
-        res.json({ status: 'success', users });
+        const leads = await (0, db_js_1.query)('SELECT * FROM leads ORDER BY created_at DESC LIMIT 100').catch(() => []);
+        res.json({
+            status: 'success',
+            total: leads.length,
+            leads,
+        });
     }
     catch (err) {
-        res.status(500).json({ status: 'error', message: err.message || 'Error al listar usuarios.' });
+        res.status(500).json({ status: 'error', message: err.message || 'Error al consultar prospectos.' });
     }
 });
 /**
- * GET /api/v1/admin/metrics (KPI Metrics)
+ * GET /api/v1/admin/audit-logs
+ * Returns paginated security audit logs omitting plain secrets (Condition C-M6)
  */
-exports.adminRouter.get('/metrics', requireAdmin, async (_req, res) => {
+exports.adminRouter.get('/audit-logs', async (req, res) => {
     try {
-        const totalUsers = await (0, db_js_1.query)('SELECT COUNT(*) AS total FROM users');
-        const activeSubs = await (0, db_js_1.query)('SELECT COUNT(*) AS total FROM subscriptions WHERE status = "ACTIVE"');
-        const totalRev = await (0, db_js_1.query)('SELECT COALESCE(SUM(total_amount), 0) AS total FROM orders WHERE status = "COMPLETED"');
-        const openTickets = await (0, db_js_1.query)('SELECT COUNT(*) AS total FROM support_tickets WHERE status = "OPEN"');
+        const page = parseInt(req.query.page || '1', 10);
+        const limit = parseInt(req.query.limit || '20', 10);
+        const offset = (page - 1) * limit;
+        const logs = await (0, db_js_1.query)('SELECT id, event_type, ip_address, user_agent, payload_sha256, created_at FROM security_audit_logs ORDER BY id DESC LIMIT ? OFFSET ?', [limit, offset]).catch(() => []);
+        const countResult = await (0, db_js_1.query)('SELECT COUNT(*) as total FROM security_audit_logs').catch(() => [{ total: 0 }]);
+        const total = countResult[0]?.total || 0;
+        res.json({
+            status: 'success',
+            page,
+            limit,
+            total,
+            logs,
+        });
+    }
+    catch (err) {
+        res.status(500).json({ status: 'error', message: err.message || 'Error al consultar logs de auditoría.' });
+    }
+});
+/**
+ * GET /api/v1/admin/metrics
+ * Returns system administrative metrics (Condition C-M3)
+ */
+exports.adminRouter.get('/metrics', async (_req, res) => {
+    try {
+        const leadsCount = await (0, db_js_1.query)('SELECT COUNT(*) as total FROM leads').catch(() => [{ total: 0 }]);
+        const usersCount = await (0, db_js_1.query)('SELECT COUNT(*) as total FROM users').catch(() => [{ total: 0 }]);
         res.json({
             status: 'success',
             metrics: {
-                total_users: Number(totalUsers[0].total),
-                active_subscriptions: Number(activeSubs[0].total),
-                total_revenue: Number(totalRev[0].total),
-                open_tickets: Number(openTickets[0].total),
+                total_leads: leadsCount[0]?.total || 0,
+                total_users: usersCount[0]?.total || 0,
+                uptime_seconds: process.uptime(),
+                timestamp: Date.now(),
             },
         });
     }
     catch (err) {
-        res.status(500).json({ status: 'error', message: err.message || 'Error al obtener métricas.' });
+        res.status(500).json({ status: 'error', message: err.message || 'Error al consultar métricas.' });
     }
 });

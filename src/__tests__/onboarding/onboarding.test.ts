@@ -99,4 +99,30 @@ describe('FC 001m Client Onboarding Library Suite', () => {
 
     await expect(verifyCheckoutSuccess('cs_invalid')).rejects.toThrow('Sesión no válida');
   });
+
+  it('debe usar mensajes de error por defecto si las respuestas de error carecen de error y message', async () => {
+    // submitLead fallback
+    global.fetch = vi.fn().mockResolvedValueOnce({ ok: false, json: async () => ({}) } as Response);
+    await expect(
+      submitLead({ email: 'test@empresa.com', full_name: 'Test', phone: '123' }),
+    ).rejects.toThrow('Error al guardar la información de contacto.');
+
+    // checkDomainAvailability fallback
+    global.fetch = vi.fn().mockResolvedValueOnce({ ok: false, json: async () => ({}) } as Response);
+    await expect(checkDomainAvailability('test.com')).rejects.toThrow(
+      'Formato de dominio inválido o no disponible.',
+    );
+
+    // createCheckoutSession fallback
+    global.fetch = vi.fn().mockResolvedValueOnce({ ok: false, json: async () => ({}) } as Response);
+    await expect(
+      createCheckoutSession({ email: 'test@empresa.com', billing_cycle: 'monthly' }),
+    ).rejects.toThrow('Error al generar la sesión de pago.');
+
+    // verifyCheckoutSuccess fallback
+    global.fetch = vi.fn().mockResolvedValueOnce({ ok: false, json: async () => ({}) } as Response);
+    await expect(verifyCheckoutSuccess('cs_empty')).rejects.toThrow(
+      'Error al verificar la orden de compra.',
+    );
+  });
 });

@@ -88,5 +88,24 @@ describe('FC 001m Client Auth Library Suite', () => {
     } as Response);
 
     await expect(getCurrentUser()).rejects.toThrow('Token expirado');
+
+    // Default error string fallback (data.error is undefined)
+    global.fetch = vi.fn().mockResolvedValueOnce({
+      ok: false,
+      json: async () => ({}),
+    } as Response);
+
+    await expect(getCurrentUser()).rejects.toThrow('No autenticado o sesión expirada.');
+  });
+
+  it('loginUser debe usar el texto de error por defecto cuando la respuesta no contiene campo error', async () => {
+    global.fetch = vi.fn().mockResolvedValueOnce({
+      ok: false,
+      json: async () => ({}),
+    } as Response);
+
+    await expect(loginUser({ email: 'test@empresa.com', password: 'wrong' })).rejects.toThrow(
+      'Credenciales inválidas o error de inicio de sesión.',
+    );
   });
 });

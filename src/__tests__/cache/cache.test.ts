@@ -1,5 +1,11 @@
-import { describe, it, expect, beforeEach } from 'vitest';
-import { getCache, setCache, invalidateCache, resetL1Cache } from '../../../server/src/utils/cache';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
+import {
+  getCache,
+  setCache,
+  invalidateCache,
+  resetL1Cache,
+  setRedisStateForTest,
+} from '../../../server/src/utils/cache';
 
 describe('FC 001l Multi-Tier Caching & Fail-Open Resilience Suite', () => {
   beforeEach(() => {
@@ -72,5 +78,54 @@ describe('FC 001l Multi-Tier Caching & Fail-Open Resilience Suite', () => {
       await setCache('test:failopen', { ok: true });
       await invalidateCache('test');
     }).not.toThrow();
+  });
+
+  it('debe interactuar con la capa L2 Redis cuando está conectada', async () => {
+    const mockRedis = {
+      get: vi.fn().mockResolvedValue(JSON.stringify({ fromRedis: true })),
+      set: vi.fn().mockResolvedValue('OK'),
+      keys: vi.fn().mockResolvedValue(['cache:1', 'cache:2']),
+      del: vi.fn().mockResolvedValue(2),
+    };
+
+    setRedisStateForTest(mockRedis, true);
+
+    // L1 Miss -> L2 Redis Hit -> Populate L1
+    const l2Hit = await getCache<{ fromRedis: boolean }>('redis:test:key');
+    expect(l2Hit?.fromRedis).toBe(true);
+    expect(mockRedis.get).toHaveBeenCalledWith('redis:test:key');
+
+    // setCache with Redis connected
+    await setCache('redis:set:key', { saved: true }, 100);
+    expect(mockRedis.set).toHaveBeenCalledWith(
+      'redis:set:key',
+      JSON.stringify({ saved: true }),
+      'EX',
+      100,
+    );
+
+    // invalidateCache with matching Redis keys
+    await invalidateCache('cache');
+    expect(mockRedis.keys).toHaveBeenCalledWith('*cache*');
+    expect(mockRedis.del).toHaveBeenCalledWith('cache:1', 'cache:2');
+
+    // invalidateCache when no keys match
+    mockRedis.keys.mockResolvedValueOnce([]);
+    await invalidateCache('empty');
+
+    // Exception handling inside Redis calls
+    mockRedis.get.mockRejectedValueOnce(new Error('Redis get error'));
+    resetL1Cache();
+    const hitErr = await getCache('error:key');
+    expect(hitErr).toBeNull();
+
+    mockRedis.set.mockRejectedValueOnce(new Error('Redis set error'));
+    await expect(setCache('error:key', { data: 1 })).resolves.not.toThrow();
+
+    mockRedis.keys.mockRejectedValueOnce(new Error('Redis keys error'));
+    await expect(invalidateCache('error')).resolves.not.toThrow();
+
+    // Reset Redis state
+    setRedisStateForTest(null, false);
   });
 });

@@ -69,5 +69,17 @@ describe('FC 001h Security Hardening Suite & auditLogger 100% Coverage', () => {
         status: 'SUCCESS',
       }),
     ).resolves.not.toThrow();
+
+    // Test fallback IP (127.0.0.1) and default status (SUCCESS)
+    const reqEmpty = {
+      headers: {},
+      socket: {},
+    } as unknown as Request;
+
+    await expect(
+      logSecurityEvent(reqEmpty, {
+        eventType: 'TEST_EVENT_EMPTY_IP',
+      }),
+    ).resolves.not.toThrow();
   });
 });

@@ -1,9 +1,9 @@
-<!-- L-HARNESS:BEGIN protocolVersion=V.1.9.9-core do-not-edit-inside -->
+<!-- L-HARNESS:BEGIN protocolVersion=V.1.9.10-core do-not-edit-inside -->
 
 # Dreamtek.tech â€” Claude Code / Antigravity instructions
 
 > **SSOT:** `protocols/north-star/001_NS_ProtocolL.md` â€” **L prevails**.  
-> Protocol **V.1.9.9-core** Â· Harness **1.6.0** Â· **governancePublish: local-only**
+> Protocol **V.1.9.10-core** Â· Harness **1.6.0** Â· **governancePublish: local-only**
 
 ## North Star
 
@@ -13,13 +13,14 @@ NO SIGNED FC = NO PRODUCT CODE.
 
 ## Identity (this host often = dual O)
 
-| Callsign        | Seat     | Craft     | When                                 |
-| --------------- | -------- | --------- | ------------------------------------ |
-| **Alfa**        | O        | architect | design, FC outline, ADR              |
-| **Charlie**     | O        | fullstack | implement only with signed FC        |
-| **Antigravity** | O (dual) | both      | one body; tag `[Alfa]` / `[Charlie]` |
+| Callsign    | Seat | Craft     | When (this host often drives both) |
+| ----------- | ---- | --------- | ---------------------------------- |
+| **Alfa**    | O    | architect | design, FC outline, ADR            |
+| **Charlie** | O    | fullstack | implement only with signed FC      |
 
-You never sign **L** (Î© only).
+Host **Antigravity** is not an H author. Post as the **callsign of the act**.
+
+You never sign **L** (Ω only).
 
 ## Session start
 
@@ -31,18 +32,22 @@ You never sign **L** (Î© only).
 ## H channel (MANDATORY)
 
 ```bash
-# ACK example (â‰¤6 non-empty lines)
-node scripts/hPost.mjs --author Antigravity --message "[Alfa+Charlie] ACK H\nL_pin=V.1.9.9-core Learned(L)=âŠ¤\nFC: (state)\nCursor advanced by broker\nNext: (one line)\nNo product code without signed FC"
+# Architect act
+node scripts/hPost.mjs --author Alfa --message "[O architect] ACK H\nL_pin=V.1.9.10-core\nFC: (state)\nNext: (one line)\nNo product code without signed FC"
+
+# Driver / code / push act
+node scripts/hPost.mjs --host Antigravity --as Charlie --message "[O fullstack] …"
 ```
 
-| Rule                 |                                          |
-| -------------------- | ---------------------------------------- |
-| Write                | **only** `scripts/hPost.mjs`             |
-| Diet                 | â‰¤6 non-empty lines â€” broker enforces |
-| Timestamp            | always full datetime from broker         |
-| Long dictamen/design | `protocols/analysis/` or FC file         |
-| Verify               | `node scripts/hCheck.mjs`                |
-| Forbidden            | manual edit of `002_NS_Handoff.md`       |
+| Rule                 |                                                         |
+| -------------------- | ------------------------------------------------------- |
+| Write                | **only** `scripts/hPost.mjs` · callsign-only            |
+| Compact              | same callsign consecutive → EXTEND (no monologue flood) |
+| Diet                 | ≤6 non-empty lines — broker enforces                    |
+| Timestamp            | full datetime from broker                               |
+| Long dictamen/design | `protocols/analysis/` or FC file                        |
+| Verify               | `node scripts/hCheck.mjs`                               |
+| Forbidden            | `--author Antigravity` · manual edit of H               |
 
 ## Triggers
 

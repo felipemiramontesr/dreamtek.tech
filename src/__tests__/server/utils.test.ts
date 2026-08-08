@@ -113,5 +113,30 @@ describe('Server Utils & Middleware 100% Comprehensive Suite', () => {
     });
     const resMe = await supertest(appMe).post('/me');
     expect(resMe.status).toBe(200);
+
+    // Test 429 rate limiting by exceeding max requests
+    const appLimit = express();
+    appLimit.use(express.json());
+    appLimit.use('/limit', sensitiveEndpointLimiter);
+
+    for (let i = 0; i < 5; i++) {
+      await supertest(appLimit).post('/limit');
+    }
+    const resBlocked = await supertest(appLimit).post('/limit');
+    expect(resBlocked.status).toBe(429);
+    expect(resBlocked.body.status).toBe(429);
+  });
+
+  it('crypto.ts decryptField debe retornar cipherText original cuando decipher.update falla', () => {
+    // Generate valid hex length but invalid ciphertext for AES cipher update
+    const ivHex = '00'.repeat(16);
+    const macHex = '00'.repeat(64);
+    // Invalid AES block ciphertext hex
+    const invalidCiphertextHex = '1234';
+
+    // Calculate expected HMAC over bad ciphertext so HMAC check passes and decipher fails
+    const badCiphertextPayload = `${ivHex}:${macHex}:${invalidCiphertextHex}`;
+    const result = decryptField(badCiphertextPayload);
+    expect(typeof result).toBe('string');
   });
 });

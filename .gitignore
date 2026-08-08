@@ -53,6 +53,7 @@ owaspCoverageMap.json
 L_HARNESS_NOTICE.md
 scripts/verifyL.mjs
 scripts/hPost.mjs
+scripts/hCheck.mjs
 scripts/olrSign.mjs
 # --- end Protocol L local-only ---
 

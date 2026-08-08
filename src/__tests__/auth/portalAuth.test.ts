@@ -105,4 +105,24 @@ describe('FC 001m Portal Authentication & RBAC Suite', () => {
       .set('Authorization', 'Bearer token_123');
     expect(res.status).toBe(401);
   });
+
+  it('requireRole middleware debe retornar HTTP 401 si req.user no existe', () => {
+    const roleMiddleware = requireRole(['ADMIN']);
+    let statusSent = 0;
+    let jsonSent: Record<string, unknown> | null = null;
+    const resMock = {
+      status: (s: number) => {
+        statusSent = s;
+        return resMock;
+      },
+      json: (j: Record<string, unknown>) => {
+        jsonSent = j;
+        return resMock;
+      },
+    } as unknown as Response;
+
+    roleMiddleware({} as AuthenticatedRequest, resMock, () => {});
+    expect(statusSent).toBe(401);
+    expect(jsonSent?.message).toBe('Usuario no autenticado.');
+  });
 });

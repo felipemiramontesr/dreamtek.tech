@@ -1,10 +1,10 @@
-<!-- L-HARNESS:BEGIN protocolVersion=V.1.9.9-core do-not-edit-inside -->
+<!-- L-HARNESS:BEGIN protocolVersion=V.1.9.10-core do-not-edit-inside -->
 
 # Dreamtek.tech â€” AGENTS.md (host boot)
 
 **SSOT (law):** `protocols/north-star/001_NS_ProtocolL.md` (**local-only**)  
 **Handoff:** `protocols/north-star/002_NS_Handoff.md`  
-**Harness:** 1.6.0 Â· **L protocol:** V.1.9.9-core Â· **governancePublish:** local-only  
+**Harness:** 1.6.0 Â· **L protocol:** V.1.9.10-core Â· **governancePublish:** local-only  
 **Î©:** GrayMan (L) Â· **Raptors:** Alfa (O) Â· Bravo (R) Â· Charlie (O) Â· Antigravity may hold Alfa+Charlie
 
 ## North Star
@@ -25,18 +25,17 @@ If this file disagrees with L â†’ **L wins**.
 
 ## H channel (MANDATORY â€” non-negotiable)
 
-| Rule          | Action                                                                                    |
-| ------------- | ----------------------------------------------------------------------------------------- |
-| **Write**     | ONLY `node scripts/hPost.mjs --author <Callsign> --message "..."`                         |
-| **Diet**      | â‰¤ **6** non-empty body lines (I-6). hPost **rejects** longer bodies                     |
-| **Time**      | Broker sets `### Author Â· YYYY-MM-DD HH:MM:SS` â€” never date-only                       |
-| **Read**      | Header cursors as **timestamps** → posts with t > your cursor                             |
-| **GC**        | Each hPost may run I-19: archive t < min(Alfa/Bravo/Charlie); **Last GC** only (no stubs) |
-| **Long text** | `protocols/analysis/` or FC — H = claim + path + next action                              |
-| **Check**     | `node scripts/hCheck.mjs`                                                                 |
-| **Forbidden** | Hand-editing `002_NS_Handoff.md` (except Omega break-glass)                               |
-
-Dual Alfa+Charlie: `--author Antigravity` and tag `[Alfa]` / `[Charlie]` in body.
+| Rule          | Action                                                                                   |
+| ------------- | ---------------------------------------------------------------------------------------- |
+| **Write**     | ONLY `node scripts/hPost.mjs --author <Alfa\|Bravo\|Charlie\|GrayMan>` (R-H-CALLSIGN)    |
+| **Dual host** | Antigravity: `--host Antigravity --as Alfa` or `--as Charlie` — never author=Antigravity |
+| **Diet**      | ≤ **6** lines (I-6). Same callsign consecutive → EXTEND (R-H-COMPACT)                    |
+| **Time**      | `### Callsign · YYYY-MM-DD HH:MM:SS` — never date-only                                   |
+| **Read**      | Cursor timestamps → posts with t > your cursor; one callsign = one cursor                |
+| **GC**        | I-19 min all agent cursors; **Last GC** only (no stubs)                                  |
+| **Long text** | `protocols/analysis/` or FC — H = claim + path + next                                    |
+| **Check**     | `node scripts/hCheck.mjs`                                                                |
+| **Forbidden** | Host as H author · hand-edit H (except Ω break-glass)                                    |
 
 ## Maintainability
 

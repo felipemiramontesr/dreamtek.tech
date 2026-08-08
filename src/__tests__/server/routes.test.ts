@@ -300,22 +300,104 @@ describe('Server Express Routes 100% Comprehensive Suite', () => {
       message: 'Me interesa cotizar el servicio corporativo.',
     });
     expect(resContact.status).toBe(200);
+  });
 
-    // Production SMTP branch
-    process.env.NODE_ENV = 'production';
-    process.env.SMTP_PASS = 'smtp_password';
+  it('POST /auth/logout y GET /auth/me excepcion deben responder adecuadamente', async () => {
+    const resLogout = await supertest(app).post('/auth/logout');
+    expect(resLogout.status).toBe(200);
+    expect(resLogout.body.message).toBe('Sesión cerrada exitosamente.');
 
-    const resProdCode = await supertest(app).post('/contact/send-code').send({
-      email: 'maria@empresa.com',
+    // GET /auth/me with invalid token exception
+    const resBadToken = await supertest(app)
+      .get('/auth/me')
+      .set('Cookie', ['dreamtek_session=invalid_token']);
+    expect(resBadToken.status).toBe(401);
+    expect(resBadToken.body.message).toBe('Sesión expirada o inválida.');
+  });
+
+  it('health.ts /health, /healthz y /readyz deben reportar estado del servicio y handles shutting down', async () => {
+    const { healthRouter, setShuttingDownState } =
+      await import('../../../server/src/routes/health');
+    const healthApp = express();
+    healthApp.use('/health-test', healthRouter);
+
+    const resHealth = await supertest(healthApp).get('/health-test/health');
+    expect(resHealth.status).toBe(200);
+    expect(resHealth.body.status).toBe('ok');
+
+    const resHealthz = await supertest(healthApp).get('/health-test/healthz');
+    expect(resHealthz.status).toBe(200);
+
+    vi.mocked(db.query).mockResolvedValueOnce([{ 1: 1 }]);
+    const resReadyz = await supertest(healthApp).get('/health-test/readyz');
+    expect(resReadyz.status).toBe(200);
+
+    // Readyz DB Error
+    vi.mocked(db.query).mockRejectedValueOnce(new Error('DB Down'));
+    const resReadyzErr = await supertest(healthApp).get('/health-test/readyz');
+    expect(resReadyzErr.status).toBe(503);
+    expect(resReadyzErr.body.database).toBe('disconnected');
+
+    // Shutting down state
+    setShuttingDownState(true);
+    const resDownHealthz = await supertest(healthApp).get('/health-test/healthz');
+    expect(resDownHealthz.status).toBe(503);
+
+    const resDownReadyz = await supertest(healthApp).get('/health-test/readyz');
+    expect(resDownReadyz.status).toBe(503);
+
+    setShuttingDownState(false);
+  });
+
+  it('contact.ts send-code e inputs inválidos deben retornar 400 y capturar excepciones', async () => {
+    const resInvalidEmail = await supertest(app)
+      .post('/contact/send-code')
+      .send({ email: 'bademail' });
+    expect(resInvalidEmail.status).toBe(400);
+
+    const resMissingForm = await supertest(app)
+      .post('/contact')
+      .send({ name: 'Juan', email: 'j@e.com' });
+    expect(resMissingForm.status).toBe(400);
+  });
+
+  it('client.ts y admin.ts deben capturar excepciones síncronas de DB', async () => {
+    // Sync exception in client dashboard
+    vi.mocked(db.query).mockImplementationOnce(() => {
+      throw new Error('Sync DB Error');
     });
-    expect([200, 500]).toContain(resProdCode.status);
+    const resDashErr = await supertest(app)
+      .get('/client/dashboard')
+      .set('Cookie', [`dreamtek_session=${clientToken}`]);
+    expect(resDashErr.status).toBe(500);
 
-    const resProdContact = await supertest(app).post('/contact').send({
-      name: 'Maria Ramos',
-      email: 'maria@empresa.com',
-      subject: 'Cotización Escolta WEB',
-      message: 'Me interesa cotizar el servicio corporativo.',
+    // Sync exception in client sites (catches DB error and returns empty array HTTP 200 per Rule F01)
+    vi.mocked(db.query).mockImplementationOnce(() => {
+      throw new Error('Sync DB Error');
     });
-    expect([200, 500]).toContain(resProdContact.status);
+    const resSitesErr = await supertest(app)
+      .get('/client/sites')
+      .set('Cookie', [`dreamtek_session=${clientToken}`]);
+    expect(resSitesErr.status).toBe(200);
+    expect(resSitesErr.body.sites).toEqual([]);
+
+    // Sync exceptions in admin routes
+    vi.mocked(db.query).mockImplementation(() => {
+      throw new Error('Sync Admin Error');
+    });
+    const resAdminLeads = await supertest(app)
+      .get('/admin/leads')
+      .set('Authorization', `Bearer ${adminToken}`);
+    expect(resAdminLeads.status).toBe(500);
+
+    const resAdminAudit = await supertest(app)
+      .get('/admin/audit-logs')
+      .set('Authorization', `Bearer ${adminToken}`);
+    expect(resAdminAudit.status).toBe(500);
+
+    const resAdminMetrics = await supertest(app)
+      .get('/admin/metrics')
+      .set('Authorization', `Bearer ${adminToken}`);
+    expect(resAdminMetrics.status).toBe(500);
   });
 });

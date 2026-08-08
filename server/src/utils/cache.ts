@@ -141,3 +141,12 @@ export async function invalidateCache(pattern: string): Promise<void> {
 export function resetL1Cache(): void {
   l1Cache.clear();
 }
+
+/**
+ * Configure Redis state for testing (Utility for testing L2 Redis branches)
+ */
+export function setRedisStateForTest(client: any, connected: boolean): void {
+  redisClient = client;
+  isRedisConnected = connected;
+}
+
