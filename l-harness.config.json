@@ -1,0 +1,151 @@
+{
+    "harnessVersion":  "1.6.0",
+    "protocolVersion":  "V.1.9.10-core",
+    "preset":  "inject-existing",
+    "governancePublish":  "local-only",
+    "omega":  {
+                  "alias":  "GrayMan",
+                  "seat":  "L",
+                  "omnipotent":  true,
+                  "omnipresent":  true,
+                  "verified":  true
+              },
+    "agents":  [
+                   {
+                       "name":  "Alfa",
+                       "identity":  "Antigravity",
+                       "seat":  "O",
+                       "craftRoles":  [
+                                          "architect"
+                                      ],
+                       "hosts":  [
+                                     "Antigravity"
+                                 ]
+                   },
+                   {
+                       "name":  "Bravo",
+                       "identity":  "Bravo",
+                       "seat":  "R",
+                       "craftRoles":  [
+                                          "auditor",
+                                          "security",
+                                          "formal"
+                                      ],
+                       "hosts":  [
+                                     "Grok"
+                                 ]
+                   },
+                   {
+                       "name":  "Charlie",
+                       "identity":  "Charlie",
+                       "seat":  "O",
+                       "craftRoles":  [
+                                          "fullstack"
+                                      ],
+                       "hosts":  [
+                                     "Antigravity",
+                                     "Claude",
+                                     "Claude Code"
+                                 ]
+                   }
+               ],
+    "hosts":  {
+                  "agents":  true,
+                  "claude":  true,
+                  "antigravity":  false,
+                  "cursor":  false,
+                  "copilot":  false
+              },
+    "modules":  {
+                    "tools":  true,
+                    "olr":  true,
+                    "formal":  true,
+                    "security":  true,
+                    "testing":  true,
+                    "ci":  false,
+                    "db":  false
+                },
+    "versioning":  {
+                       "scheme":  "semver",
+                       "semver":  "0.1.35",
+                       "codeVersion":  null,
+                       "packageSync":  true,
+                       "tagPrefix":  {
+                                         "lEpoch":  "code/",
+                                         "semver":  "v"
+                                     }
+                   },
+    "maintainability":  {
+                            "profile":  "standard",
+                            "decisionsPath":  "docs/decisions",
+                            "publicApiDoc":  "tsdoc",
+                            "tools":  [
+
+                                      ]
+                        },
+    "codeQuality":  {
+                        "profile":  "standard",
+                        "budgets":  null,
+                        "layering":  "ui-to-server-one-way"
+                    },
+    "observability":  {
+                          "profile":  "standard",
+                          "correlationHeader":  null,
+                          "tools":  [
+
+                                    ]
+                      },
+    "commitMessage":  {
+                          "trailers":  true,
+                          "profile":  "sovereign"
+                      },
+    "stack":  {
+                  "ecosystem":  "typescript",
+                  "packageManager":  "npm",
+                  "language":  "typescript",
+                  "framework":  "next",
+                  "blueprint":  "next-existing",
+                  "unitTest":  "vitest",
+                  "e2e":  "none",
+                  "format":  "prettier",
+                  "lint":  "eslint",
+                  "preCommit":  "husky",
+                  "sastQuality":  "none",
+                  "ci":  "github-actions",
+                  "typecheck":  "tsc --noEmit"
+              },
+    "paths":  {
+                  "protocols":  "protocols",
+                  "northStar":  "protocols/north-star",
+                  "l":  "protocols/north-star/001_NS_ProtocolL.md",
+                  "h":  "protocols/north-star/002_NS_Handoff.md",
+                  "f":  "protocols/north-star/003_NS_ForensicLog.md",
+                  "k":  "protocols/north-star/044_NS_Backlog.md",
+                  "fc":  "protocols/fc"
+              },
+    "olr":  {
+                "signers":  {
+                                "O":  [
+                                          "Alfa",
+                                          "Charlie"
+                                      ],
+                                "L":  [
+                                          "GrayMan",
+                                          "Omega"
+                                      ],
+                                "R":  [
+                                          "Bravo"
+                                      ]
+                            }
+            },
+    "formal":  {
+                   "hardGate":  true
+               },
+    "hChannel":  {
+                     "authorPolicy":  "callsign-only",
+                     "noConsecutiveSameAuthor":  true,
+                     "consecutiveMode":  "extend",
+                     "gcCursors":  "all-agents",
+                     "newSessionException":  true
+                 }
+}
