@@ -1,6 +1,8 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, afterEach } from 'vitest';
+import express, { Response } from 'express';
+import supertest from 'supertest';
+import cookieParser from 'cookie-parser';
 import jwt from 'jsonwebtoken';
-import { Response } from 'express';
 import {
   requireAuth,
   requireRole,
@@ -9,131 +11,98 @@ import {
 
 const TEST_SECRET = 'dreamtek_dev_jwt_secret_key_2026';
 
-describe('FC 001m & FC 001o Client & Admin Portal Auth & RBAC Suite', () => {
-  it('requireAuth debe rechazar solicitudes sin cookies ni encabezados Bearer con HTTP 401', () => {
-    const req = { cookies: {}, headers: {} } as AuthenticatedRequest;
-    let statusSent = 0;
-    let jsonBody: Record<string, unknown> | null = null;
+describe('FC 001m Portal Authentication & RBAC Suite', () => {
+  const originalEnv = { ...process.env };
 
-    const res = {
-      status: (s: number) => {
-        statusSent = s;
-        return res;
-      },
-      json: (b: Record<string, unknown>) => {
-        jsonBody = b;
-        return res;
-      },
-    } as unknown as Response;
-
-    let nextCalled = false;
-    const next = () => {
-      nextCalled = true;
-    };
-
-    requireAuth(req, res, next);
-
-    expect(statusSent).toBe(401);
-    expect(jsonBody?.error).toBe('Unauthorized');
-    expect(nextCalled).toBe(false);
+  afterEach(() => {
+    process.env = { ...originalEnv };
   });
 
-  it('requireAuth debe rechazar tokens con firmas o algoritmos inválidos', () => {
-    const badToken = jwt.sign(
-      { userId: 99, email: 'fake@empresa.com', role: 'CLIENT' },
-      'wrong_secret',
-      { algorithm: 'HS512' },
-    );
+  const app = express();
+  app.use(express.json());
+  app.use(cookieParser());
 
-    const req = {
-      cookies: {},
-      headers: { authorization: `Bearer ${badToken}` },
-    } as AuthenticatedRequest;
+  app.get(
+    '/protected-client',
+    requireAuth,
+    requireRole(['CLIENT']),
+    (req: AuthenticatedRequest, res: Response) => {
+      res.json({ status: 'success', user: req.user });
+    },
+  );
 
-    let statusSent = 0;
-    const res = {
-      status: (s: number) => {
-        statusSent = s;
-        return res;
-      },
-      json: () => res,
-    } as unknown as Response;
+  app.get(
+    '/protected-admin',
+    requireAuth,
+    requireRole(['ADMIN']),
+    (req: AuthenticatedRequest, res: Response) => {
+      res.json({ status: 'success', user: req.user });
+    },
+  );
 
-    let nextCalled = false;
-    const next = () => {
-      nextCalled = true;
-    };
-
-    requireAuth(req, res, next);
-
-    expect(statusSent).toBe(401);
-    expect(nextCalled).toBe(false);
+  it('debe denegar el acceso (401) si no se proporciona token de sesión o cookie', async () => {
+    const res = await supertest(app).get('/protected-client');
+    expect(res.status).toBe(401);
+    expect(res.body.error).toBe('Unauthorized');
   });
 
-  it('requireAuth debe validar firma JWT HS512 inyectando req.user con userId y rol en mayúsculas', () => {
-    const token = jwt.sign(
-      { userId: 42, email: 'cliente@empresa.com', role: 'client' },
+  it('debe denegar el acceso (401) si el token JWT es inválido o alterado', async () => {
+    const res = await supertest(app)
+      .get('/protected-client')
+      .set('Authorization', 'Bearer invalid_jwt_token_123');
+    expect(res.status).toBe(401);
+    expect(res.body.error).toBe('Unauthorized');
+  });
+
+  it('debe denegar el acceso (403) si el rol del usuario no tiene permisos para el endpoint', async () => {
+    const clientToken = jwt.sign(
+      { userId: 10, email: 'client@empresa.com', role: 'CLIENT' },
       TEST_SECRET,
       { algorithm: 'HS512' },
     );
+    const res = await supertest(app)
+      .get('/protected-admin')
+      .set('Authorization', `Bearer ${clientToken}`);
 
-    const req = {
-      cookies: { dreamtek_session: token },
-      headers: {},
-    } as AuthenticatedRequest;
-
-    const res = {} as unknown as Response;
-    let nextCalled = false;
-    const next = () => {
-      nextCalled = true;
-    };
-
-    requireAuth(req, res, next);
-
-    expect(nextCalled).toBe(true);
-    expect(req.user).toBeDefined();
-    expect(req.user?.userId).toBe(42);
-    expect(req.user?.role).toBe('CLIENT');
+    expect(res.status).toBe(403);
+    expect(res.body.error).toBe('Forbidden');
   });
 
-  it('requireRole debe bloquear a usuarios sin autenticar o con rol insuficiente', () => {
-    const reqUnauth = {} as AuthenticatedRequest;
-    let statusSent = 0;
-    const res = {
-      status: (s: number) => {
-        statusSent = s;
-        return res;
-      },
-      json: () => res,
-    } as unknown as Response;
+  it('debe otorgar acceso (200) cuando el token y el rol coinciden correctamente', async () => {
+    const adminToken = jwt.sign(
+      { userId: 1, email: 'admin@dreamtek.tech', role: 'ADMIN' },
+      TEST_SECRET,
+      { algorithm: 'HS512' },
+    );
+    const res = await supertest(app)
+      .get('/protected-admin')
+      .set('Cookie', [`dreamtek_session=${adminToken}`]);
 
-    const adminCheck = requireRole(['ADMIN']);
-    adminCheck(reqUnauth, res, () => {});
-
-    expect(statusSent).toBe(401);
-
-    const reqClient = {
-      user: { userId: 10, email: 'cliente@empresa.com', role: 'CLIENT' },
-    } as AuthenticatedRequest;
-
-    adminCheck(reqClient, res, () => {});
-    expect(statusSent).toBe(403);
+    expect(res.status).toBe(200);
+    expect(res.body.status).toBe('success');
+    expect(res.body.user.role).toBe('ADMIN');
   });
 
-  it('requireRole debe permitir el paso a usuarios con rol ADMIN en mayúsculas', () => {
-    const req = {
-      user: { userId: 1, email: 'admin@dreamtek.tech', role: 'ADMIN' },
-    } as AuthenticatedRequest;
+  it('debe manejar fallback de id y rol cuando no se especifican explícitamente en el payload JWT', async () => {
+    const fallbackToken = jwt.sign({ id: 55, email: 'fallback@empresa.com' }, TEST_SECRET, {
+      algorithm: 'HS512',
+    });
+    const res = await supertest(app)
+      .get('/protected-client')
+      .set('Authorization', `Bearer ${fallbackToken}`);
 
-    const res = {} as unknown as Response;
-    let nextCalled = false;
-    const next = () => {
-      nextCalled = true;
-    };
+    expect(res.status).toBe(200);
+    expect(res.body.user.userId).toBe(55);
+    expect(res.body.user.role).toBe('CLIENT');
+  });
 
-    const adminCheck = requireRole(['ADMIN']);
-    adminCheck(req, res, next);
+  it('debe fallar la autenticación en producción si falta JWT_SECRET', async () => {
+    process.env.NODE_ENV = 'production';
+    delete process.env.JWT_SECRET;
 
-    expect(nextCalled).toBe(true);
+    const res = await supertest(app)
+      .get('/protected-client')
+      .set('Authorization', 'Bearer token_123');
+    expect(res.status).toBe(401);
   });
 });

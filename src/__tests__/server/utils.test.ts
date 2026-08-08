@@ -1,14 +1,18 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, afterEach } from 'vitest';
+import express, { Request, Response } from 'express';
+import supertest from 'supertest';
 import { encryptField, decryptField, getJwtSecret } from '../../../server/src/utils/crypto';
 import { validate } from '../../../server/src/middleware/validate';
-import {
-  globalRateLimiter,
-  sensitiveEndpointLimiter,
-} from '../../../server/src/middleware/rateLimiter';
+import { sensitiveEndpointLimiter } from '../../../server/src/middleware/rateLimiter';
 import { z } from 'zod';
-import { Request, Response } from 'express';
 
-describe('Server Utils & Middleware 100% Coverage Suite', () => {
+describe('Server Utils & Middleware 100% Comprehensive Suite', () => {
+  const originalEnv = { ...process.env };
+
+  afterEach(() => {
+    process.env = { ...originalEnv };
+  });
+
   it('crypto.ts debe encriptar y desencriptar texto con Encrypt-then-HMAC-SHA512', () => {
     const originalText = 'SensiblePassword123!';
     const encrypted = encryptField(originalText);
@@ -25,9 +29,33 @@ describe('Server Utils & Middleware 100% Coverage Suite', () => {
     expect(decryptField('invalid_format')).toBe('invalid_format');
   });
 
-  it('crypto.ts getJwtSecret debe manejar entornos dev y prod', () => {
-    const secretDev = getJwtSecret();
-    expect(typeof secretDev).toBe('string');
+  it('crypto.ts debe validar HMAC alterado y capturar excepciones en decryptField', () => {
+    const originalText = 'TestData123';
+    const encrypted = encryptField(originalText);
+    const parts = encrypted.split(':');
+
+    // Tamper HMAC part (parts[1])
+    const badMacEncrypted = `${parts[0]}:00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000:${parts[2]}`;
+    expect(decryptField(badMacEncrypted)).toBe(badMacEncrypted);
+
+    // Tamper IV length to trigger decipher exception
+    const badIvEncrypted = `badiv:${parts[1]}:${parts[2]}`;
+    expect(decryptField(badIvEncrypted)).toBe(badIvEncrypted);
+  });
+
+  it('crypto.ts getJwtSecret debe lanzar fatal error en producción si falta JWT_SECRET', () => {
+    process.env.NODE_ENV = 'production';
+    delete process.env.JWT_SECRET;
+    expect(() => getJwtSecret()).toThrow(/FATAL SECURITY ERROR: JWT_SECRET/);
+
+    process.env.JWT_SECRET = 'prod_secret_123';
+    expect(getJwtSecret()).toBe('prod_secret_123');
+  });
+
+  it('crypto.ts encriptación debe lanzar fatal error en producción si falta DB_ENCRYPTION_KEY', () => {
+    process.env.NODE_ENV = 'production';
+    delete process.env.DB_ENCRYPTION_KEY;
+    expect(() => encryptField('test')).toThrow(/FATAL SECURITY ERROR: DB_ENCRYPTION_KEY/);
   });
 
   it('validate middleware debe permitir datos válidos y rechazar esquemas Zod inválidos con HTTP 400', () => {
@@ -67,8 +95,23 @@ describe('Server Utils & Middleware 100% Coverage Suite', () => {
     expect(jsonSent?.details).toBeDefined();
   });
 
-  it('deben existir los rate limiters globales y sensibles', () => {
-    expect(globalRateLimiter).toBeDefined();
-    expect(sensitiveEndpointLimiter).toBeDefined();
+  it('sensitiveEndpointLimiter debe integrarse con Express y omitir GET o responder HTTP 429 si se excede', async () => {
+    const app = express();
+    app.use(express.json());
+    app.use('/sensitive', sensitiveEndpointLimiter, (_req: Request, res: Response) => {
+      res.json({ ok: true });
+    });
+
+    // GET requests should skip rate limiting
+    const resGet = await supertest(app).get('/sensitive');
+    expect(resGet.status).toBe(200);
+
+    // POST /me should also be exempt
+    const appMe = express();
+    appMe.use('/me', sensitiveEndpointLimiter, (_req: Request, res: Response) => {
+      res.json({ ok: true });
+    });
+    const resMe = await supertest(appMe).post('/me');
+    expect(resMe.status).toBe(200);
   });
 });

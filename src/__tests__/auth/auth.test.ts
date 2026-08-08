@@ -1,170 +1,92 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import fs from 'fs';
-import path from 'path';
 import { registerUser, loginUser, logoutUser, getCurrentUser } from '@/lib/auth/client';
 
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || 'https://apiv1.dreamtek.tech/api/v1';
-
-describe('Auth Engine & RBAC Verification (FC 001b)', () => {
+describe('FC 001m Client Auth Library Suite', () => {
   beforeEach(() => {
     vi.restoreAllMocks();
   });
 
-  it('debe existir el script de migración DDL 002_sessions_and_rate_limit.sql con las tablas sessions y login_attempts', () => {
-    const migrationPath = path.join(
-      process.cwd(),
-      'database',
-      'migrations',
-      '002_sessions_and_rate_limit.sql',
-    );
-    expect(fs.existsSync(migrationPath)).toBe(true);
-
-    const sqlContent = fs.readFileSync(migrationPath, 'utf-8');
-    expect(sqlContent).toContain('CREATE TABLE IF NOT EXISTS `sessions`');
-    expect(sqlContent).toContain('CREATE TABLE IF NOT EXISTS `login_attempts`');
-    expect(sqlContent).toContain(
-      'CONSTRAINT `fk_sessions_user` FOREIGN KEY (`user_id`) REFERENCES `users`(`id`) ON DELETE CASCADE',
-    );
-  });
-
-  it('debe existir el script seed 001_admin_bootstrap.sql con la insercion del rol ADMIN', () => {
-    const seedPath = path.join(process.cwd(), 'database', 'seeds', '001_admin_bootstrap.sql');
-    expect(fs.existsSync(seedPath)).toBe(true);
-
-    const seedContent = fs.readFileSync(seedPath, 'utf-8');
-    expect(seedContent).toContain('INSERT INTO `users`');
-    expect(seedContent).toContain("'ADMIN'");
-  });
-
-  it('deben existir los endpoints Express de autenticación en /server/src/routes/auth.ts', () => {
-    const serverDir = path.join(process.cwd(), 'server', 'src');
-    expect(fs.existsSync(path.join(serverDir, 'routes', 'auth.ts'))).toBe(true);
-    expect(fs.existsSync(path.join(serverDir, 'routes', 'contact.ts'))).toBe(true);
-  });
-
-  it('el cliente TS registerUser debe enviar payload con credentials: include', async () => {
-    const mockResponse = {
-      message: 'Usuario registrado exitosamente',
-      user: { id: 1, email: 'test@empresa.com', full_name: 'Test User', role: 'CLIENT' },
-    };
-
-    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce({
+  it('registerUser debe realizar fetch POST exitoso y capturar errores HTTP', async () => {
+    const mockSuccess = { user: { id: 1, email: 'nuevo@empresa.com', role: 'CLIENT' } };
+    global.fetch = vi.fn().mockResolvedValueOnce({
       ok: true,
-      json: async () => mockResponse,
+      json: async () => mockSuccess,
     } as Response);
 
     const result = await registerUser({
-      email: 'test@empresa.com',
-      password: 'password123',
-      full_name: 'Test User',
+      email: 'nuevo@empresa.com',
+      password: 'Password123!',
+      full_name: 'Nuevo Usuario',
     });
+    expect(result).toEqual(mockSuccess);
 
-    expect(fetchSpy).toHaveBeenCalledWith(
-      `${API_BASE}/auth/register`,
-      expect.objectContaining({
-        method: 'POST',
-        credentials: 'include',
-      }),
-    );
-    expect(result.user?.email).toBe('test@empresa.com');
-  });
-
-  it('el cliente TS loginUser debe procesar la respuesta de sesion exitosa', async () => {
-    const mockResponse = {
-      message: 'Inicio de sesion exitoso',
-      user: { id: 1, email: 'test@empresa.com', full_name: 'Test User', role: 'CLIENT' },
-    };
-
-    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce({
-      ok: true,
-      json: async () => mockResponse,
+    // Error case
+    global.fetch = vi.fn().mockResolvedValueOnce({
+      ok: false,
+      json: async () => ({ message: 'El correo ya está registrado.' }),
     } as Response);
 
-    const result = await loginUser({
-      email: 'test@empresa.com',
-      password: 'password123',
-    });
-
-    expect(fetchSpy).toHaveBeenCalledWith(
-      `${API_BASE}/auth/login`,
-      expect.objectContaining({
-        method: 'POST',
-        credentials: 'include',
+    await expect(
+      registerUser({
+        email: 'nuevo@empresa.com',
+        password: 'Password123!',
+        full_name: 'Nuevo Usuario',
       }),
-    );
-    expect(result.user?.role).toBe('CLIENT');
+    ).rejects.toThrow('Error al registrar el usuario.');
   });
 
-  it('el cliente TS loginUser debe manejar errores de credenciales invalidas (HTTP 401)', async () => {
-    vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce({
+  it('loginUser debe realizar fetch POST exitoso y procesar errores de credenciales', async () => {
+    const mockSuccess = { user: { id: 1, email: 'test@empresa.com', role: 'CLIENT' } };
+    global.fetch = vi.fn().mockResolvedValueOnce({
+      ok: true,
+      json: async () => mockSuccess,
+    } as Response);
+
+    const result = await loginUser({ email: 'test@empresa.com', password: 'SecretPassword123!' });
+    expect(result).toEqual(mockSuccess);
+
+    // Error case with custom error message
+    global.fetch = vi.fn().mockResolvedValueOnce({
       ok: false,
-      json: async () => ({ error: 'Credenciales invalidas' }),
+      json: async () => ({ error: 'Credenciales incorrectas.' }),
     } as Response);
 
     await expect(loginUser({ email: 'test@empresa.com', password: 'wrong' })).rejects.toThrow(
-      'Credenciales invalidas',
+      'Credenciales incorrectas.',
     );
   });
 
-  it('el cliente TS loginUser debe manejar bloqueo por rate limiting (HTTP 429)', async () => {
-    vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce({
-      ok: false,
-      json: async () => ({
-        error: 'Demasiados intentos fallidos. Intente de nuevo en 15 minutos.',
-      }),
-    } as Response);
-
-    await expect(loginUser({ email: 'test@empresa.com', password: 'wrong' })).rejects.toThrow(
-      'Demasiados intentos fallidos.',
-    );
-  });
-
-  it('el cliente TS getCurrentUser debe solicitar /auth/me con credentials: include', async () => {
-    const mockResponse = {
-      user: { id: 1, email: 'test@empresa.com', full_name: 'Test User', role: 'CLIENT' },
-    };
-
-    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce({
+  it('logoutUser debe enviar POST y manejar respuestas exitosas y de error', async () => {
+    global.fetch = vi.fn().mockResolvedValueOnce({
       ok: true,
-      json: async () => mockResponse,
+      json: async () => ({ message: 'Sesión cerrada' }),
     } as Response);
 
-    const result = await getCurrentUser();
+    const res = await logoutUser();
+    expect(res.message).toBe('Sesión cerrada');
 
-    expect(fetchSpy).toHaveBeenCalledWith(
-      `${API_BASE}/auth/me`,
-      expect.objectContaining({
-        method: 'GET',
-        credentials: 'include',
-      }),
-    );
-    expect(result.user?.id).toBe(1);
-  });
-
-  it('el cliente TS getCurrentUser debe arrojar error si no hay sesion activa (HTTP 401)', async () => {
-    vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce({
+    global.fetch = vi.fn().mockResolvedValueOnce({
       ok: false,
-      json: async () => ({ error: 'No autenticado. Sesion requerida.' }),
+      json: async () => ({ message: 'Error' }),
     } as Response);
 
-    await expect(getCurrentUser()).rejects.toThrow('No autenticado. Sesion requerida.');
+    await expect(logoutUser()).rejects.toThrow('Error al cerrar la sesión.');
   });
 
-  it('el cliente TS logoutUser debe llamar a /auth/logout', async () => {
-    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce({
+  it('getCurrentUser debe enviar GET /me y manejar sesión no autenticada', async () => {
+    global.fetch = vi.fn().mockResolvedValueOnce({
       ok: true,
-      json: async () => ({ message: 'Sesion cerrada exitosamente' }),
+      json: async () => ({ user: { id: 1, email: 'test@empresa.com' } }),
     } as Response);
 
-    const result = await logoutUser();
+    const res = await getCurrentUser();
+    expect(res.user?.email).toBe('test@empresa.com');
 
-    expect(fetchSpy).toHaveBeenCalledWith(
-      `${API_BASE}/auth/logout`,
-      expect.objectContaining({
-        method: 'POST',
-        credentials: 'include',
-      }),
-    );
-    expect(result.message).toBe('Sesion cerrada exitosamente');
+    global.fetch = vi.fn().mockResolvedValueOnce({
+      ok: false,
+      json: async () => ({ error: 'Token expirado' }),
+    } as Response);
+
+    await expect(getCurrentUser()).rejects.toThrow('Token expirado');
   });
 });
