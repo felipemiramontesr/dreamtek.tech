@@ -21,7 +21,7 @@ describe('FC 001l Multi-Tier Caching & Fail-Open Resilience Suite', () => {
     expect(hitResult?.active).toBe(true);
   });
 
-  it('debe expirar llaves cuyo TTL ha sido superado', async () => {
+  it('debe expirar llaves cuyo TTL ha sido superado y limpiarlas de L1', async () => {
     const key = 'test:key:ttl';
     const payload = { temp: 'data' };
 

@@ -1,10 +1,12 @@
 import { z } from 'zod';
 
 export const leadSchema = z.object({
-  name: z
+  full_name: z
     .string()
     .min(1, 'El nombre es requerido.')
-    .min(2, 'El nombre debe tener al menos 2 caracteres.'),
+    .min(2, 'El nombre debe tener al menos 2 caracteres.')
+    .optional(),
+  name: z.string().optional(),
   email: z
     .string()
     .min(1, 'El email es requerido.')
@@ -12,6 +14,7 @@ export const leadSchema = z.object({
   phone: z.string().optional(),
   company: z.string().optional(),
   planId: z.string().optional(),
+  step_reached: z.number().optional(),
 });
 
 export const domainCheckSchema = z.object({

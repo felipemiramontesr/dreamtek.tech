@@ -11,7 +11,8 @@ export const onboardingRouter = Router();
  */
 onboardingRouter.post('/lead', validate(leadSchema), async (req: Request, res: Response): Promise<void> => {
   try {
-    const { email, full_name, phone, company, step_reached } = req.body;
+    const { email, phone, company, step_reached } = req.body;
+    const full_name = req.body.full_name || req.body.name;
 
     if (!email || !full_name || !phone) {
       res.status(400).json({ status: 'error', message: 'Nombre, email y teléfono son requeridos.' });

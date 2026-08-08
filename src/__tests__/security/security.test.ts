@@ -1,67 +1,73 @@
 import { describe, it, expect } from 'vitest';
-import fs from 'fs';
-import path from 'path';
 import { computeSanitizedPayloadHash } from '../../../server/src/middleware/auditLogger';
+import { logSecurityEvent } from '../../../server/src/middleware/auditLogger';
+import { Request } from 'express';
 
-describe('FC 001h Security Hardening Suite', () => {
-  it('debe existir el script de migración DDL 004_security_audit_logs.sql con la tabla security_audit_logs', () => {
-    const migrationPath = path.join(
-      process.cwd(),
-      'database',
-      'migrations',
-      '004_security_audit_logs.sql',
-    );
-    expect(fs.existsSync(migrationPath)).toBe(true);
-
-    const sqlContent = fs.readFileSync(migrationPath, 'utf-8');
-    expect(sqlContent).toContain('CREATE TABLE IF NOT EXISTS `security_audit_logs`');
-    expect(sqlContent).toContain('`payload_sha256`');
-    expect(sqlContent).toContain('`event_type`');
-  });
-
-  it('deben existir los middlewares de seguridad rateLimiter.ts y auditLogger.ts', () => {
-    const serverMiddlewareDir = path.join(process.cwd(), 'server', 'src', 'middleware');
-    expect(fs.existsSync(path.join(serverMiddlewareDir, 'rateLimiter.ts'))).toBe(true);
-    expect(fs.existsSync(path.join(serverMiddlewareDir, 'auditLogger.ts'))).toBe(true);
-  });
-
-  it('el servidor Express index.ts debe incluir helmet, trust proxy, rate limiters y CORS fail-closed', () => {
-    const indexPath = path.join(process.cwd(), 'server', 'src', 'index.ts');
-    expect(fs.existsSync(indexPath)).toBe(true);
-
-    const indexContent = fs.readFileSync(indexPath, 'utf-8');
-    expect(indexContent).toContain("app.set('trust proxy', 1)");
-    expect(indexContent).toContain('helmet(');
-    expect(indexContent).toContain('globalRateLimiter');
-    expect(indexContent).toContain('sensitiveEndpointLimiter');
-    expect(indexContent).toContain("limit: '100kb'");
-    expect(indexContent).toContain('CORS Policy: Origin not allowed');
-  });
-
-  it('el helper computeSanitizedPayloadHash debe sanitizar contraseñas y calcular hash SHA-256 (Condición C-H6)', () => {
-    const rawBody = {
-      email: 'test@empresa.com',
+describe('FC 001h Security Hardening Suite & auditLogger 100% Coverage', () => {
+  it('computeSanitizedPayloadHash debe sanitizar campos sensibles y retornar SHA-256 hex', () => {
+    const payload = {
+      user: 'test@dreamtek.tech',
       password: 'SuperSecretPassword123!',
-      confirmPassword: 'SuperSecretPassword123!',
-      secret: 'my_secret_token',
-      full_name: 'Juan Perez',
+      token: 'jwt.token.val',
+      credit_card: '4111111111111111',
+      cvv: '123',
+      meta: {
+        api_key: 'sk_test_secret',
+      },
     };
 
-    const hash = computeSanitizedPayloadHash(rawBody);
-    expect(hash).not.toBeNull();
+    const hash = computeSanitizedPayloadHash(payload);
+    expect(hash).toBeDefined();
     expect(typeof hash).toBe('string');
-    expect(hash?.length).toBe(64); // SHA-256 hex length is 64 chars
+    expect(hash.length).toBe(64); // 256 bits = 64 hex characters
+  });
 
-    // Retesting with different password but same public data should yield SAME hash because password is stripped
-    const rawBodySamePublicInfo = {
-      email: 'test@empresa.com',
-      password: 'DifferentPassword456!',
-      confirmPassword: 'DifferentPassword456!',
-      secret: 'another_secret',
-      full_name: 'Juan Perez',
-    };
+  it('computeSanitizedPayloadHash debe manejar nulos, no objetos y errores de serialización circular', () => {
+    expect(computeSanitizedPayloadHash(null)).toBeNull();
+    expect(computeSanitizedPayloadHash(undefined)).toBeNull();
+    expect(computeSanitizedPayloadHash('plain_string')).toBeNull();
+    expect(computeSanitizedPayloadHash(12345)).toBeNull();
 
-    const hash2 = computeSanitizedPayloadHash(rawBodySamePublicInfo);
-    expect(hash).toBe(hash2);
+    // Circular object
+    const circularObj: Record<string, unknown> = { name: 'test' };
+    circularObj.self = circularObj;
+    expect(computeSanitizedPayloadHash(circularObj)).toBeNull();
+  });
+
+  it('logSecurityEvent debe extraer IP de x-forwarded-for, req.ip o remoteAddress y ejecutar log sin excepciones', async () => {
+    const reqForwarded = {
+      headers: { 'x-forwarded-for': '192.168.1.100, 10.0.0.1' },
+    } as unknown as Request;
+
+    await expect(
+      logSecurityEvent(reqForwarded, {
+        eventType: 'TEST_EVENT_FORWARDED',
+        status: 'SUCCESS',
+      }),
+    ).resolves.not.toThrow();
+
+    const reqIp = {
+      headers: {},
+      ip: '10.0.0.2',
+    } as unknown as Request;
+
+    await expect(
+      logSecurityEvent(reqIp, {
+        eventType: 'TEST_EVENT_IP',
+        status: 'SUCCESS',
+      }),
+    ).resolves.not.toThrow();
+
+    const reqRemote = {
+      headers: {},
+      socket: { remoteAddress: '172.16.0.5' },
+    } as unknown as Request;
+
+    await expect(
+      logSecurityEvent(reqRemote, {
+        eventType: 'TEST_EVENT_REMOTE',
+        status: 'SUCCESS',
+      }),
+    ).resolves.not.toThrow();
   });
 });

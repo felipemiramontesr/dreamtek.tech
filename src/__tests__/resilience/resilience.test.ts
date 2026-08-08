@@ -1,9 +1,18 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import fs from 'fs';
 import path from 'path';
-import { setShuttingDownState } from '../../../server/src/routes/health';
+import express from 'express';
+import supertest from 'supertest';
+import {
+  healthRouter,
+  setShuttingDownState,
+  isShuttingDown,
+} from '../../../server/src/routes/health';
 
-describe('FC 001j Graceful Shutdown & Health Probes Suite', () => {
+describe('FC 001j Graceful Shutdown & Health Probes 100% Suite', () => {
+  const app = express();
+  app.use(healthRouter);
+
   beforeEach(() => {
     setShuttingDownState(false);
   });
@@ -27,25 +36,44 @@ describe('FC 001j Graceful Shutdown & Health Probes Suite', () => {
     expect(indexContent).toContain('.unref()');
   });
 
-  it('el helper setShuttingDownState debe controlar el estado de disponibilidad en probes de resiliencia', () => {
-    // When normal state
+  it('el helper setShuttingDownState e isShuttingDown deben controlar el estado de disponibilidad', () => {
     setShuttingDownState(false);
+    expect(isShuttingDown()).toBe(false);
 
-    // When shutting down state
     setShuttingDownState(true);
+    expect(isShuttingDown()).toBe(true);
 
-    // Reset back
     setShuttingDownState(false);
-    expect(true).toBe(true);
+    expect(isShuttingDown()).toBe(false);
   });
 
-  it('la ruta health.ts debe contener las funciones de probe /healthz y /readyz', () => {
-    const healthPath = path.join(process.cwd(), 'server', 'src', 'routes', 'health.ts');
-    const healthContent = fs.readFileSync(healthPath, 'utf-8');
+  it('debe responder HTTP 200 en GET /health (legacy health probe)', async () => {
+    const res = await supertest(app).get('/health');
+    expect(res.status).toBe(200);
+    expect(res.body.status).toBe('ok');
+    expect(res.body.service).toBe('Dreamtek Node.js API');
+  });
 
-    expect(healthContent).toContain("healthRouter.get('/healthz'");
-    expect(healthContent).toContain("healthRouter.get('/readyz'");
-    expect(healthContent).toContain('isShuttingDownState');
-    expect(healthContent).toContain('SELECT 1');
+  it('debe responder HTTP 200 en GET /healthz cuando el servidor está activo y 503 cuando se apaga', async () => {
+    setShuttingDownState(false);
+    const resActive = await supertest(app).get('/healthz');
+    expect(resActive.status).toBe(200);
+    expect(resActive.body.status).toBe('ok');
+
+    setShuttingDownState(true);
+    const resShutdown = await supertest(app).get('/healthz');
+    expect(resShutdown.status).toBe(503);
+    expect(resShutdown.body.status).toBe('shutting_down');
+  });
+
+  it('debe responder en GET /readyz según la disponibilidad de la base de datos y estado de apaga', async () => {
+    setShuttingDownState(true);
+    const resShutdown = await supertest(app).get('/readyz');
+    expect(resShutdown.status).toBe(503);
+    expect(resShutdown.body.status).toBe('not_ready');
+
+    setShuttingDownState(false);
+    const resReady = await supertest(app).get('/readyz');
+    expect([200, 503]).toContain(resReady.status);
   });
 });
