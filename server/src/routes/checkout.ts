@@ -3,8 +3,17 @@ import Stripe from 'stripe';
 import { query } from '../db.js';
 
 export const checkoutRouter = Router();
-const stripeKey = process.env.STRIPE_SECRET_KEY || 'sk_test_mock';
-const stripe = new Stripe(stripeKey);
+
+let testStripe: any = null;
+
+export function setStripeForTest(stripe: any) {
+  testStripe = stripe;
+}
+
+function getStripe(key: string) {
+  if (testStripe) return testStripe;
+  return new Stripe(key);
+}
 
 /**
  * POST /api/v1/checkout/session
@@ -32,7 +41,8 @@ checkoutRouter.post('/session', async (req: Request, res: Response): Promise<voi
       return;
     }
 
-    const session = await stripe.checkout.sessions.create({
+    const stripeInstance = getStripe(currentKey);
+    const session = await stripeInstance.checkout.sessions.create({
       payment_method_types: ['card'],
       customer_email: email,
       line_items: [

@@ -6,16 +6,25 @@ import { invalidateCache } from '../utils/cache.js';
 
 export const contactRouter = Router();
 
+let testTransporter: any = null;
+
+export function setTransporterForTest(transporter: any) {
+  testTransporter = transporter;
+}
+
 // Nodemailer Transporter Config from ENV
-const transporter = nodemailer.createTransport({
-  host: process.env.SMTP_HOST || 'smtp.hostinger.com',
-  port: parseInt(process.env.SMTP_PORT || '465', 10),
-  secure: process.env.SMTP_SECURE === 'true' || true,
-  auth: {
-    user: process.env.SMTP_USER || 'hola@dreamtek.tech',
-    pass: process.env.SMTP_PASS || '',
-  },
-});
+export function getTransporter() {
+  if (testTransporter) return testTransporter;
+  return nodemailer.createTransport({
+    host: process.env.SMTP_HOST || 'smtp.hostinger.com',
+    port: parseInt(process.env.SMTP_PORT || '465', 10),
+    secure: process.env.SMTP_SECURE === 'true' || true,
+    auth: {
+      user: process.env.SMTP_USER || 'hola@dreamtek.tech',
+      pass: process.env.SMTP_PASS || '',
+    },
+  });
+}
 
 /**
  * POST /api/v1/contact/send-code
@@ -34,7 +43,7 @@ contactRouter.post('/send-code', validate(sendCodeSchema), async (req: Request, 
 
   try {
     if (process.env.NODE_ENV === 'production' && process.env.SMTP_PASS) {
-      await transporter.sendMail({
+      await getTransporter().sendMail({
         from: '"Dreamtek Security" <hola@dreamtek.tech>',
         to: email,
         subject: `Código de verificación: ${code} - Dreamtek`,
@@ -65,7 +74,7 @@ contactRouter.post('/', validate(contactFormSchema), async (req: Request, res: R
 
   try {
     if (process.env.NODE_ENV === 'production' && process.env.SMTP_PASS) {
-      await transporter.sendMail({
+      await getTransporter().sendMail({
         from: '"Dreamtek Contact" <hola@dreamtek.tech>',
         to: 'hola@dreamtek.tech',
         subject: `Nuevo mensaje de contacto de ${name} - Dreamtek`,

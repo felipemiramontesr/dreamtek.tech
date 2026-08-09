@@ -1,7 +1,15 @@
-import { describe, it, expect } from 'vitest';
-import { computeSanitizedPayloadHash } from '../../../server/src/middleware/auditLogger';
-import { logSecurityEvent } from '../../../server/src/middleware/auditLogger';
+import { describe, it, expect, vi } from 'vitest';
+import {
+  computeSanitizedPayloadHash,
+  logSecurityEvent,
+} from '../../../server/src/middleware/auditLogger';
 import { Request } from 'express';
+
+vi.mock('../../../server/src/db', () => ({
+  pool: {
+    execute: vi.fn().mockResolvedValue([{ affectedRows: 1 }]),
+  },
+}));
 
 describe('FC 001h Security Hardening Suite & auditLogger 100% Coverage', () => {
   it('computeSanitizedPayloadHash debe sanitizar campos sensibles y retornar SHA-256 hex', () => {
@@ -82,5 +90,13 @@ describe('FC 001h Security Hardening Suite & auditLogger 100% Coverage', () => {
         details: 'Long details text '.repeat(50),
       }),
     ).resolves.not.toThrow();
+  });
+
+  it('logSecurityEvent debe capturar excepciones de pool.execute y escribir en console.warn', async () => {
+    const { pool } = await import('../../../server/src/db');
+    vi.mocked(pool.execute).mockRejectedValueOnce(new Error('Audit DB Fail'));
+
+    const req = { headers: {}, socket: {} } as Request;
+    await expect(logSecurityEvent(req, { eventType: 'FAIL_EVENT' })).resolves.not.toThrow();
   });
 });

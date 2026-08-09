@@ -1,3 +1,4 @@
+import crypto from 'crypto';
 import { describe, it, expect, afterEach } from 'vitest';
 import express, { Request, Response } from 'express';
 import supertest from 'supertest';
@@ -127,16 +128,36 @@ describe('Server Utils & Middleware 100% Comprehensive Suite', () => {
     expect(resBlocked.body.status).toBe(429);
   });
 
-  it('crypto.ts decryptField debe retornar cipherText original cuando decipher.update falla', () => {
-    // Generate valid hex length but invalid ciphertext for AES cipher update
-    const ivHex = '00'.repeat(16);
-    const macHex = '00'.repeat(64);
-    // Invalid AES block ciphertext hex
-    const invalidCiphertextHex = '1234';
+  it('crypto.ts decryptField y getJwtSecret/getDbEncryptionKey deben cubrir todas las ramas y excepciones', () => {
+    // Test parts.length !== 3 when string contains one colon
+    const twoParts = 'part1:part2';
+    expect(decryptField(twoParts)).toBe(twoParts);
 
-    // Calculate expected HMAC over bad ciphertext so HMAC check passes and decipher fails
-    const badCiphertextPayload = `${ivHex}:${macHex}:${invalidCiphertextHex}`;
-    const result = decryptField(badCiphertextPayload);
-    expect(typeof result).toBe('string');
+    // Test getJwtSecret and getDbEncryptionKey in production without keys
+    process.env.NODE_ENV = 'production';
+    delete process.env.JWT_SECRET;
+    delete process.env.DB_ENCRYPTION_KEY;
+
+    expect(() => getJwtSecret()).toThrow('FATAL SECURITY ERROR: JWT_SECRET');
+    expect(() => encryptField('test')).toThrow('FATAL SECURITY ERROR: DB_ENCRYPTION_KEY');
+
+    // Test decipher.final failure catch block (line 89)
+    const cryptoNode = crypto;
+    const dbKey = process.env.DB_ENCRYPTION_KEY || 'dreamtek_dev_db_encryption_key_512bits_2026';
+    const hmacDigest = cryptoNode
+      .createHmac('sha512', dbKey)
+      .update('dreamtek_db_encryption_salt_2026')
+      .digest();
+    const macKey = hmacDigest.subarray(32, 64);
+
+    const ivHex = '00'.repeat(16);
+    const corruptEncryptedHex = '00'.repeat(16);
+    const validMacHex = cryptoNode
+      .createHmac('sha512', macKey)
+      .update(`${ivHex}:${corruptEncryptedHex}`)
+      .digest('hex');
+
+    const corruptPayload = `${ivHex}:${validMacHex}:${corruptEncryptedHex}`;
+    expect(decryptField(corruptPayload)).toBe(corruptPayload);
   });
 });

@@ -8,6 +8,26 @@ import {
   initRedisFromEnv,
 } from '../../../server/src/utils/cache';
 
+vi.mock('ioredis', () => {
+  return {
+    default: class MockRedis {
+      constructor(url: string) {
+        if (url === 'throw_error') {
+          throw new Error('Constructor Error');
+        }
+      }
+      on(event: string, callback: (...args: unknown[]) => unknown) {
+        if (event === 'connect') {
+          callback();
+        }
+        if (event === 'error') {
+          callback(new Error('Mock Redis Error'));
+        }
+      }
+    },
+  };
+});
+
 describe('FC 001l Multi-Tier Caching & Fail-Open Resilience Suite', () => {
   const originalEnv = process.env.REDIS_URL;
 
@@ -16,11 +36,14 @@ describe('FC 001l Multi-Tier Caching & Fail-Open Resilience Suite', () => {
     process.env.REDIS_URL = originalEnv;
   });
 
-  it('initRedisFromEnv debe inicializar Redis con o sin TLS (rediss:// y redis://)', () => {
+  it('initRedisFromEnv debe inicializar Redis, ejecutar listeners connect/error y capturar excepciones de constructor', () => {
     process.env.REDIS_URL = 'rediss://default:password@localhost:6379';
     expect(() => initRedisFromEnv()).not.toThrow();
 
     process.env.REDIS_URL = 'redis://localhost:6379';
+    expect(() => initRedisFromEnv()).not.toThrow();
+
+    process.env.REDIS_URL = 'throw_error';
     expect(() => initRedisFromEnv()).not.toThrow();
 
     delete process.env.REDIS_URL;

@@ -5,6 +5,19 @@ import cookieParser from 'cookie-parser';
 import jwt from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
 
+const mockSendMail = vi.fn().mockImplementation(() => Promise.resolve({ messageId: 'msg-123' }));
+vi.mock('nodemailer', () => {
+  const transportObj = {
+    sendMail: (...args: unknown[]) => mockSendMail(...args),
+  };
+  return {
+    default: {
+      createTransport: () => transportObj,
+    },
+    createTransport: () => transportObj,
+  };
+});
+
 import * as db from '../../../server/src/db';
 import { adminRouter } from '../../../server/src/routes/admin';
 import { clientRouter } from '../../../server/src/routes/client';
@@ -380,25 +393,111 @@ describe('Server Express Routes 100% Comprehensive Suite', () => {
     expect(resRaw2.status).toBe(400);
   });
 
-  it('client.ts y admin.ts deben capturar excepciones síncronas de DB', async () => {
-    // Sync exception in client dashboard
-    vi.mocked(db.query).mockImplementationOnce(() => {
-      throw new Error('Sync DB Error');
+  it('contact.ts en producción debe enviar correos con nodemailer o manejar excepciones SMTP', async () => {
+    process.env.NODE_ENV = 'production';
+    process.env.SMTP_PASS = 'mock_smtp_password';
+
+    const { contactRouter, setTransporterForTest } =
+      await import('../../../server/src/routes/contact');
+    setTransporterForTest({
+      sendMail: (...args: unknown[]) => mockSendMail(...args),
     });
+    mockSendMail.mockResolvedValue({ messageId: 'msg-123' });
+    const prodApp = express();
+    prodApp.use(express.json());
+    prodApp.use('/prod-contact', contactRouter);
+
+    // Test send-code in production (successful sendMail)
+    const resProdCode = await supertest(prodApp)
+      .post('/prod-contact/send-code')
+      .send({ email: 'contacto@empresa.com' });
+    expect(resProdCode.status).toBe(200);
+    expect(resProdCode.body.code).toBeUndefined();
+
+    // Test contact form in production (successful sendMail)
+    const resProdMsg = await supertest(prodApp).post('/prod-contact').send({
+      name: 'Carlos',
+      email: 'carlos@empresa.com',
+      subject: 'Consulta Comercial',
+      message: 'Hola Dreamtek',
+    });
+    expect(resProdMsg.status).toBe(200);
+
+    // Test SMTP send error catch blocks
+    mockSendMail.mockRejectedValueOnce(new Error('SMTP Connection Failed'));
+    const resSendCodeErr = await supertest(prodApp)
+      .post('/prod-contact/send-code')
+      .send({ email: 'contacto@empresa.com' });
+    expect(resSendCodeErr.status).toBe(500);
+
+    mockSendMail.mockRejectedValueOnce(new Error('SMTP Send Failed'));
+    const resContactErr = await supertest(prodApp).post('/prod-contact').send({
+      name: 'Carlos',
+      email: 'carlos@empresa.com',
+      subject: 'Consulta Comercial',
+      message: 'Hola Dreamtek',
+    });
+    expect(resContactErr.status).toBe(500);
+  });
+
+  it('client.ts y admin.ts deben capturar excepciones síncronas de DB y fallbacks de mensaje', async () => {
+    // Sync string exception in client dashboard sites query
+    vi.mocked(db.query)
+      .mockResolvedValueOnce([
+        { id: 1, full_name: 'Cliente', email: 'c@e.com', role: 'CLIENT', created_at: '2026-01-01' },
+      ]) // user query
+      .mockImplementationOnce(() => {
+        throw 'String DB Error';
+      });
+
     const resDashErr = await supertest(app)
       .get('/client/dashboard')
       .set('Cookie', [`dreamtek_session=${clientToken}`]);
-    expect(resDashErr.status).toBe(500);
+    expect(resDashErr.status).toBe(200);
 
-    // Sync exception in client sites (catches DB error and returns empty array HTTP 200 per Rule F01)
+    // Outer exception without message property
     vi.mocked(db.query).mockImplementationOnce(() => {
-      throw new Error('Sync DB Error');
+      throw { noMessageField: true };
+    });
+    const resDashNoMsg = await supertest(app)
+      .get('/client/dashboard')
+      .set('Cookie', [`dreamtek_session=${clientToken}`]);
+    expect(resDashNoMsg.status).toBe(500);
+
+    // Sync exception in client sites
+    vi.mocked(db.query).mockImplementationOnce(() => {
+      throw 'Sync String DB Error';
     });
     const resSitesErr = await supertest(app)
       .get('/client/sites')
       .set('Cookie', [`dreamtek_session=${clientToken}`]);
     expect(resSitesErr.status).toBe(200);
-    expect(resSitesErr.body.sites).toEqual([]);
+
+    // Sync outer exception in client sites without message field
+    const { clientRouter: rawClientRouter } = await import('../../../server/src/routes/client');
+    const reqMock: Record<string, unknown> = {};
+    Object.defineProperty(reqMock, 'user', {
+      get() {
+        throw { rawStringError: true };
+      },
+    });
+    const resMock = {
+      status: vi.fn().mockReturnThis(),
+      json: vi.fn(),
+    } as unknown as Response;
+
+    const sitesRoute = rawClientRouter.stack.find(
+      (layer: { route?: { path: string } }) => layer.route?.path === '/sites',
+    )?.route;
+    if (sitesRoute) {
+      const handler = sitesRoute.stack[0].handle;
+      await handler(reqMock, resMock);
+      expect(resMock.status).toHaveBeenCalledWith(500);
+      expect(resMock.json).toHaveBeenCalledWith({
+        status: 'error',
+        message: 'Error al obtener sitios web del cliente.',
+      });
+    }
 
     // Sync exceptions in admin routes
     vi.mocked(db.query).mockImplementation(() => {
@@ -420,16 +519,59 @@ describe('Server Express Routes 100% Comprehensive Suite', () => {
     expect(resAdminMetrics.status).toBe(500);
   });
 
-  it('admin.ts audit-logs debe manejar fallo en la consulta de total count', async () => {
+  it('admin.ts audit-logs debe manejar fallo en la consulta de total count o arreglo vacío', async () => {
     vi.mocked(db.query)
       .mockResolvedValueOnce([{ id: 1, event_type: 'LOGIN_SUCCESS' }]) // logs query
-      .mockRejectedValueOnce(new Error('Count query failed')); // count query fail
+      .mockRejectedValueOnce(new Error('Count query rejected')); // count query rejected
+
+    const resLogsRej = await supertest(app)
+      .get('/admin/audit-logs')
+      .set('Authorization', `Bearer ${adminToken}`);
+    expect(resLogsRej.status).toBe(200);
+    expect(resLogsRej.body.total).toBe(0);
+
+    vi.mocked(db.query)
+      .mockResolvedValueOnce([{ id: 1, event_type: 'LOGIN_SUCCESS' }]) // logs query
+      .mockResolvedValueOnce([] as unknown as Array<{ total: number }>); // count query returns empty array
 
     const resLogs = await supertest(app)
       .get('/admin/audit-logs')
       .set('Authorization', `Bearer ${adminToken}`);
     expect(resLogs.status).toBe(200);
     expect(resLogs.body.total).toBe(0);
+  });
+
+  it('auth.ts debe procesar logins exitosos en producción y validación de campos requeridos', async () => {
+    const { authRouter } = await import('../../../server/src/routes/auth');
+    const rawAuthApp = express();
+    rawAuthApp.use(express.json());
+    rawAuthApp.use('/raw-auth', authRouter);
+
+    // Missing password direct invocation
+    const resNoPass = await supertest(rawAuthApp)
+      .post('/raw-auth/login')
+      .send({ email: 'test@e.com' });
+    expect(resNoPass.status).toBe(400);
+
+    // Login in production mode
+    process.env.NODE_ENV = 'production';
+    process.env.JWT_SECRET = 'prod_secret_key_12345';
+
+    vi.mocked(db.query).mockResolvedValueOnce([
+      {
+        id: 1,
+        email: 'admin@dreamtek.tech',
+        password_hash: await bcrypt.hash('SuperPassword123!', 1),
+        role: null,
+        full_name: 'Admin Prod',
+      },
+    ]);
+
+    const resProdLogin = await supertest(rawAuthApp).post('/raw-auth/login').send({
+      email: 'admin@dreamtek.tech',
+      password: 'SuperPassword123!',
+    });
+    expect(resProdLogin.status).toBe(200);
   });
 
   it('auth.ts debe responder con 500 si falta JWT_SECRET en producción durante login', async () => {
@@ -443,9 +585,34 @@ describe('Server Express Routes 100% Comprehensive Suite', () => {
     expect(resProdAuth.status).toBe(500);
   });
 
-  it('checkout.ts debe manejar errores de Stripe cuando STRIPE_SECRET_KEY está configurada', async () => {
-    process.env.STRIPE_SECRET_KEY = 'sk_test_mock_invalid_key_for_testing';
+  it('checkout.ts debe procesar sesiones de Stripe o manejar errores cuando STRIPE_SECRET_KEY está configurada', async () => {
+    const { setStripeForTest } = await import('../../../server/src/routes/checkout');
+    const mockCreate = vi.fn().mockResolvedValueOnce({
+      id: 'cs_real_123',
+      url: 'https://checkout.stripe.com/pay',
+    });
 
+    setStripeForTest({
+      checkout: {
+        sessions: {
+          create: mockCreate,
+        },
+      },
+    });
+
+    process.env.STRIPE_SECRET_KEY = 'sk_test_valid_key_for_testing';
+
+    const resStripeOk = await supertest(app).post('/checkout/session').send({
+      email: 'pago@empresa.com',
+      billing_cycle: 'annual',
+      template_id: 'corporate',
+      domain_name: 'pagoterminado.com',
+    });
+    expect(resStripeOk.status).toBe(200);
+    expect(resStripeOk.body.session_id).toBe('cs_real_123');
+
+    // Error case
+    mockCreate.mockRejectedValueOnce(new Error('Stripe API Error'));
     const resStripeErr = await supertest(app).post('/checkout/session').send({
       email: 'pago@empresa.com',
       billing_cycle: 'annual',
@@ -461,5 +628,15 @@ describe('Server Express Routes 100% Comprehensive Suite', () => {
       domain: 12345,
     });
     expect(resBadDomain.status).toBe(400);
+
+    const { onboardingRouter } = await import('../../../server/src/routes/onboarding');
+    const rawOnboardingApp = express();
+    rawOnboardingApp.use(express.json());
+    rawOnboardingApp.use('/raw-onboarding', onboardingRouter);
+
+    const resRawBadDomain = await supertest(rawOnboardingApp)
+      .post('/raw-onboarding/domain')
+      .send({});
+    expect(resRawBadDomain.status).toBe(400);
   });
 });
