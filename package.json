@@ -1,6 +1,6 @@
 {
   "name": "dreamtek.tech",
-  "version": "0.1.40",
+  "version": "0.1.41",
   "private": true,
   "engines": {
     "node": ">=20.0.0"
