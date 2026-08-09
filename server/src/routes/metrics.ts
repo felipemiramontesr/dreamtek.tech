@@ -3,13 +3,22 @@ import { metricsRegistry } from '../utils/metrics';
 
 export const metricsRouter = Router();
 
-export const METRICS_SECRET_TOKEN = process.env.METRICS_BEARER_TOKEN || 'dreamtek-metrics-secret-key';
+export function getMetricsSecretToken(): string | null {
+  if (process.env.METRICS_BEARER_TOKEN) {
+    return process.env.METRICS_BEARER_TOKEN;
+  }
+  if (process.env.NODE_ENV === 'production') {
+    return null; // Fail-closed: Never allow hardcoded secret in production (A02)
+  }
+  return 'dreamtek-metrics-secret-key';
+}
 
 export function isMetricsAuthorized(req: Request): boolean {
+  const secretToken = getMetricsSecretToken();
   const authHeader = req.headers.authorization;
-  if (authHeader && authHeader.startsWith('Bearer ')) {
+  if (secretToken && authHeader && authHeader.startsWith('Bearer ')) {
     const token = authHeader.substring(7).trim();
-    if (token === METRICS_SECRET_TOKEN) {
+    if (token === secretToken) {
       return true;
     }
   }

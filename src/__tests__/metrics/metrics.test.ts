@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import request from 'supertest';
 import { metricsRegistry } from '../../../server/src/utils/metrics';
 import { normalizeRoutePath, metricsMiddleware } from '../../../server/src/middleware/metrics';
-import { isMetricsAuthorized, METRICS_SECRET_TOKEN } from '../../../server/src/routes/metrics';
+import { isMetricsAuthorized, getMetricsSecretToken } from '../../../server/src/routes/metrics';
 import app from '../../../server/src/index';
 import { Request, Response, NextFunction } from 'express';
 
@@ -168,11 +168,28 @@ describe('Prometheus Metrics Engine & Middleware (FC 001n)', () => {
     it('should allow access to /api/v1/metrics with valid Bearer token', async () => {
       const res = await request(app)
         .get('/api/v1/metrics')
-        .set('Authorization', `Bearer ${METRICS_SECRET_TOKEN}`);
+        .set('Authorization', `Bearer ${getMetricsSecretToken()}`);
 
       expect(res.status).toBe(200);
       expect(res.headers['content-type']).toContain('text/plain');
       expect(res.text).toContain('# HELP http_requests_total');
+    });
+
+    it('should fail-closed in production when METRICS_BEARER_TOKEN is not configured (A02)', () => {
+      const originalEnv = process.env.NODE_ENV;
+      const originalToken = process.env.METRICS_BEARER_TOKEN;
+      delete process.env.METRICS_BEARER_TOKEN;
+      process.env.NODE_ENV = 'production';
+
+      expect(getMetricsSecretToken()).toBeNull();
+
+      const req = {
+        headers: { authorization: 'Bearer dreamtek-metrics-secret-key' },
+      } as unknown as Request;
+      expect(isMetricsAuthorized(req)).toBe(false);
+
+      process.env.NODE_ENV = originalEnv;
+      if (originalToken) process.env.METRICS_BEARER_TOKEN = originalToken;
     });
 
     it('should authorize request if user has ADMIN role', () => {
