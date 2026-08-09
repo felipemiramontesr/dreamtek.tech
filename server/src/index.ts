@@ -7,6 +7,8 @@ import path from 'path';
 import fs from 'fs';
 
 import { globalRateLimiter, sensitiveEndpointLimiter } from './middleware/rateLimiter.js';
+import { metricsMiddleware } from './middleware/metrics.js';
+import { metricsRouter } from './routes/metrics.js';
 import { healthRouter, setShuttingDownState } from './routes/health.js';
 import { authRouter } from './routes/auth.js';
 import { onboardingRouter } from './routes/onboarding.js';
@@ -21,6 +23,9 @@ dotenv.config({ path: path.join(__dirname, '../.env') });
 
 const app = express();
 const PORT = process.env.PORT || 3001;
+
+// Register Telemetry Middleware first
+app.use(metricsMiddleware);
 
 // Condition C-H3: Configure trust proxy for Hostinger/Cloudflare reverse proxies
 app.set('trust proxy', 1);
@@ -113,6 +118,10 @@ app.get('/api/v1/docs', async (_req, res) => {
     res.sendFile(path.join(__dirname, 'docs/openapi.json'));
   }
 });
+
+// Condition C-N2: Mount Prometheus Metrics routes (Protected)
+app.use('/metrics', metricsRouter);
+app.use('/api/v1/metrics', metricsRouter);
 
 // Condition C-J1: Mount health probes at Root (/healthz, /readyz) AND /api/v1/
 app.use(healthRouter);

@@ -1,4 +1,5 @@
 import Redis from 'ioredis';
+import { metricsRegistry } from './metrics';
 
 interface CacheEntry<T> {
   value: T;
@@ -23,20 +24,24 @@ export function initRedisFromEnv(): void {
 
       redisClient.on('connect', () => {
         isRedisConnected = true;
+        metricsRegistry.setGauge('is_redis_connected', 1);
         console.log('✅ Connected to L2 Redis Cache.');
       });
 
       redisClient.on('error', (err) => {
         isRedisConnected = false;
+        metricsRegistry.setGauge('is_redis_connected', 0);
         console.warn('⚠️ L2 Redis Cache Warning (Fail-Open Fallback to L1):', err.message);
       });
     } catch (_err) {
       redisClient = null;
       isRedisConnected = false;
+      metricsRegistry.setGauge('is_redis_connected', 0);
     }
   } else {
     redisClient = null;
     isRedisConnected = false;
+    metricsRegistry.setGauge('is_redis_connected', 0);
   }
 }
 
@@ -63,6 +68,8 @@ function evictL1IfNeeded(): void {
       l1Cache.delete(oldestKey);
     }
   }
+
+  metricsRegistry.setGauge('l1_cache_size', l1Cache.size);
 }
 
 /**
@@ -75,10 +82,13 @@ export async function getCache<T>(key: string): Promise<T | null> {
   if (l1Cache.has(key)) {
     const entry = l1Cache.get(key)!;
     if (entry.expiresAt > now) {
+      metricsRegistry.recordCacheHit('L1');
       return entry.value as T;
     }
     l1Cache.delete(key);
   }
+
+  metricsRegistry.recordCacheMiss('L1');
 
   // Query L2 Redis Cache if L1 Misses and Redis Connected (Condition C-L1, C-L5)
   if (isRedisConnected && redisClient) {
@@ -88,6 +98,8 @@ export async function getCache<T>(key: string): Promise<T | null> {
         const parsed = JSON.parse(data) as T;
         // Populate L1 cache
         l1Cache.set(key, { value: parsed, expiresAt: now + 60000 });
+        metricsRegistry.recordCacheHit('L2');
+        metricsRegistry.setGauge('l1_cache_size', l1Cache.size);
         return parsed;
       }
     } catch (_err) {
@@ -95,6 +107,7 @@ export async function getCache<T>(key: string): Promise<T | null> {
     }
   }
 
+  metricsRegistry.recordCacheMiss('L2');
   return null;
 }
 
