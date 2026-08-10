@@ -8,6 +8,7 @@ export default defineConfig({
     environment: 'jsdom',
     globals: true,
     testTimeout: 15000,
+    exclude: ['node_modules/**', '**/node_modules/**', 'e2e/**'],
     setupFiles: ['./vitest.setup.ts'],
     alias: {
       '@': path.resolve(__dirname, './src'),
