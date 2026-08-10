@@ -16,6 +16,7 @@ import { checkoutRouter } from './routes/checkout.js';
 import { clientRouter } from './routes/client.js';
 import { adminRouter } from './routes/admin.js';
 import { contactRouter } from './routes/contact.js';
+import { eventsRouter } from './routes/events.js';
 import { pool } from './db.js';
 import { getCache, setCache } from './utils/cache.js';
 
@@ -134,6 +135,7 @@ app.use('/api/v1/checkout', checkoutRouter);
 app.use('/api/v1/client', clientRouter);
 app.use('/api/v1/admin', adminRouter);
 app.use('/api/v1/contact', sensitiveEndpointLimiter, contactRouter);
+app.use('/api/v1', eventsRouter);
 
 // Start HTTP Server
 const server = app.listen(PORT, () => {
