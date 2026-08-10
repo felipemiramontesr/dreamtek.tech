@@ -90,8 +90,8 @@ jobs:
       - name: "🛠️ Execute Matrix Task (${{ matrix.job_name }})"
         run: |
           if [ "${{ matrix.job_name }}" = "unit-tests-vitest" ]; then
-            echo "Running Vitest test suite and generating JSON report..."
-            npx vitest run --reporter=json --outputFile=vitest-report.json --fileParallelism=false
+            echo "Running Vitest test suite with Coverage v8 and generating JSON report..."
+            npx vitest run --coverage --reporter=json --outputFile=vitest-report.json --fileParallelism=false
           elif [ "${{ matrix.job_name }}" = "eslint-next" ]; then
             echo "Running ESLint..."
             npm run lint
@@ -161,6 +161,11 @@ jobs:
           echo "Verificando estructura de código y estándares de calidad..."
           test -f docs/decisions/001-host-model-and-mariadb-connection-pool.md
           test -f docs/decisions/005-nodejs-backend-architecture.md
+          if [ -f "scripts/verifyL.mjs" ]; then
+            echo "Ejecutando verificaciones de gobernanza L..."
+            node scripts/hCheck.mjs
+            node scripts/verifyL.mjs
+          fi
           echo "✓ Quality Gate complacido."
 
   e2e-verification:
