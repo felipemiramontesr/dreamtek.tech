@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 export interface SSEOptions {
   url?: string;
@@ -10,9 +10,14 @@ export interface SSEOptions {
 export type ConnectionState = 'CONNECTING' | 'OPEN' | 'CLOSED';
 
 export function useSSE(options: SSEOptions = {}) {
-  const { url = '/api/v1/events', enabled = true } = options;
+  const { url = '/api/v1/events', enabled = true, onError } = options;
   const [connectionState, setConnectionState] = useState<ConnectionState>('CLOSED');
   const [lastEvent, setLastEvent] = useState<unknown | null>(null);
+
+  const onErrorRef = useRef(onError);
+  useEffect(() => {
+    onErrorRef.current = onError;
+  }, [onError]);
 
   useEffect(() => {
     if (!enabled || typeof window === 'undefined') return;
@@ -35,8 +40,8 @@ export function useSSE(options: SSEOptions = {}) {
     eventSource.onerror = (err) => {
       setConnectionState('CLOSED');
       eventSource.close();
-      if (options.onError) {
-        options.onError(err);
+      if (onErrorRef.current) {
+        onErrorRef.current(err);
       }
     };
 
@@ -44,7 +49,7 @@ export function useSSE(options: SSEOptions = {}) {
       eventSource.close();
       setConnectionState('CLOSED');
     };
-  }, [url, enabled, options]);
+  }, [url, enabled]);
 
   return {
     connectionState,
