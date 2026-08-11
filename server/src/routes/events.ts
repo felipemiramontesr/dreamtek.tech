@@ -4,7 +4,7 @@ import { requireAuth, AuthenticatedRequest } from '../middleware/auth';
 export const eventsRouter = Router();
 
 // Mapa de clientes conectados activos: userId -> Set<Response>
-const activeClients = new Map<string, Set<Response>>();
+export const activeClients = new Map<string, Set<Response>>();
 
 /**
  * Función para emitir eventos SSE a un usuario específico o a todos los clientes de un tenant
@@ -16,14 +16,22 @@ export function sendSSEEventToUser(userId: string, eventType: string, payload: u
   }
 
   const message = `event: ${eventType}\ndata: ${JSON.stringify(payload)}\n\n`;
-  for (const clientRes of userConnections) {
+  let sentCount = 0;
+
+  for (const clientRes of Array.from(userConnections)) {
     try {
       clientRes.write(message);
+      sentCount++;
     } catch {
       userConnections.delete(clientRes);
     }
   }
-  return true;
+
+  if (userConnections.size === 0) {
+    activeClients.delete(userId);
+  }
+
+  return sentCount > 0;
 }
 
 /**
@@ -44,11 +52,6 @@ eventsRouter.get('/events', requireAuth, (req: AuthenticatedRequest, res: Respon
 
   // Enviar mensaje de bienvenida / handshake
   res.write(`event: connected\ndata: ${JSON.stringify({ message: 'SSE Stream Activo', userId, timestamp: new Date().toISOString() })}\n\n`);
-
-  if (process.env.NODE_ENV === 'test') {
-    res.end();
-    return;
-  }
 
   // Registrar cliente
   if (!activeClients.has(userId)) {
