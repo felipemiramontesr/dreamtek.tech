@@ -30,28 +30,16 @@ describe('SSE Events Router & Real-Time Emitters', () => {
       { algorithm: 'HS512' },
     );
 
-    await new Promise<void>((resolve, reject) => {
-      const req = request(app)
-        .get('/api/v1/events')
-        .set('Cookie', [`dreamtek_session=${validToken}`]);
+    const res = await request(app)
+      .get('/api/v1/events')
+      .set('Cookie', [`dreamtek_session=${validToken}`]);
 
-      req.on('response', (res) => {
-        expect(res.statusCode).toBe(200);
-        expect(res.headers['content-type']).toContain('text/event-stream');
-        expect(res.headers['cache-control']).toContain('no-cache');
-        expect(res.headers['connection']).toBe('keep-alive');
-        req.abort();
-        resolve();
-      });
-
-      req.on('error', (err: Error & { code?: string }) => {
-        if (err.code === 'ECONNRESET' || err.message?.includes('aborted')) {
-          resolve();
-        } else {
-          reject(err);
-        }
-      });
-    });
+    expect(res.status).toBe(200);
+    expect(res.headers['content-type']).toContain('text/event-stream');
+    expect(res.headers['cache-control']).toContain('no-cache');
+    expect(res.headers['connection']).toBe('keep-alive');
+    expect(res.text).toContain('event: connected');
+    expect(res.text).toContain('user-sse-1');
   });
 
   it('debe retornar false al enviar un evento a un usuario sin conexiones activas', () => {

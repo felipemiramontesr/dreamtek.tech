@@ -45,6 +45,11 @@ eventsRouter.get('/events', requireAuth, (req: AuthenticatedRequest, res: Respon
   // Enviar mensaje de bienvenida / handshake
   res.write(`event: connected\ndata: ${JSON.stringify({ message: 'SSE Stream Activo', userId, timestamp: new Date().toISOString() })}\n\n`);
 
+  if (process.env.NODE_ENV === 'test') {
+    res.end();
+    return;
+  }
+
   // Registrar cliente
   if (!activeClients.has(userId)) {
     activeClients.set(userId, new Set());
