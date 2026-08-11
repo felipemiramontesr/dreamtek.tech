@@ -91,7 +91,7 @@ jobs:
         run: |
           if [ "${{ matrix.job_name }}" = "unit-tests-vitest" ]; then
             echo "Running Vitest test suite with Coverage v8 and generating JSON report..."
-            npx vitest run --coverage --reporter=json --outputFile=vitest-report.json --fileParallelism=false
+            npx vitest run --coverage --reporter=default --reporter=json --outputFile=vitest-report.json --fileParallelism=false
           elif [ "${{ matrix.job_name }}" = "eslint-next" ]; then
             echo "Running ESLint..."
             npm run lint
