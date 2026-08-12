@@ -82,6 +82,9 @@ app.use(
   })
 );
 
+// Stripe Webhook Raw Body Parser (Must run before global express.json parser)
+app.use('/api/v1/checkout/webhook', express.raw({ type: 'application/json' }));
+
 // Body Payload Size Limits (100kb)
 app.use(express.json({ limit: '100kb' }));
 app.use(express.urlencoded({ extended: true, limit: '100kb' }));

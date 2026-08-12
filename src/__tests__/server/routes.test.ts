@@ -268,9 +268,13 @@ describe('Server Express Routes 100% Comprehensive Suite', () => {
     expect(resCheckout.body.checkout_url).toBeDefined();
 
     // Webhook event
-    vi.mocked(db.query).mockResolvedValueOnce({ affectedRows: 1 });
+    vi.mocked(db.query)
+      .mockResolvedValueOnce([{ id: 1 }])
+      .mockResolvedValueOnce({ affectedRows: 1 })
+      .mockResolvedValueOnce({ affectedRows: 1 });
     const resWebhook = await supertest(app)
       .post('/checkout/webhook')
+      .set('stripe-signature', 't=123,v1=mock_signature')
       .send({
         type: 'checkout.session.completed',
         data: {
@@ -283,6 +287,7 @@ describe('Server Express Routes 100% Comprehensive Suite', () => {
     vi.mocked(db.query).mockRejectedValueOnce(new Error('Webhook DB Error'));
     const resWebErr = await supertest(app)
       .post('/checkout/webhook')
+      .set('stripe-signature', 't=123,v1=mock_signature')
       .send({
         type: 'checkout.session.completed',
         data: {
