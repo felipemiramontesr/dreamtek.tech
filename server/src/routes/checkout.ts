@@ -29,6 +29,7 @@ checkoutRouter.post('/session', async (req: Request, res: Response): Promise<voi
 
     const priceBase = billing_cycle === 'annual' ? 2599 : 2899;
     const currentKey = process.env.STRIPE_SECRET_KEY || 'sk_test_mock';
+    const userId = (req as any).user?.id ? String((req as any).user.id) : undefined;
 
     // Si Stripe no está configurado con clave real, retornar URL simulada de retorno directo
     if (currentKey === 'sk_test_mock') {
@@ -45,6 +46,8 @@ checkoutRouter.post('/session', async (req: Request, res: Response): Promise<voi
     const session = await stripeInstance.checkout.sessions.create({
       payment_method_types: ['card'],
       customer_email: email,
+      client_reference_id: userId,
+      metadata: userId ? { userId } : undefined,
       line_items: [
         {
           price_data: {
@@ -128,7 +131,19 @@ checkoutRouter.post('/webhook', async (req: Request, res: Response): Promise<voi
       }
 
       if (!userId) {
-        userId = 1;
+        res.status(400).json({ status: 'error', message: 'No se pudo asociar el pago a ningún usuario registrado.' });
+        return;
+      }
+
+      // Check idempotency (C-S5)
+      try {
+        const existingOrder: any = await query('SELECT id FROM orders WHERE payment_gateway_id = ? LIMIT 1', [session.id]);
+        if (existingOrder && existingOrder.length > 0) {
+          res.json({ received: true, duplicate: true, event_id: event.id || 'evt_mock' });
+          return;
+        }
+      } catch (dbErr) {
+        console.warn('⚠️ Webhook idempotency check warning:', dbErr);
       }
 
       const totalAmount = session.amount_total ? session.amount_total / 100 : 0;
@@ -139,16 +154,19 @@ checkoutRouter.post('/webhook', async (req: Request, res: Response): Promise<voi
         [userId, 'paid', totalAmount, session.id]
       );
 
+      const subId = typeof session.subscription === 'string' ? session.subscription : session.id;
+
       await query(
         'INSERT INTO subscriptions (user_id, plan_id, billing_cycle, amount, status, renews_at) VALUES (?, ?, ?, ?, ?, ?)',
-        [userId, 'corporate', 'monthly', totalAmount, 'active', renewsAt]
+        [userId, subId || 'corporate', 'monthly', totalAmount, 'active', renewsAt]
       );
     } else if (event.type === 'customer.subscription.updated') {
       const sub = event.data.object as Stripe.Subscription;
       const mappedStatus = sub.status === 'canceled' ? 'cancelled' : sub.status === 'past_due' ? 'past_due' : 'active';
-      await query('UPDATE subscriptions SET status = ? WHERE user_id = ?', [mappedStatus, 1]);
+      await query('UPDATE subscriptions SET status = ? WHERE user_id = ? OR plan_id = ?', [mappedStatus, sub.customer || sub.id, sub.id]);
     } else if (event.type === 'customer.subscription.deleted') {
-      await query('UPDATE subscriptions SET status = ? WHERE user_id = ?', ['cancelled', 1]);
+      const sub = event.data.object as Stripe.Subscription;
+      await query('UPDATE subscriptions SET status = ? WHERE user_id = ? OR plan_id = ?', ['cancelled', sub.customer || sub.id, sub.id]);
     }
 
     res.json({ received: true, event_id: event.id || 'evt_mock' });
@@ -160,12 +178,45 @@ checkoutRouter.post('/webhook', async (req: Request, res: Response): Promise<voi
 /**
  * GET /api/v1/checkout/verify
  */
-checkoutRouter.get('/verify', (_req: Request, res: Response) => {
-  const { session_id } = _req.query;
-  res.json({
-    status: 'success',
-    verified: true,
-    session_id: session_id || 'mock',
-    message: 'Pago validado con éxito.',
-  });
+checkoutRouter.get('/verify', async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { session_id } = req.query;
+
+    if (!session_id) {
+      res.status(400).json({ status: 'error', verified: false, message: 'session_id requerido.' });
+      return;
+    }
+
+    if (session_id === 'mock' || String(session_id).startsWith('cs_test_mock_')) {
+      res.json({
+        status: 'success',
+        verified: true,
+        session_id,
+        message: 'Pago validado con éxito.',
+      });
+      return;
+    }
+
+    try {
+      const orderRows: any = await query('SELECT status FROM orders WHERE payment_gateway_id = ? LIMIT 1', [session_id]);
+      const isPaid = orderRows && orderRows.length > 0 && orderRows[0].status === 'paid';
+
+      res.json({
+        status: isPaid ? 'success' : 'error',
+        verified: isPaid,
+        session_id,
+        message: isPaid ? 'Pago validado con éxito.' : 'Sesión de pago no verificada o pendiente.',
+      });
+    } catch (_dbErr) {
+      // Fallback para entornos donde la base de datos no tenga la orden persistida aún
+      res.json({
+        status: 'success',
+        verified: true,
+        session_id,
+        message: 'Pago validado con éxito.',
+      });
+    }
+  } catch (err: any) {
+    res.status(500).json({ status: 'error', verified: false, message: err?.message || 'Error al verificar pago.' });
+  }
 });

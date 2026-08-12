@@ -270,6 +270,7 @@ describe('Server Express Routes 100% Comprehensive Suite', () => {
     // Webhook event
     vi.mocked(db.query)
       .mockResolvedValueOnce([{ id: 1 }])
+      .mockResolvedValueOnce([])
       .mockResolvedValueOnce({ affectedRows: 1 })
       .mockResolvedValueOnce({ affectedRows: 1 });
     const resWebhook = await supertest(app)
