@@ -101,30 +101,32 @@ export function Products({ dict }: { dict: Dictionary }) {
           </p>
 
           {/* Billing Toggle Switch */}
-          <div className="flex justify-center items-center gap-4 mt-6 lg:mt-3">
-            <span
-              className={`text-sm font-medium transition-colors duration-200 ${!isAnnual ? 'text-white' : 'text-white/40'}`}
-            >
-              {dict.products.monthly}
-            </span>
-            <label className="relative inline-flex items-center cursor-pointer select-none">
-              <input
-                type="checkbox"
-                aria-label="Facturación anual"
-                checked={isAnnual}
-                onChange={(e) => setIsAnnual(e.target.checked)}
-                className="sr-only peer"
-              />
-              <div className="w-11 h-6 bg-white/10 border border-white/20 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-5 after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-[#FF2D00] after:border-none after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-white/15 duration-300 transition-all shadow-[inset_0_0_4px_rgba(0,0,0,0.4)]" />
-            </label>
-            <div className="flex items-center gap-2">
+          <div className="flex flex-col items-center gap-1.5 mt-6 lg:mt-3">
+            <div className="flex items-center gap-3 bg-white/5 border border-white/10 px-4 py-1.5 rounded-full backdrop-blur-md">
+              <span
+                className={`text-sm font-medium transition-colors duration-200 ${!isAnnual ? 'text-white' : 'text-white/40'}`}
+              >
+                {dict.products.monthly}
+              </span>
+              <label className="relative inline-flex items-center cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  aria-label="Facturación anual"
+                  checked={isAnnual}
+                  onChange={(e) => setIsAnnual(e.target.checked)}
+                  className="sr-only peer"
+                />
+                <div className="w-11 h-6 bg-white/10 border border-white/20 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-5 after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-[#FF2D00] after:border-none after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-white/15 duration-300 transition-all shadow-[inset_0_0_4px_rgba(0,0,0,0.4)]" />
+              </label>
               <span
                 className={`text-sm font-medium transition-colors duration-200 ${isAnnual ? 'text-white' : 'text-white/40'}`}
               >
                 {dict.products.annual}
               </span>
+            </div>
+            <div className="h-5 flex items-center justify-center">
               {isAnnual && (
-                <span className="text-[10px] sm:text-xs bg-[#FF2D00] text-white px-2 py-0.5 rounded-full font-bold shadow-[0_0_10px_rgba(255,45,0,0.4)] animate-pulse">
+                <span className="text-[10px] sm:text-xs bg-[#FF2D00] text-white px-2.5 py-0.5 rounded-full font-bold shadow-[0_0_10px_rgba(255,45,0,0.4)] animate-pulse">
                   {dict.products.save}
                 </span>
               )}
@@ -236,7 +238,9 @@ export function Products({ dict }: { dict: Dictionary }) {
         onClose={() => setIsModalOpen(false)}
         tag={modalMode === 'info' ? dict.products.modal.tag : 'ONBOARDING PIPELINE'}
         tagColor="emerald"
-        title={modalMode === 'info' ? dict.products.modal.title : 'Pipeline de Onboarding — Escolta WEB'}
+        title={
+          modalMode === 'info' ? dict.products.modal.title : 'Pipeline de Onboarding — Escolta WEB'
+        }
         description={
           modalMode === 'info'
             ? dict.products.modal.description
@@ -244,30 +248,32 @@ export function Products({ dict }: { dict: Dictionary }) {
         }
         headerAction={
           modalMode === 'info' ? (
-            <div className="flex items-center gap-3">
-              <span
-                className={`text-xs sm:text-sm font-medium transition-colors duration-200 ${!isAnnual ? 'text-white' : 'text-white/40'}`}
-              >
-                {dict.products.monthly}
-              </span>
-              <label className="relative inline-flex items-center cursor-pointer select-none">
-                <input
-                  type="checkbox"
-                  aria-label="Facturación anual modal"
-                  checked={isAnnual}
-                  onChange={(e) => setIsAnnual(e.target.checked)}
-                  className="sr-only peer"
-                />
-                <div className="w-11 h-6 bg-white/10 border border-white/20 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-5 after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-[#FF2D00] after:border-none after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-white/15 duration-300 transition-all shadow-[inset_0_0_4px_rgba(0,0,0,0.4)]" />
-              </label>
-              <div className="flex items-center gap-2">
+            <div className="flex flex-col items-center gap-1">
+              <div className="flex items-center gap-2.5 sm:gap-3 bg-white/5 border border-white/10 px-3.5 py-1.5 rounded-full">
+                <span
+                  className={`text-xs sm:text-sm font-medium transition-colors duration-200 ${!isAnnual ? 'text-white' : 'text-white/40'}`}
+                >
+                  {dict.products.monthly}
+                </span>
+                <label className="relative inline-flex items-center cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    aria-label="Facturación anual modal"
+                    checked={isAnnual}
+                    onChange={(e) => setIsAnnual(e.target.checked)}
+                    className="sr-only peer"
+                  />
+                  <div className="w-11 h-6 bg-white/10 border border-white/20 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-5 after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-[#FF2D00] after:border-none after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-white/15 duration-300 transition-all shadow-[inset_0_0_4px_rgba(0,0,0,0.4)]" />
+                </label>
                 <span
                   className={`text-xs sm:text-sm font-medium transition-colors duration-200 ${isAnnual ? 'text-white' : 'text-white/40'}`}
                 >
                   {dict.products.annual}
                 </span>
+              </div>
+              <div className="h-4 flex items-center justify-center">
                 {isAnnual && (
-                  <span className="text-[10px] sm:text-xs bg-[#FF2D00] text-white px-2 py-0.5 rounded-full font-bold shadow-[0_0_10px_rgba(255,45,0,0.4)] animate-pulse">
+                  <span className="text-[10px] bg-[#FF2D00] text-white px-2 py-0.5 rounded-full font-bold shadow-[0_0_10px_rgba(255,45,0,0.4)] animate-pulse">
                     {dict.products.save}
                   </span>
                 )}
@@ -332,7 +338,9 @@ export function Products({ dict }: { dict: Dictionary }) {
                 type="button"
                 onClick={() => setActiveTab('excludes')}
                 className={`flex-1 text-center py-2 text-[10px] font-bold tracking-widest transition-all ${
-                  activeTab === 'excludes' ? 'text-sky-400 border-b-2 border-sky-400' : 'text-white/40'
+                  activeTab === 'excludes'
+                    ? 'text-sky-400 border-b-2 border-sky-400'
+                    : 'text-white/40'
                 }`}
               >
                 {dict.products.modal.tabs.excludes}
@@ -341,7 +349,9 @@ export function Products({ dict }: { dict: Dictionary }) {
                 type="button"
                 onClick={() => setActiveTab('process')}
                 className={`flex-1 text-center py-2 text-[10px] font-bold tracking-widest transition-all ${
-                  activeTab === 'process' ? 'text-sky-400 border-b-2 border-sky-400' : 'text-white/40'
+                  activeTab === 'process'
+                    ? 'text-sky-400 border-b-2 border-sky-400'
+                    : 'text-white/40'
                 }`}
               >
                 {dict.products.modal.tabs.process}
