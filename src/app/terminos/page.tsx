@@ -173,7 +173,7 @@ export default function Terminos() {
                 Para cualquier aclaración de carácter legal, técnico o metodológico respecto a las
                 presentes condiciones, usted puede ponerse en contacto directo con nuestra área
                 jurídica e ingeniería a través de la dirección de correo electrónico institucional:{' '}
-                <a href="mailto:contacto@dreamtek.tech" className="text-[#FF2D00] hover:underline">
+                <a href="mailto:contacto@dreamtek.tech" className="text-[#FF2D00]">
                   contacto@dreamtek.tech
                 </a>
                 .

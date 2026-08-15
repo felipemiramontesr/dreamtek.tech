@@ -40,7 +40,7 @@ export default function Privacidad() {
               Felipe de Jesús Miramontes Romero (en adelante comercialmente conocido como
               &ldquo;Dreamtek&rdquo;), con domicilio para oír y recibir notificaciones en Guadalupe,
               Zacatecas, México, y portal web{' '}
-              <a href="https://dreamtek.tech" className="text-[#FF2D00] hover:underline">
+              <a href="https://dreamtek.tech" className="text-[#FF2D00]">
                 https://dreamtek.tech
               </a>
               , es el responsable del uso y protección de sus datos personales. Al respecto, le
@@ -117,7 +117,7 @@ export default function Privacidad() {
                 En caso de que no desee que sus datos personales sean tratados para las finalidades
                 secundarias mencionadas, usted puede manifestar su negativa desde este momento
                 enviando un correo electrónico a{' '}
-                <a href="mailto:contacto@dreamtek.tech" className="text-[#FF2D00] hover:underline">
+                <a href="mailto:contacto@dreamtek.tech" className="text-[#FF2D00]">
                   contacto@dreamtek.tech
                 </a>
                 . La negativa para el uso de sus datos personales para estas finalidades no podrá
@@ -174,7 +174,7 @@ export default function Privacidad() {
                 Para el ejercicio de cualquiera de los derechos ARCO, así como para revocar el
                 consentimiento otorgado para el tratamiento de sus datos, usted deberá presentar la
                 solicitud respectiva vía correo electrónico a la dirección:{' '}
-                <a href="mailto:contacto@dreamtek.tech" className="text-[#FF2D00] hover:underline">
+                <a href="mailto:contacto@dreamtek.tech" className="text-[#FF2D00]">
                   contacto@dreamtek.tech
                 </a>
               </p>

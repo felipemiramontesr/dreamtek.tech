@@ -1,7 +1,12 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { submitLead, checkDomainAvailability, createCheckoutSession, verifyCheckoutSuccess } from '@/lib/onboarding/client';
+import {
+  submitLead,
+  checkDomainAvailability,
+  createCheckoutSession,
+  verifyCheckoutSuccess,
+} from '@/lib/onboarding/client';
 
 interface OnboardingWizardProps {
   isAnnual: boolean;
@@ -20,19 +25,22 @@ const TEMPLATES: TemplateOption[] = [
     id: 'corporate',
     name: 'Corporativo Elite',
     category: 'B2B & Empresa',
-    description: 'Diseño institucional sobrio optimizado para captar cuentas corporativas y clientes de alto valor.',
+    description:
+      'Diseño institucional sobrio optimizado para captar cuentas corporativas y clientes de alto valor.',
   },
   {
     id: 'services',
     name: 'Servicios & Consultoría',
     category: 'Agencias & Firmas',
-    description: 'Estructura orientada a conversión directa con llamadas a la acción estratégicas y agenda.',
+    description:
+      'Estructura orientada a conversión directa con llamadas a la acción estratégicas y agenda.',
   },
   {
     id: 'ecommerce',
     name: 'Catálogo & E-commerce',
     category: 'Ventas & Showcase',
-    description: 'Layout visual enfocado en exhibición de productos, fichas técnicas y pasarela de checkout.',
+    description:
+      'Layout visual enfocado en exhibición de productos, fichas técnicas y pasarela de checkout.',
   },
 ];
 
@@ -62,7 +70,10 @@ export const OnboardingWizard: React.FC<OnboardingWizardProps> = ({ isAnnual, on
   const [company, setCompany] = useState('');
   const [selectedTemplate, setSelectedTemplate] = useState('corporate');
   const [domainInput, setDomainInput] = useState('');
-  const [domainStatus, setDomainStatus] = useState<{ available?: boolean; message?: string } | null>(null);
+  const [domainStatus, setDomainStatus] = useState<{
+    available?: boolean;
+    message?: string;
+  } | null>(null);
   const [siteNotes, setSiteNotes] = useState('');
 
   // Handle URL Session Verification if returning from Stripe
@@ -78,7 +89,8 @@ export const OnboardingWizard: React.FC<OnboardingWizardProps> = ({ isAnnual, on
           })
           .catch((err: unknown) => {
             setLoading(false);
-            const msg = err instanceof Error ? err.message : 'Error al validar el pago de la orden.';
+            const msg =
+              err instanceof Error ? err.message : 'Error al validar el pago de la orden.';
             setErrorMessage(msg);
           });
       }
@@ -173,8 +185,8 @@ export const OnboardingWizard: React.FC<OnboardingWizardProps> = ({ isAnnual, on
                   step === s
                     ? 'bg-[#FF2D00] text-white shadow-[0_0_15px_rgba(255,45,0,0.6)]'
                     : step > s
-                    ? 'bg-white/10 text-emerald-400 border border-emerald-500/40'
-                    : 'bg-white/5 text-white/40 border border-white/10'
+                      ? 'bg-white/10 text-emerald-400 border border-emerald-500/40'
+                      : 'bg-white/5 text-white/40 border border-white/10'
                 }`}
               >
                 {step > s ? '✓' : s}
@@ -204,10 +216,15 @@ export const OnboardingWizard: React.FC<OnboardingWizardProps> = ({ isAnnual, on
 
       {/* STEP 1: Contact Details */}
       {step === 1 && (
-        <form onSubmit={handleStep1Submit} className="space-y-4 flex-1 flex flex-col justify-between overflow-hidden">
+        <form
+          onSubmit={handleStep1Submit}
+          className="space-y-4 flex-1 flex flex-col justify-between overflow-hidden"
+        >
           <div className="space-y-3">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-              <h3 className="text-lg md:text-xl font-bold text-white tracking-tight">Paso 1: Información de Contacto</h3>
+              <h3 className="text-lg md:text-xl font-bold text-white tracking-tight">
+                Paso 1: Información de Contacto
+              </h3>
               <button
                 type="button"
                 onClick={() => {
@@ -215,18 +232,21 @@ export const OnboardingWizard: React.FC<OnboardingWizardProps> = ({ isAnnual, on
                   const event = new CustomEvent('open-auth-modal', { detail: 'login' });
                   window.dispatchEvent(event);
                 }}
-                className="text-xs text-sky-400 hover:text-sky-300 font-semibold underline transition-colors self-start sm:self-center cursor-pointer"
+                className="text-xs text-sky-400 hover:text-sky-300 font-semibold transition-colors self-start sm:self-center cursor-pointer"
               >
                 ¿Ya eres cliente de Dreamtek? Inicia sesión aquí
               </button>
             </div>
             <p className="text-xs md:text-sm text-white/70 font-light">
-              Ingresa tus datos de representante para registrar tu cuenta y personalizar la propuesta de tu sitio web.
+              Ingresa tus datos de representante para registrar tu cuenta y personalizar la
+              propuesta de tu sitio web.
             </p>
 
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 pt-2">
               <div>
-                <label className="block text-xs font-semibold text-white/80 mb-1">Nombre Completo *</label>
+                <label className="block text-xs font-semibold text-white/80 mb-1">
+                  Nombre Completo *
+                </label>
                 <input
                   type="text"
                   required
@@ -237,7 +257,9 @@ export const OnboardingWizard: React.FC<OnboardingWizardProps> = ({ isAnnual, on
                 />
               </div>
               <div>
-                <label className="block text-xs font-semibold text-white/80 mb-1">Correo Electrónico *</label>
+                <label className="block text-xs font-semibold text-white/80 mb-1">
+                  Correo Electrónico *
+                </label>
                 <input
                   type="email"
                   required
@@ -248,7 +270,9 @@ export const OnboardingWizard: React.FC<OnboardingWizardProps> = ({ isAnnual, on
                 />
               </div>
               <div>
-                <label className="block text-xs font-semibold text-white/80 mb-1">WhatsApp / Teléfono *</label>
+                <label className="block text-xs font-semibold text-white/80 mb-1">
+                  WhatsApp / Teléfono *
+                </label>
                 <input
                   type="tel"
                   required
@@ -259,7 +283,9 @@ export const OnboardingWizard: React.FC<OnboardingWizardProps> = ({ isAnnual, on
                 />
               </div>
               <div>
-                <label className="block text-xs font-semibold text-white/80 mb-1">Nombre de la Empresa</label>
+                <label className="block text-xs font-semibold text-white/80 mb-1">
+                  Nombre de la Empresa
+                </label>
                 <input
                   type="text"
                   value={company}
@@ -287,7 +313,9 @@ export const OnboardingWizard: React.FC<OnboardingWizardProps> = ({ isAnnual, on
       {step === 2 && (
         <div className="space-y-4 flex-1 flex flex-col justify-between overflow-hidden">
           <div className="space-y-3">
-            <h3 className="text-lg md:text-xl font-bold text-white tracking-tight">Paso 2: Selección de Estructura Visual</h3>
+            <h3 className="text-lg md:text-xl font-bold text-white tracking-tight">
+              Paso 2: Selección de Estructura Visual
+            </h3>
             <p className="text-xs md:text-sm text-white/70 font-light">
               Elige la plantilla base optimizada según el giro estratégico de tu proyecto.
             </p>
@@ -307,8 +335,12 @@ export const OnboardingWizard: React.FC<OnboardingWizardProps> = ({ isAnnual, on
                     <div className="mb-2 text-[10px] sm:text-xs font-bold uppercase tracking-wider text-[#FF2D00]">
                       {tmpl.category}
                     </div>
-                    <h4 className="text-sm sm:text-base font-bold text-white mb-1.5">{tmpl.name}</h4>
-                    <p className="text-xs text-white/70 font-light leading-relaxed">{tmpl.description}</p>
+                    <h4 className="text-sm sm:text-base font-bold text-white mb-1.5">
+                      {tmpl.name}
+                    </h4>
+                    <p className="text-xs text-white/70 font-light leading-relaxed">
+                      {tmpl.description}
+                    </p>
                   </div>
                 </div>
               ))}
@@ -338,7 +370,9 @@ export const OnboardingWizard: React.FC<OnboardingWizardProps> = ({ isAnnual, on
       {step === 3 && (
         <div className="space-y-4 flex-1 flex flex-col justify-between overflow-hidden">
           <div className="space-y-3">
-            <h3 className="text-lg md:text-xl font-bold text-white tracking-tight">Paso 3: Verificación de Dominio (.com / .mx)</h3>
+            <h3 className="text-lg md:text-xl font-bold text-white tracking-tight">
+              Paso 3: Verificación de Dominio (.com / .mx)
+            </h3>
             <p className="text-xs md:text-sm text-white/70 font-light">
               Realiza una consulta rápida de disponibilidad para tu dirección web de marca.
             </p>
@@ -398,9 +432,12 @@ export const OnboardingWizard: React.FC<OnboardingWizardProps> = ({ isAnnual, on
       {step === 4 && (
         <div className="space-y-4 flex-1 flex flex-col justify-between overflow-hidden">
           <div className="space-y-3">
-            <h3 className="text-lg md:text-xl font-bold text-white tracking-tight">Paso 4: Resumen de Orden & Pago Seguro</h3>
+            <h3 className="text-lg md:text-xl font-bold text-white tracking-tight">
+              Paso 4: Resumen de Orden & Pago Seguro
+            </h3>
             <p className="text-xs md:text-sm text-white/70 font-light">
-              Revisa los detalles de tu suscripción antes de acceder a la pasarela de pago protegida.
+              Revisa los detalles de tu suscripción antes de acceder a la pasarela de pago
+              protegida.
             </p>
 
             <div className="rounded-xl border border-white/15 bg-white/5 p-4 space-y-3">
@@ -418,7 +455,9 @@ export const OnboardingWizard: React.FC<OnboardingWizardProps> = ({ isAnnual, on
               </div>
               <div className="flex justify-between text-xs md:text-sm border-b border-white/10 pb-2">
                 <span className="text-white/60">Dominio Solicitado:</span>
-                <span className="font-medium text-white">{domainInput || 'Pendiente de definir'}</span>
+                <span className="font-medium text-white">
+                  {domainInput || 'Pendiente de definir'}
+                </span>
               </div>
               <div className="flex justify-between text-sm md:text-base font-bold pt-1">
                 <span className="text-white">Monto Base (+ IVA):</span>
@@ -453,9 +492,12 @@ export const OnboardingWizard: React.FC<OnboardingWizardProps> = ({ isAnnual, on
           <div className="space-y-3">
             <div className="rounded-xl border border-emerald-500/40 bg-emerald-500/10 p-4 text-center">
               <div className="text-2xl mb-1">🎉</div>
-              <h3 className="text-base md:text-lg font-bold text-emerald-300">¡Pago Confirmado & Orden Activa!</h3>
+              <h3 className="text-base md:text-lg font-bold text-emerald-300">
+                ¡Pago Confirmado & Orden Activa!
+              </h3>
               <p className="text-xs md:text-sm text-white/80 mt-1 font-light">
-                Tu suscripción Escolta WEB ha sido registrada exitosamente. Completa los detalles iniciales de tu sitio.
+                Tu suscripción Escolta WEB ha sido registrada exitosamente. Completa los detalles
+                iniciales de tu sitio.
               </p>
             </div>
 
@@ -476,7 +518,11 @@ export const OnboardingWizard: React.FC<OnboardingWizardProps> = ({ isAnnual, on
           <div className="pt-4 flex justify-end shrink-0">
             <button
               type="button"
-              onClick={() => alert('¡Información de sitio enviada! El equipo de Dreamtek iniciará tu despliegue.')}
+              onClick={() =>
+                alert(
+                  '¡Información de sitio enviada! El equipo de Dreamtek iniciará tu despliegue.',
+                )
+              }
               className="inline-flex items-center justify-center font-bold font-sans rounded-xl bg-[#FF2D00] text-white hover:bg-[#FF2D00]/90 shadow-[0_0_20px_rgba(255,45,0,0.35)] hover:shadow-[0_0_30px_rgba(255,45,0,0.55)] px-8 py-3 text-xs md:text-sm uppercase tracking-wider transition-all duration-300 hover:scale-105"
             >
               Finalizar Registro →

@@ -35,3 +35,11 @@ body.modal-open header {
   opacity: 0;
   pointer-events: none;
 }
+
+/* Force no underlines on any link across the application */
+a,
+a:hover,
+a:focus,
+a:active {
+  text-decoration: none !important;
+}

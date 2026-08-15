@@ -358,7 +358,7 @@ export function Contact({ dict }: { dict: Dictionary }) {
                           type="button"
                           onClick={handleResend}
                           disabled={status === 'loading'}
-                          className="text-xs text-white/40 hover:text-white transition-colors cursor-pointer outline-none focus:underline"
+                          className="text-xs text-white/40 hover:text-white transition-colors cursor-pointer outline-none"
                         >
                           {dict.contact.code.resend}
                         </button>

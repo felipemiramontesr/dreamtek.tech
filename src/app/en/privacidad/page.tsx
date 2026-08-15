@@ -124,10 +124,7 @@ export default function Privacy() {
               <p>
                 To exercise any of your ARCO rights, you can write a formal request addressed to our
                 corporate email:{' '}
-                <a
-                  href="mailto:contacto@dreamtek.tech"
-                  className="text-[#FF2D00] hover:underline font-medium"
-                >
+                <a href="mailto:contacto@dreamtek.tech" className="text-[#FF2D00] font-medium">
                   contacto@dreamtek.tech
                 </a>
                 , detailing the right you wish to exercise and attaching an official identification

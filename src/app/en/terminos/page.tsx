@@ -112,10 +112,7 @@ export default function Terms() {
               <p>
                 If you have questions about our Terms of Service, you can contact our engineering
                 area directly at{' '}
-                <a
-                  href="mailto:contacto@dreamtek.tech"
-                  className="text-[#FF2D00] hover:underline font-medium"
-                >
+                <a href="mailto:contacto@dreamtek.tech" className="text-[#FF2D00] font-medium">
                   contacto@dreamtek.tech
                 </a>
                 .

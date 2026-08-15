@@ -141,9 +141,12 @@ app.use('/api/v1/contact', sensitiveEndpointLimiter, contactRouter);
 app.use('/api/v1', eventsRouter);
 
 // Start HTTP Server
-const server = app.listen(PORT, () => {
-  console.log(`🚀 Dreamtek Node.js API Server running on port ${PORT}`);
-});
+const server =
+  process.env.NODE_ENV !== 'test'
+    ? app.listen(PORT, () => {
+        console.log(`🚀 Dreamtek Node.js API Server running on port ${PORT}`);
+      })
+    : null;
 
 // Graceful Shutdown Logic (Condition C-J3)
 const gracefulShutdown = (signal: string) => {
