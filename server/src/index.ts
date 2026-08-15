@@ -160,19 +160,23 @@ const gracefulShutdown = (signal: string) => {
   }, 10000);
   forceExitTimeout.unref();
 
-  server.close(async () => {
-    console.log('🔒 Express HTTP server closed. Closing MariaDB connection pool...');
-    try {
-      if (pool && typeof pool.end === 'function') {
-        await pool.end();
+  if (server) {
+    server.close(async () => {
+      console.log('🔒 Express HTTP server closed. Closing MariaDB connection pool...');
+      try {
+        if (pool && typeof pool.end === 'function') {
+          await pool.end();
+        }
+        console.log('✅ MariaDB pool closed cleanly. Process exiting.');
+        process.exit(0);
+      } catch (err) {
+        console.error('❌ Error closing MariaDB pool:', err);
+        process.exit(1);
       }
-      console.log('✅ MariaDB pool closed cleanly. Process exiting.');
-      process.exit(0);
-    } catch (err) {
-      console.error('❌ Error closing MariaDB pool:', err);
-      process.exit(1);
-    }
-  });
+    });
+  } else {
+    process.exit(0);
+  }
 };
 
 if (process.env.NODE_ENV !== 'test') {
