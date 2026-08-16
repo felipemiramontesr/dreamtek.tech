@@ -1,0 +1,172 @@
+{
+  "standard": "OWASP Top 10:2021",
+  "version": "1.0.0-l-harness",
+  "policy": {
+    "PASSED": "Only if evidence[] is non-empty AND every listed test/control is green in CI",
+    "NOT_VERIFIED": "Default when no real evidence mapped — NEVER treat as PASSED",
+    "FAILED": "Mapped evidence exists and at least one failed",
+    "N/A": "Category does not apply to this project — requires Ω justification in notes",
+    "certificateComplete": "All categories are PASSED or N/A (justified) — zero NOT_VERIFIED, zero FAILED"
+  },
+  "domain": ["A01", "A02", "A03", "A04", "A05", "A06", "A07", "A08", "A09", "A10"],
+  "categories": {
+    "A01": {
+      "id": "A01:2021",
+      "name": "Broken Access Control",
+      "status": "PASSED",
+      "evidence": [
+        { "type": "test", "path": "src/__tests__/auth/portalAuth.test.ts", "id": "auth-rbac-and-role-isolation" },
+        { "type": "test", "path": "src/__tests__/server/routes.test.ts", "id": "unauthorized-route-access-denial" },
+        { "type": "test", "path": "src/__tests__/security/security.test.ts", "id": "cors-fail-closed-verification" }
+      ],
+      "controls": [
+        "Deny by default",
+        "Object-level authorization (no ID-only fetch without ownership/tenant scope)",
+        "Function-level authorization on privileged actions",
+        "CORS / force browsing hardened"
+      ],
+      "notes": "Verified via RBAC middleware tests and CORS fail-closed policy."
+    },
+    "A02": {
+      "id": "A02:2021",
+      "name": "Cryptographic Failures",
+      "status": "PASSED",
+      "evidence": [
+        { "type": "test", "path": "src/__tests__/auth/auth.test.ts", "id": "bcrypt-password-hashing-jwt-signing" },
+        { "type": "test", "path": "src/__tests__/server/stripeWebhooks.test.ts", "id": "stripe-hmac-sha256-signature-verification" }
+      ],
+      "controls": [
+        "TLS in transit for sensitive data",
+        "No secrets in source control",
+        "Strong algorithms / key management by Ω",
+        "Sensitive data classified and minimized"
+      ],
+      "notes": "Bcrypt password hashing, HS512 JWT signatures, and Stripe HMAC-SHA256 verification verified."
+    },
+    "A03": {
+      "id": "A03:2021",
+      "name": "Injection",
+      "status": "PASSED",
+      "evidence": [
+        { "type": "test", "path": "src/__tests__/db/mariadb.test.ts", "id": "parameterized-sql-queries" },
+        { "type": "test", "path": "src/__tests__/contracts/contracts.test.ts", "id": "zod-schema-payload-validation" }
+      ],
+      "controls": [
+        "Parameterized queries / no raw string SQL with user input",
+        "Output encoding for XSS surfaces",
+        "Command injection avoided (no shell with untrusted input)",
+        "Schema validation on inputs (e.g. Zod / pydantic)"
+      ],
+      "notes": "100% parameterized SQL queries via MariaDB pool.execute and Zod schema validation."
+    },
+    "A04": {
+      "id": "A04:2021",
+      "name": "Insecure Design",
+      "status": "PASSED",
+      "evidence": [
+        { "type": "test", "path": "src/__tests__/sections/Contact.test.ts", "id": "2fa-verification-flow-anti-automation" },
+        { "type": "test", "path": "src/__tests__/security/security.test.ts", "id": "rate-limiter-auth-lead-endpoints" }
+      ],
+      "controls": [
+        "Threat model or security notes in FC for product features",
+        "Business logic abuse considered in Gherkin",
+        "Least privilege by design",
+        "Rate limits / anti-automation where applicable"
+      ],
+      "notes": "2FA email verification flow and rate limiting on sensitive endpoints."
+    },
+    "A05": {
+      "id": "A05:2021",
+      "name": "Security Misconfiguration",
+      "status": "PASSED",
+      "evidence": [
+        { "type": "test", "path": "src/__tests__/security/security.test.ts", "id": "helmet-security-headers" },
+        { "type": "test", "path": "src/__tests__/resilience/resilience.test.ts", "id": "safe-healthcheck-endpoints" }
+      ],
+      "controls": [
+        "Hardened defaults (no debug in prod)",
+        "Security headers where web (CSP, HSTS, etc. as stack allows)",
+        "Unnecessary features disabled",
+        "Environment separation (local ≠ prod URLs in tests)"
+      ],
+      "notes": "Helmet headers (HSTS, X-Frame-Options, X-Content-Type-Options) and fail-closed CORS."
+    },
+    "A06": {
+      "id": "A06:2021",
+      "name": "Vulnerable and Outdated Components",
+      "status": "PASSED",
+      "evidence": [
+        { "type": "control", "path": "scripts/auditDependencies.mjs", "id": "npm-audit-production-dependencies" }
+      ],
+      "controls": [
+        "Dependency audit (npm/bun audit, pip-audit, govulncheck, etc.)",
+        "Pinned versions for production builds",
+        "Process to patch critical CVEs",
+        "Remove unused dependencies"
+      ],
+      "notes": "Automated dependency vulnerability audit script verifying 0 high/critical vulnerabilities."
+    },
+    "A07": {
+      "id": "A07:2021",
+      "name": "Identification and Authentication Failures",
+      "status": "PASSED",
+      "evidence": [
+        { "type": "test", "path": "src/__tests__/auth/AuthModal.test.tsx", "id": "login-register-validation" },
+        { "type": "test", "path": "src/__tests__/auth/portalAuth.test.ts", "id": "httponly-cookie-session-handling" }
+      ],
+      "controls": [
+        "Secure session / token handling",
+        "Password / MFA policy as product requires",
+        "No default credentials",
+        "Brute-force / lockout or rate limit on auth endpoints"
+      ],
+      "notes": "HttpOnly cookie sessions and authRateLimiter 5 req/15 min lockout protection."
+    },
+    "A08": {
+      "id": "A08:2021",
+      "name": "Software and Data Integrity Failures",
+      "status": "PASSED",
+      "evidence": [
+        { "type": "control", "path": "scripts/verifyL.mjs", "id": "l-harness-integrity-verification" },
+        { "type": "test", "path": "src/__tests__/contracts/contracts.test.ts", "id": "zod-contract-payload-integrity" }
+      ],
+      "controls": [
+        "CI integrity (no unsigned deploy of product without process)",
+        "Integrity of updates / artifacts",
+        "Deserialize untrusted data carefully",
+        "Signed FC + tests same commit for product code"
+      ],
+      "notes": "Protocol L CI integrity gate (verifyL) and Zod schema validation."
+    },
+    "A09": {
+      "id": "A09:2021",
+      "name": "Security Logging and Monitoring Failures",
+      "status": "PASSED",
+      "evidence": [
+        { "type": "test", "path": "src/__tests__/security/security.test.ts", "id": "immutable-security-audit-logger" }
+      ],
+      "controls": [
+        "Auth and access-control failures logged",
+        "No secrets in logs",
+        "Alert path defined for critical security events",
+        "Forensic trail (F / audit log) for security-relevant product changes"
+      ],
+      "notes": "Sanitized SHA-256 payload audit logging without plaintext secrets."
+    },
+    "A10": {
+      "id": "A10:2021",
+      "name": "Server-Side Request Forgery (SSRF)",
+      "status": "PASSED",
+      "evidence": [
+        { "type": "test", "path": "src/__tests__/server/routes.test.ts", "id": "webhook-origin-validation-no-blind-proxy" }
+      ],
+      "controls": [
+        "Validate/allowlist outbound URLs from user input",
+        "Block link-local / metadata IPs where relevant",
+        "Network egress policy for services",
+        "No blind proxy of user-supplied URLs"
+      ],
+      "notes": "Origin validation on external webhooks and zero proxying of arbitrary user-supplied URLs."
+    }
+  }
+}
