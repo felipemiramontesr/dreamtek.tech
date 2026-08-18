@@ -6,7 +6,7 @@ import { logSecurityEvent } from '../middleware/auditLogger.js';
 import { validate } from '../middleware/validate.js';
 import { loginSchema, registerSchema } from '../schemas/auth.schema.js';
 
-function getJwtSecret(): string {
+export function getJwtSecret(): string {
   if (process.env.NODE_ENV === 'production' && !process.env.JWT_SECRET) {
     throw new Error('FATAL SECURITY ERROR: JWT_SECRET environment variable is missing in production.');
   }

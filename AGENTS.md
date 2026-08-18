@@ -1,11 +1,12 @@
-<!-- L-HARNESS:BEGIN protocolVersion=V.1.9.10-core do-not-edit-inside -->
+<!-- L-HARNESS:BEGIN protocolVersion=V.1.9.13-core do-not-edit-inside -->
 
-# Dreamtek.tech â€” AGENTS.md (host boot)
+# Dreamtek.tech — AGENTS.md (host boot)
 
 **SSOT (law):** `protocols/north-star/001_NS_ProtocolL.md` (**local-only**)  
 **Handoff:** `protocols/north-star/002_NS_Handoff.md`  
-**Harness:** 1.6.0 Â· **L protocol:** V.1.9.10-core Â· **governancePublish:** local-only  
-**Î©:** GrayMan (L) Â· **Raptors:** Alfa (O) Â· Bravo (R) Â· Charlie (O) Â· Antigravity may hold Alfa+Charlie
+**Harness:** 1.6.0 · **L protocol:** V.1.9.13-core · **governancePublish:** local-only  
+**Ω:** GrayMan (L) · **Raptors:** Alfa (O) · Bravo (R) · Charlie (O)  
+**Charters:** `protocols/annex/formal/RAPTOR_CHARTERS.md` · **Standards:** `STANDARDS_EVIDENCE.md`
 
 ## North Star
 
@@ -13,38 +14,48 @@
 NO SIGNED FC = NO PRODUCT CODE.
 ```
 
-If this file disagrees with L â†’ **L wins**.
+If this file disagrees with L → **L wins**.
 
-## Boot checklist
+## R-ROLE-BOUND (session)
 
-1. Read **L** (North Star + CHANNEL H + Conduct) + **H header** + **delta after your cursor**
-2. **Holy Trinity:** product close â‡’ O âˆ§ L âˆ§ R (L = human Î© only)
-3. **KAE:** Learned(L) â†’ **[KAE START ACK]** + **L_pin** â†’ token diet
-4. Active FC: `protocols/fc/`
-5. Never `git add -f protocols/` or harness config
+| Callsign    | Seat | Craft                   | Does                      | Does NOT                       |
+| ----------- | ---- | ----------------------- | ------------------------- | ------------------------------ |
+| **Alfa**    | O    | architect               | FC/design/ADR/G1          | Ship code/push as driver       |
+| **Charlie** | O    | fullstack               | Implement under signed FC | Seat R dictamen / invent scope |
+| **Bravo**   | R    | auditor/security/formal | Dictamen + evidence       | Product implementation         |
+| **Ω**       | L    | owner                   | EN FIRME / BREAK          | (human only)                   |
 
-## H channel (MANDATORY â€” non-negotiable)
+Host **Antigravity** may drive Alfa **and** Charlie — H author is always the **callsign of the act** (`R-ROLE-SESSION`).
 
-| Rule          | Action                                                                                   |
-| ------------- | ---------------------------------------------------------------------------------------- |
-| **Write**     | ONLY `node scripts/hPost.mjs --author <Alfa\|Bravo\|Charlie\|GrayMan>` (R-H-CALLSIGN)    |
-| **Dual host** | Antigravity: `--host Antigravity --as Alfa` or `--as Charlie` — never author=Antigravity |
-| **Diet**      | ≤ **6** lines (I-6). Same callsign consecutive → EXTEND (R-H-COMPACT)                    |
-| **Time**      | `### Callsign · YYYY-MM-DD HH:MM:SS` — never date-only                                   |
-| **Read**      | Cursor timestamps → posts with t > your cursor; one callsign = one cursor                |
-| **GC**        | I-19 min all agent cursors; **Last GC** only (no stubs)                                  |
-| **Long text** | `protocols/analysis/` or FC — H = claim + path + next                                    |
-| **Check**     | `node scripts/hCheck.mjs`                                                                |
-| **Forbidden** | Host as H author · hand-edit H (except Ω break-glass)                                    |
+## Boot checklist (every new chat)
 
-## Maintainability
+1. Fix **callsign** for this session (Alfa \| Charlie \| Bravo).
+2. Read **L** (North Star · CHANNEL H · Conduct · Role bound) + **H** header + delta after **your** cursor.
+3. **hPost ACK** as that callsign only — no product code before ACK.
+4. Active FC under `protocols/fc/`.
+5. Never `git add -f protocols/` or harness config.
+6. Senior bar: evidence, no silent A1 risk, no fake OWASP/ISO claims.
 
-Profile **standard** â€” every product FC: Docs delta / ADR / Public API / why-comments.  
-See `protocols/annex/formal/MAINTAINABILITY.md`.
+### First-message template (paste / adapt)
+
+```text
+TRIGGER L · R-SESSION-INIT · callsign {Alfa|Charlie|Bravo}
+Boot L→H→hPost ACK. L_pin=V.1.9.13-core. R-ROLE-BOUND. No product code until ACK.
+```
+
+## H channel (MANDATORY)
+
+| Rule           | Action                                                                 |
+| -------------- | ---------------------------------------------------------------------- |
+| **Write**      | ONLY `node scripts/hPost.mjs --author <Callsign>`                      |
+| **Dual host**  | `--host Antigravity --as Alfa\|Charlie` — never `--author Antigravity` |
+| **Body-guard** | No `###` headings inside `--message`                                   |
+| **Diet**       | ≤6 lines · same callsign → EXTEND · lock/dedup on                      |
+| **Check**      | `node scripts/hCheck.mjs` · `node scripts/verifyL.mjs`                 |
 
 ## Precedence
 
-`Î© A0 > signed L/FC > A1 > A2 > A3 > model preference`
+`Ω A0 > signed L/FC > A1 > A2 > A3 > model preference`
 
 <!-- L-HARNESS:END -->
 
@@ -52,6 +63,6 @@ See `protocols/annex/formal/MAINTAINABILITY.md`.
 
 # This is NOT the Next.js you know
 
-This version has breaking changes â€” APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` before writing any code. Heed deprecation notices.
+This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` before writing any code. Heed deprecation notices.
 
 <!-- END:nextjs-agent-rules -->

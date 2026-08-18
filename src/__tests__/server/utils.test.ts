@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import crypto from 'crypto';
 import { describe, it, expect, afterEach } from 'vitest';
 import express, { Request, Response } from 'express';
@@ -159,5 +160,56 @@ describe('Server Utils & Middleware 100% Comprehensive Suite', () => {
 
     const corruptPayload = `${ivHex}:${validMacHex}:${corruptEncryptedHex}`;
     expect(decryptField(corruptPayload)).toBe(corruptPayload);
+  });
+
+  it('metrics.ts matchLabels y getMetricsSecretToken deben cubrir todas las ramas', async () => {
+    const { metricsRegistry } = await import('../../../server/src/utils/metrics');
+    const { getMetricsSecretToken } = await import('../../../server/src/routes/metrics');
+
+    metricsRegistry.incCounter('test_counter', { env: 'test', region: 'us' }, 1);
+    metricsRegistry.incCounter('test_counter', { env: 'test' }, 1);
+    metricsRegistry.incCounter('empty_labels', undefined as any, 1);
+    metricsRegistry.incCounter('empty_labels', undefined as any, 1);
+    metricsRegistry.setGauge('test_gauge', 42, { instance: 'srv1' });
+    metricsRegistry.observeHistogram('test_hist', 0.1, { route: '/api' });
+
+    // Exhaustively test matchLabels branches
+    expect((metricsRegistry as any).matchLabels(undefined, undefined)).toBe(true);
+    expect((metricsRegistry as any).matchLabels(undefined, { a: '1' })).toBe(false);
+    expect((metricsRegistry as any).matchLabels({ a: '1' }, undefined)).toBe(false);
+    expect((metricsRegistry as any).matchLabels({ a: '1', b: '2' }, { a: '1' })).toBe(false);
+    expect((metricsRegistry as any).matchLabels({ a: '1' }, { a: '2' })).toBe(false);
+    expect((metricsRegistry as any).matchLabels({ a: '1' }, { a: '1' })).toBe(true);
+
+    const metricsStr = metricsRegistry.getPrometheusMetrics();
+    expect(metricsStr).toContain('test_counter');
+    expect(metricsStr).toContain('test_gauge');
+
+    // Test empty metrics string when no metrics exist
+    (metricsRegistry as any).counters.clear();
+    (metricsRegistry as any).gauges.clear();
+    (metricsRegistry as any).histograms.clear();
+    expect(metricsRegistry.getPrometheusMetrics()).toBe('');
+
+    // Restore metrics
+    metricsRegistry.resetMetricsForTest();
+
+    // Test getMetricsSecretToken with METRICS_BEARER_TOKEN
+    process.env.METRICS_BEARER_TOKEN = 'custom_metrics_secret';
+    expect(getMetricsSecretToken()).toBe('custom_metrics_secret');
+  });
+
+  it('rateLimiter.ts uploadRateLimiter debe bloquear tras exceder el límite', async () => {
+    const { uploadRateLimiter } = await import('../../../server/src/middleware/rateLimiter');
+    const appUpload = express();
+    appUpload.use(uploadRateLimiter);
+    appUpload.post('/upload', (_req, res) => res.json({ ok: true }));
+
+    for (let i = 0; i < 20; i++) {
+      await supertest(appUpload).post('/upload');
+    }
+    const resBlocked = await supertest(appUpload).post('/upload');
+    expect(resBlocked.status).toBe(429);
+    expect(resBlocked.body.message).toMatch(/Upload limit reached/);
   });
 });

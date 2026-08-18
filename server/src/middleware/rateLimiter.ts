@@ -43,3 +43,41 @@ export const sensitiveEndpointLimiter = rateLimit({
     });
   }
 });
+
+/**
+ * DAM Asset Upload Rate Limiter (OWASP A04)
+ * 20 uploads per 15 minutes window per IP
+ */
+export const uploadRateLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 20,
+  standardHeaders: true,
+  legacyHeaders: false,
+  handler: (_req: Request, res: Response) => {
+    res.status(429).json({
+      status: 429,
+      error: 'Too Many Requests',
+      message: 'Upload limit reached. Please try again after 15 minutes.'
+    });
+  }
+});
+
+/**
+ * Public Share & Guest Links Rate Limiter (OWASP A04)
+ * 60 requests per 1 minute window per IP
+ */
+export const shareRateLimiter = rateLimit({
+  windowMs: 1 * 60 * 1000,
+  max: 60,
+  standardHeaders: true,
+  legacyHeaders: false,
+  handler: (_req: Request, res: Response) => {
+    res.status(429).json({
+      status: 429,
+      error: 'Too Many Requests',
+      message: 'Demasiadas solicitudes al enlace de compartición. Intente nuevamente en un minuto.'
+    });
+  }
+});
+
+

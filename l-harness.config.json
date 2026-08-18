@@ -1,6 +1,6 @@
 {
     "harnessVersion":  "1.6.0",
-    "protocolVersion":  "V.1.9.10-core",
+    "protocolVersion":  "V.1.9.13-core",
     "preset":  "inject-existing",
     "governancePublish":  "local-only",
     "omega":  {
@@ -67,7 +67,7 @@
                 },
     "versioning":  {
                        "scheme":  "semver",
-                       "semver":  "0.1.46",
+                       "semver":  "0.1.54",
                        "codeVersion":  null,
                        "packageSync":  true,
                        "tagPrefix":  {
@@ -139,13 +139,20 @@
                             }
             },
     "formal":  {
-                   "hardGate":  true
+                   "hardGate":  true,
+                   "graphHardGate":  true
                },
     "hChannel":  {
+                     "newSessionException":  true,
                      "authorPolicy":  "callsign-only",
                      "noConsecutiveSameAuthor":  true,
                      "consecutiveMode":  "extend",
-                     "gcCursors":  "all-agents",
-                     "newSessionException":  true
-                 }
+                     "heading":  "simple",
+                     "lock":  true,
+                     "lockTtlMs":  120000,
+                     "dedup":  true,
+                     "postWriteConfirm":  true,
+                     "gcCursors":  "all-agents"
+                 },
+    "evidenceBackend":  "map"
 }

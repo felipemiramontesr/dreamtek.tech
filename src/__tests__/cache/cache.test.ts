@@ -1,4 +1,29 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { describe, it, expect, beforeEach, vi } from 'vitest';
+
+vi.mock('ioredis', () => {
+  class MockRedis {
+    constructor(url: any) {
+      if (String(url).includes('throw_error')) {
+        throw new Error('Constructor Error');
+      }
+    }
+    on(event: string, callback: (...args: unknown[]) => unknown) {
+      if (event === 'connect') {
+        callback();
+      }
+      if (event === 'error') {
+        callback(new Error('Mock Redis Error'));
+      }
+      return this;
+    }
+  }
+  return {
+    default: MockRedis,
+    Redis: MockRedis,
+  };
+});
+
 import {
   getCache,
   setCache,
@@ -8,26 +33,6 @@ import {
   initRedisFromEnv,
 } from '../../../server/src/utils/cache';
 
-vi.mock('ioredis', () => {
-  return {
-    default: class MockRedis {
-      constructor(url: string) {
-        if (url === 'throw_error') {
-          throw new Error('Constructor Error');
-        }
-      }
-      on(event: string, callback: (...args: unknown[]) => unknown) {
-        if (event === 'connect') {
-          callback();
-        }
-        if (event === 'error') {
-          callback(new Error('Mock Redis Error'));
-        }
-      }
-    },
-  };
-});
-
 describe('FC 001l Multi-Tier Caching & Fail-Open Resilience Suite', () => {
   const originalEnv = process.env.REDIS_URL;
 
@@ -36,14 +41,20 @@ describe('FC 001l Multi-Tier Caching & Fail-Open Resilience Suite', () => {
     process.env.REDIS_URL = originalEnv;
   });
 
-  it('initRedisFromEnv debe inicializar Redis, ejecutar listeners connect/error y capturar excepciones de constructor', () => {
+  it('initRedisFromEnv debe inicializar Redis, ejecutar listeners connect/error y capturar excepciones de constructor', async () => {
+    const { handleRedisConnect, handleRedisError } =
+      await import('../../../server/src/utils/cache');
+    handleRedisConnect();
+    handleRedisError(new Error('Test Error'));
+    handleRedisError();
+
     process.env.REDIS_URL = 'rediss://default:password@localhost:6379';
     expect(() => initRedisFromEnv()).not.toThrow();
 
     process.env.REDIS_URL = 'redis://localhost:6379';
     expect(() => initRedisFromEnv()).not.toThrow();
 
-    process.env.REDIS_URL = 'throw_error';
+    process.env.REDIS_URL = 'redis://localhost:6379/throw_error';
     expect(() => initRedisFromEnv()).not.toThrow();
 
     delete process.env.REDIS_URL;
@@ -163,6 +174,12 @@ describe('FC 001l Multi-Tier Caching & Fail-Open Resilience Suite', () => {
     mockRedis.keys.mockResolvedValueOnce([]);
     await invalidateCache('empty');
 
+    // Redis get returns null (L2 Miss)
+    mockRedis.get.mockResolvedValueOnce(null);
+    resetL1Cache();
+    const missL2 = await getCache('not:found:in:redis');
+    expect(missL2).toBeNull();
+
     // Exception handling inside Redis calls
     mockRedis.get.mockRejectedValueOnce(new Error('Redis get error'));
     resetL1Cache();
@@ -177,5 +194,13 @@ describe('FC 001l Multi-Tier Caching & Fail-Open Resilience Suite', () => {
 
     // Reset Redis state
     setRedisStateForTest(null, false);
+  });
+
+  it('debe cubrir branches de fallback en crypto y metrics', async () => {
+    const { getJwtSecret } = await import('../../../server/src/utils/crypto');
+    const originalSecret = process.env.JWT_SECRET;
+    delete process.env.JWT_SECRET;
+    expect(getJwtSecret()).toBe('dreamtek_dev_jwt_secret_key_2026');
+    process.env.JWT_SECRET = originalSecret;
   });
 });

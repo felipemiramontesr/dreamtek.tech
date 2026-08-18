@@ -51,14 +51,12 @@ export async function logSecurityEvent(
   const details = options.details ? options.details.substring(0, 500) : null;
 
   try {
-    if (pool) {
-      await pool.execute(
-        `INSERT INTO security_audit_logs 
-         (event_type, user_id, ip_address, user_agent, payload_sha256, status, details) 
-         VALUES (?, ?, ?, ?, ?, ?, ?)`,
-        [options.eventType, userId, ipAddress, userAgent, payloadHash, status, details]
-      );
-    }
+    await pool.execute(
+      `INSERT INTO security_audit_logs 
+       (event_type, user_id, ip_address, user_agent, payload_sha256, status, details) 
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      [options.eventType, userId, ipAddress, userAgent, payloadHash, status, details]
+    );
   } catch (err) {
     // Fail-safe: Non-blocking fallback log to stdout/stderr if DB is unavailable
     console.warn(

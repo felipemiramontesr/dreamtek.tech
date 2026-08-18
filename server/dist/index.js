@@ -11,6 +11,8 @@ const dotenv_1 = __importDefault(require("dotenv"));
 const path_1 = __importDefault(require("path"));
 const fs_1 = __importDefault(require("fs"));
 const rateLimiter_js_1 = require("./middleware/rateLimiter.js");
+const metrics_js_1 = require("./middleware/metrics.js");
+const metrics_js_2 = require("./routes/metrics.js");
 const health_js_1 = require("./routes/health.js");
 const auth_js_1 = require("./routes/auth.js");
 const onboarding_js_1 = require("./routes/onboarding.js");
@@ -18,11 +20,16 @@ const checkout_js_1 = require("./routes/checkout.js");
 const client_js_1 = require("./routes/client.js");
 const admin_js_1 = require("./routes/admin.js");
 const contact_js_1 = require("./routes/contact.js");
+const events_js_1 = require("./routes/events.js");
+const assets_js_1 = __importDefault(require("./routes/assets.js"));
+const shares_js_1 = require("./routes/shares.js");
 const db_js_1 = require("./db.js");
 const cache_js_1 = require("./utils/cache.js");
 dotenv_1.default.config({ path: path_1.default.join(__dirname, '../.env') });
 const app = (0, express_1.default)();
 const PORT = process.env.PORT || 3001;
+// Register Telemetry Middleware first
+app.use(metrics_js_1.metricsMiddleware);
 // Condition C-H3: Configure trust proxy for Hostinger/Cloudflare reverse proxies
 app.set('trust proxy', 1);
 // Security Headers via Helmet (OWASP A05)
@@ -68,6 +75,8 @@ app.use((0, cors_1.default)({
     },
     credentials: true,
 }));
+// Stripe Webhook Raw Body Parser (Must run before global express.json parser)
+app.use('/api/v1/checkout/webhook', express_1.default.raw({ type: 'application/json' }));
 // Body Payload Size Limits (100kb)
 app.use(express_1.default.json({ limit: '100kb' }));
 app.use(express_1.default.urlencoded({ extended: true, limit: '100kb' }));
@@ -100,6 +109,9 @@ app.get('/api/v1/docs', async (_req, res) => {
         res.sendFile(path_1.default.join(__dirname, 'docs/openapi.json'));
     }
 });
+// Condition C-N2: Mount Prometheus Metrics routes (Protected)
+app.use('/metrics', metrics_js_2.metricsRouter);
+app.use('/api/v1/metrics', metrics_js_2.metricsRouter);
 // Condition C-J1: Mount health probes at Root (/healthz, /readyz) AND /api/v1/
 app.use(health_js_1.healthRouter);
 app.use('/api/v1', health_js_1.healthRouter);
@@ -110,10 +122,15 @@ app.use('/api/v1/checkout', checkout_js_1.checkoutRouter);
 app.use('/api/v1/client', client_js_1.clientRouter);
 app.use('/api/v1/admin', admin_js_1.adminRouter);
 app.use('/api/v1/contact', rateLimiter_js_1.sensitiveEndpointLimiter, contact_js_1.contactRouter);
+app.use('/api/v1/assets', assets_js_1.default);
+app.use('/api/v1/shares', shares_js_1.sharesRouter);
+app.use('/api/v1', events_js_1.eventsRouter);
 // Start HTTP Server
-const server = app.listen(PORT, () => {
-    console.log(`🚀 Dreamtek Node.js API Server running on port ${PORT}`);
-});
+const server = process.env.NODE_ENV !== 'test'
+    ? app.listen(PORT, () => {
+        console.log(`🚀 Dreamtek Node.js API Server running on port ${PORT}`);
+    })
+    : null;
 // Graceful Shutdown Logic (Condition C-J3)
 const gracefulShutdown = (signal) => {
     console.log(`\n⚠️ Received ${signal}. Starting Graceful Shutdown...`);
@@ -124,20 +141,25 @@ const gracefulShutdown = (signal) => {
         process.exit(1);
     }, 10000);
     forceExitTimeout.unref();
-    server.close(async () => {
-        console.log('🔒 Express HTTP server closed. Closing MariaDB connection pool...');
-        try {
-            if (db_js_1.pool && typeof db_js_1.pool.end === 'function') {
-                await db_js_1.pool.end();
+    if (server) {
+        server.close(async () => {
+            console.log('🔒 Express HTTP server closed. Closing MariaDB connection pool...');
+            try {
+                if (db_js_1.pool && typeof db_js_1.pool.end === 'function') {
+                    await db_js_1.pool.end();
+                }
+                console.log('✅ MariaDB pool closed cleanly. Process exiting.');
+                process.exit(0);
             }
-            console.log('✅ MariaDB pool closed cleanly. Process exiting.');
-            process.exit(0);
-        }
-        catch (err) {
-            console.error('❌ Error closing MariaDB pool:', err);
-            process.exit(1);
-        }
-    });
+            catch (err) {
+                console.error('❌ Error closing MariaDB pool:', err);
+                process.exit(1);
+            }
+        });
+    }
+    else {
+        process.exit(0);
+    }
 };
 if (process.env.NODE_ENV !== 'test') {
     process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));

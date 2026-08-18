@@ -1,4 +1,6 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+
 import express from 'express';
 import supertest from 'supertest';
 import cookieParser from 'cookie-parser';
@@ -156,6 +158,12 @@ describe('Server Express Routes 100% Comprehensive Suite', () => {
       .set('Authorization', `Bearer ${adminToken}`);
     expect(resLeadsErr.status).toBe(200);
     expect(resLeadsErr.body.leads).toEqual([]);
+
+    const resMetricsErr = await supertest(app)
+      .get('/admin/metrics')
+      .set('Authorization', `Bearer ${adminToken}`);
+    expect(resMetricsErr.status).toBe(200);
+    expect(resMetricsErr.body.metrics.total_leads).toBe(0);
   });
 
   // CLIENT ROUTES
@@ -644,5 +652,410 @@ describe('Server Express Routes 100% Comprehensive Suite', () => {
       .post('/raw-onboarding/domain')
       .send({});
     expect(resRawBadDomain.status).toBe(400);
+  });
+
+  it('contact.ts debe manejar errores de envío de correo y validaciones en send-code', async () => {
+    const { contactRouter, setTransporterForTest } =
+      await import('../../../server/src/routes/contact');
+    const rawContactApp = express();
+    rawContactApp.use(express.json());
+    rawContactApp.use('/raw-contact', contactRouter);
+
+    // Direct invocation with invalid email
+    const resBadEmail = await supertest(rawContactApp)
+      .post('/raw-contact/send-code')
+      .send({ email: 'no-at-sign' });
+    expect(resBadEmail.status).toBe(400);
+
+    // Direct invocation with missing code
+    const resNoCode = await supertest(rawContactApp)
+      .post('/raw-contact')
+      .send({ email: 'test@example.com' });
+    expect(resNoCode.status).toBe(400);
+
+    // Production SMTP error branch
+    process.env.NODE_ENV = 'production';
+    process.env.SMTP_PASS = 'secret_pass';
+    setTransporterForTest({
+      sendMail: vi.fn().mockRejectedValueOnce(new Error('SMTP Transport Error')),
+    });
+
+    const resSmtpErr = await supertest(rawContactApp)
+      .post('/raw-contact/send-code')
+      .send({ email: 'test@example.com' });
+    expect(resSmtpErr.status).toBe(500);
+  });
+
+  it('events.ts debe manejar desconexión de cliente y envío de eventos', async () => {
+    const { sendSSEEventToUser, activeClients } = await import('../../../server/src/routes/events');
+
+    // Mock response object for sendSSEEventToUser
+    const mockRes = {
+      write: vi.fn(),
+    } as unknown as express.Response;
+    activeClients.set('42', new Set([mockRes]));
+    const sent = sendSSEEventToUser('42', 'message', { text: 'Hello' });
+    expect(sent).toBe(true);
+    expect(mockRes.write).toHaveBeenCalled();
+
+    // Error during write
+    (mockRes.write as any).mockImplementationOnce(() => {
+      throw new Error('Write Error');
+    });
+    sendSSEEventToUser('42', 'fail', {});
+    expect(activeClients.has('42')).toBe(false);
+  });
+
+  it('onboarding.ts y admin.ts deben capturar excepciones de base de datos en endpoints', async () => {
+    vi.mocked(db.query).mockRejectedValueOnce(new Error('Lead DB error'));
+    const resLeadErr = await supertest(app).post('/onboarding/lead').send({
+      full_name: 'Error Lead',
+      email: 'lead@error.com',
+      phone: '5551234567',
+    });
+    expect(resLeadErr.status).toBe(500);
+
+    vi.mocked(db.query).mockRejectedValueOnce(new Error('Admin metrics DB error'));
+    const adminToken = jwt.sign(
+      { userId: 1, email: 'admin@dreamtek.tech', role: 'ADMIN' },
+      TEST_SECRET,
+      { algorithm: 'HS512' },
+    );
+    const resAdminMetricsErr = await supertest(app)
+      .get('/admin/metrics')
+      .set('Authorization', `Bearer ${adminToken}`);
+    expect(resAdminMetricsErr.status).toBe(500);
+
+    // admin audit-logs catch on logs query
+    vi.mocked(db.query).mockRejectedValueOnce(new Error('Audit logs query error'));
+    vi.mocked(db.query).mockResolvedValueOnce([{ total: 0 }]);
+    const resAuditCatch = await supertest(app)
+      .get('/admin/audit-logs')
+      .set('Authorization', `Bearer ${adminToken}`);
+    expect(resAuditCatch.status).toBe(200);
+    expect(resAuditCatch.body.logs).toEqual([]);
+  });
+
+  it('checkout.ts /verify y /webhook deben cubrir mock session_id y validaciones de firma', async () => {
+    const resMockVerify = await supertest(app).get('/checkout/verify?session_id=mock');
+    expect(resMockVerify.status).toBe(200);
+    expect(resMockVerify.body.verified).toBe(true);
+
+    const resMockPrefixVerify = await supertest(app).get(
+      '/checkout/verify?session_id=cs_test_mock_999',
+    );
+    expect(resMockPrefixVerify.status).toBe(200);
+    expect(resMockPrefixVerify.body.verified).toBe(true);
+
+    // Test webhook missing signature in production
+    const origEnv = process.env.NODE_ENV;
+    try {
+      process.env.NODE_ENV = 'production';
+      const resNoSig = await supertest(app).post('/checkout/webhook').send({ type: 'test' });
+      expect(resNoSig.status).toBe(400);
+    } finally {
+      process.env.NODE_ENV = origEnv;
+    }
+  });
+
+  it('contact.ts getTransporter debe crear instancia real de nodemailer cuando testTransporter es null', async () => {
+    const { getTransporter, setTransporterForTest } =
+      await import('../../../server/src/routes/contact');
+    setTransporterForTest(null);
+    const transporter = getTransporter();
+    expect(transporter).toBeDefined();
+  });
+
+  it('events.ts stream route debe registrar cliente, disparar heartbeat y limpiar al cerrar', async () => {
+    const { eventsRouter, activeClients } = await import('../../../server/src/routes/events');
+    const { EventEmitter } = await import('events');
+
+    // Test unauthorized when token missing
+    const sseApp = express();
+    sseApp.use(cookieParser());
+    sseApp.use('/', eventsRouter);
+    const resUnauth = await supertest(sseApp).get('/events');
+    expect(resUnauth.status).toBe(401);
+
+    // Test route handler logic directly with mock req and res
+    const mockReq: any = new EventEmitter();
+    mockReq.user = { userId: 100 };
+    mockReq.headers = {};
+    const mockRes: any = {
+      setHeader: vi.fn(),
+      write: vi.fn(),
+    };
+
+    const routeLayer = eventsRouter.stack.find((s: any) => s.route?.path === '/events');
+    const handler = routeLayer.route.stack[routeLayer.route.stack.length - 1].handle;
+
+    vi.useFakeTimers();
+    handler(mockReq, mockRes);
+
+    expect(mockRes.setHeader).toHaveBeenCalledWith('Content-Type', 'text/event-stream');
+    expect(mockRes.write).toHaveBeenCalled();
+    expect(activeClients.has('100')).toBe(true);
+
+    // Fast-forward heartbeat timer
+    vi.advanceTimersByTime(16000);
+    expect(mockRes.write).toHaveBeenCalledWith(expect.stringContaining(':heartbeat'));
+
+    // Heartbeat error catch (line 68)
+    mockRes.write.mockImplementationOnce(() => {
+      throw new Error('Heartbeat write failure');
+    });
+    vi.advanceTimersByTime(16000);
+
+    // Trigger close
+    mockReq.emit('close');
+    expect(activeClients.has('100')).toBe(false);
+    vi.useRealTimers();
+
+    // Test events handler without userId
+    const mockReqNoUser: any = new EventEmitter();
+    const mockResNoUser: any = {
+      status: vi.fn().mockReturnThis(),
+      json: vi.fn(),
+    };
+    handler(mockReqNoUser, mockResNoUser);
+    expect(mockResNoUser.status).toHaveBeenCalledWith(401);
+  });
+
+  it('debe ejecutar validaciones internas defensivas en handlers de auth, contact, onboarding y checkout', async () => {
+    // 1. Auth Login internal guard (lines 27-28)
+    const { authRouter } = await import('../../../server/src/routes/auth');
+    const authPostLayer = authRouter.stack.find((s: any) => s.route?.path === '/login');
+    const authHandler = authPostLayer.route.stack[authPostLayer.route.stack.length - 1].handle;
+    const authRes: any = { status: vi.fn().mockReturnThis(), json: vi.fn() };
+    await authHandler({ body: {} }, authRes);
+    expect(authRes.status).toHaveBeenCalledWith(400);
+
+    // 2. Contact send-code and form internal guards (lines 37-38, 71-72)
+    const { contactRouter } = await import('../../../server/src/routes/contact');
+    const sendCodeLayer = contactRouter.stack.find((s: any) => s.route?.path === '/send-code');
+    const sendCodeHandler = sendCodeLayer.route.stack[sendCodeLayer.route.stack.length - 1].handle;
+    const sendCodeRes: any = { status: vi.fn().mockReturnThis(), json: vi.fn() };
+    await sendCodeHandler({ body: { email: 'invalid' } }, sendCodeRes);
+    expect(sendCodeRes.status).toHaveBeenCalledWith(400);
+
+    const contactPostLayer = contactRouter.stack.find((s: any) => s.route?.path === '/');
+    const contactPostHandler =
+      contactPostLayer.route.stack[contactPostLayer.route.stack.length - 1].handle;
+    const contactPostRes: any = { status: vi.fn().mockReturnThis(), json: vi.fn() };
+    await contactPostHandler({ body: {} }, contactPostRes);
+    expect(contactPostRes.status).toHaveBeenCalledWith(400);
+
+    // 3. Onboarding domain check internal guard (lines 58-59)
+    const { onboardingRouter } = await import('../../../server/src/routes/onboarding');
+    const domainLayer = onboardingRouter.stack.find((s: any) => s.route?.path === '/domain');
+    const domainHandler = domainLayer.route.stack[domainLayer.route.stack.length - 1].handle;
+    const domainRes: any = { status: vi.fn().mockReturnThis(), json: vi.fn() };
+    domainHandler({ body: {} }, domainRes);
+    expect(domainRes.status).toHaveBeenCalledWith(400);
+
+    // 4. Checkout verify catch block (line 220) and no session_id (lines 186-187)
+    const { checkoutRouter } = await import('../../../server/src/routes/checkout');
+    const verifyLayer = checkoutRouter.stack.find((s: any) => s.route?.path === '/verify');
+    const verifyHandler = verifyLayer.route.stack[verifyLayer.route.stack.length - 1].handle;
+    const verifyRes: any = { status: vi.fn().mockReturnThis(), json: vi.fn() };
+
+    // No session_id
+    await verifyHandler({ query: {} }, verifyRes);
+    expect(verifyRes.status).toHaveBeenCalledWith(400);
+
+    // Pass non-object query to trigger exception
+    const badReq: any = {
+      get query() {
+        throw new Error('Query Exception');
+      },
+    };
+    await verifyHandler(badReq, verifyRes);
+    expect(verifyRes.status).toHaveBeenCalledWith(500);
+
+    // 5. Auth getJwtSecret production exception (line 11)
+    const { getJwtSecret } = await import('../../../server/src/routes/auth');
+    const origEnv = process.env.NODE_ENV;
+    const origSecret = process.env.JWT_SECRET;
+    try {
+      process.env.NODE_ENV = 'production';
+      delete process.env.JWT_SECRET;
+      expect(() => getJwtSecret()).toThrow('FATAL SECURITY ERROR: JWT_SECRET');
+    } finally {
+      process.env.NODE_ENV = origEnv;
+      process.env.JWT_SECRET = origSecret;
+    }
+  });
+
+  it('checkout.ts webhook debe manejar fallos en chequeo de idempotencia y excepciones generales', async () => {
+    const { checkoutRouter, setStripeForTest, getStripe } =
+      await import('../../../server/src/routes/checkout');
+
+    // Test getStripe when testStripe is null (line 15)
+    setStripeForTest(null);
+    const stripeInst = getStripe('sk_test_mock_key');
+    expect(stripeInst).toBeDefined();
+
+    const webhookLayer = checkoutRouter.stack.find((s: any) => s.route?.path === '/webhook');
+
+    const webhookHandler = webhookLayer.route.stack[webhookLayer.route.stack.length - 1].handle;
+    const webhookRes: any = { status: vi.fn().mockReturnThis(), json: vi.fn() };
+
+    // Idempotency DB query failure
+    vi.mocked(db.query)
+      .mockResolvedValueOnce([{ id: 10 }]) // user lookup
+      .mockRejectedValueOnce(new Error('Idempotency query fail')) // idempotency check
+      .mockResolvedValueOnce({}) // orders insert
+      .mockResolvedValueOnce({}); // subscriptions insert
+
+    await webhookHandler(
+      {
+        headers: {},
+        body: {
+          type: 'checkout.session.completed',
+          data: {
+            object: {
+              id: 'cs_test_idemp_fail',
+              customer_email: 'idemp@dreamtek.tech',
+              amount_total: 5000,
+            },
+          },
+        },
+      },
+      webhookRes,
+    );
+    expect(webhookRes.json).toHaveBeenCalled();
+
+    // General error in webhook catch block (line 174)
+    const badWebhookRes: any = { status: vi.fn().mockReturnThis(), json: vi.fn() };
+    await webhookHandler(
+      {
+        get headers() {
+          throw new Error('Webhook Header Error');
+        },
+      },
+      badWebhookRes,
+    );
+    expect(badWebhookRes.status).toHaveBeenCalledWith(400);
+  });
+
+  it('debe cubrir branches de fallback de mensajes de error y multi-conexión SSE', async () => {
+    // 1. Admin fallback error messages when err.message is empty
+    const { adminRouter } = await import('../../../server/src/routes/admin');
+    const leadsLayer = adminRouter.stack.find((s: any) => s.route?.path === '/leads');
+    const leadsHandler = leadsLayer.route.stack[leadsLayer.route.stack.length - 1].handle;
+    const adminRes: any = { status: vi.fn().mockReturnThis(), json: vi.fn() };
+    vi.mocked(db.query).mockImplementationOnce(() => {
+      throw {};
+    });
+    await leadsHandler({}, adminRes);
+    expect(adminRes.status).toHaveBeenCalledWith(500);
+
+    const metricsLayer = adminRouter.stack.find((s: any) => s.route?.path === '/metrics');
+    const metricsHandler = metricsLayer.route.stack[metricsLayer.route.stack.length - 1].handle;
+    vi.mocked(db.query).mockImplementationOnce(() => {
+      throw {};
+    });
+    await metricsHandler({}, adminRes);
+    expect(adminRes.status).toHaveBeenCalledWith(500);
+
+    const auditLayer = adminRouter.stack.find((s: any) => s.route?.path === '/audit-logs');
+    const auditHandler = auditLayer.route.stack[auditLayer.route.stack.length - 1].handle;
+    await auditHandler(
+      {
+        get query() {
+          throw {};
+        },
+      },
+      adminRes,
+    );
+    expect(adminRes.status).toHaveBeenCalledWith(500);
+
+    // 2. Auth fallback error message
+    const { authRouter } = await import('../../../server/src/routes/auth');
+    const authPostLayer = authRouter.stack.find((s: any) => s.route?.path === '/login');
+    const authHandler = authPostLayer.route.stack[authPostLayer.route.stack.length - 1].handle;
+    const authRes: any = { status: vi.fn().mockReturnThis(), json: vi.fn() };
+    await authHandler(
+      {
+        get body() {
+          throw {};
+        },
+      },
+      authRes,
+    );
+    expect(authRes.status).toHaveBeenCalledWith(500);
+
+    // 3. Onboarding update lead with empty company and catch block without message
+    const { onboardingRouter } = await import('../../../server/src/routes/onboarding');
+    const leadLayer = onboardingRouter.stack.find((s: any) => s.route?.path === '/lead');
+    const leadHandler = leadLayer.route.stack[leadLayer.route.stack.length - 1].handle;
+    const leadRes: any = { status: vi.fn().mockReturnThis(), json: vi.fn() };
+    vi.mocked(db.query)
+      .mockResolvedValueOnce([{ id: 99 }]) // existing
+      .mockResolvedValueOnce({}); // update
+    await leadHandler(
+      { body: { email: 'update@test.com', phone: '123', full_name: 'Update Name' } },
+      leadRes,
+    );
+    expect(leadRes.json).toHaveBeenCalled();
+
+    await leadHandler(
+      {
+        get body() {
+          throw {};
+        },
+      },
+      leadRes,
+    );
+    expect(leadRes.status).toHaveBeenCalledWith(500);
+
+    // 4. Checkout verify when order is not paid (status pending)
+    const { checkoutRouter } = await import('../../../server/src/routes/checkout');
+    const verifyLayer = checkoutRouter.stack.find((s: any) => s.route?.path === '/verify');
+    const verifyHandler = verifyLayer.route.stack[verifyLayer.route.stack.length - 1].handle;
+    const verifyRes: any = { status: vi.fn().mockReturnThis(), json: vi.fn() };
+    vi.mocked(db.query).mockResolvedValueOnce([{ status: 'pending' }]);
+    await verifyHandler({ query: { session_id: 'cs_pending_123' } }, verifyRes);
+    expect(verifyRes.json).toHaveBeenCalledWith(expect.objectContaining({ verified: false }));
+
+    const sessionLayer = checkoutRouter.stack.find((s: any) => s.route?.path === '/session');
+    const sessionHandler = sessionLayer.route.stack[sessionLayer.route.stack.length - 1].handle;
+    const sessionRes: any = { status: vi.fn().mockReturnThis(), json: vi.fn() };
+    await sessionHandler(
+      {
+        get body() {
+          throw {};
+        },
+      },
+      sessionRes,
+    );
+    expect(sessionRes.status).toHaveBeenCalledWith(500);
+
+    // 5. Events multi-connection for same user
+    const { eventsRouter, activeClients } = await import('../../../server/src/routes/events');
+    const { EventEmitter } = await import('events');
+    const routeLayer = eventsRouter.stack.find((s: any) => s.route?.path === '/events');
+    const sseHandler = routeLayer.route.stack[routeLayer.route.stack.length - 1].handle;
+
+    const req1: any = new EventEmitter();
+    req1.user = { userId: 500 };
+    const res1: any = { setHeader: vi.fn(), write: vi.fn() };
+
+    const req2: any = new EventEmitter();
+    req2.user = { userId: 500 };
+    const res2: any = { setHeader: vi.fn(), write: vi.fn() };
+
+    sseHandler(req1, res1);
+    expect(activeClients.get('500')?.size).toBe(1);
+
+    sseHandler(req2, res2);
+    expect(activeClients.get('500')?.size).toBe(2);
+
+    // Close one connection while another remains active
+    req1.emit('close');
+    expect(activeClients.get('500')?.size).toBe(1);
+
+    req2.emit('close');
+    expect(activeClients.has('500')).toBe(false);
   });
 });

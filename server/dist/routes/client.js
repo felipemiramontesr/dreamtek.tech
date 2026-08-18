@@ -20,13 +20,14 @@ exports.clientRouter.get('/dashboard', async (req, res) => {
             return;
         }
         const user = users[0];
-        // Safely query user sites (Condition C-M-R3)
+        // Safely query user sites without fake demo fallbacks (Rule F01 / Condition 001m R3)
         let sites = [];
         try {
             sites = await (0, db_js_1.query)('SELECT id, domain, status, ssl FROM client_sites WHERE user_id = ?', [userId]);
         }
-        catch (_dbErr) {
-            sites = [{ id: 1, domain: 'miempresa.com', status: 'active', ssl: true }];
+        catch (dbErr) {
+            console.error('⚠️ client_sites DB query warning:', dbErr?.message || dbErr);
+            sites = [];
         }
         res.json({
             status: 'success',
@@ -40,7 +41,7 @@ exports.clientRouter.get('/dashboard', async (req, res) => {
             services: [
                 { id: 'srv-1', name: 'Escolta WEB — Posicionamiento', status: 'active', billing_cycle: 'annual' },
             ],
-            sites: sites.length > 0 ? sites : [{ id: 1, domain: 'miempresa.com', status: 'active', ssl: true }],
+            sites,
         });
     }
     catch (err) {
@@ -49,7 +50,7 @@ exports.clientRouter.get('/dashboard', async (req, res) => {
 });
 /**
  * GET /api/v1/client/sites
- * Returns client assigned web sites (Condition C-M3, C-M-R3)
+ * Returns client assigned web sites without fake fallbacks (Condition C-M3, Rule F01)
  */
 exports.clientRouter.get('/sites', async (req, res) => {
     try {
@@ -58,12 +59,13 @@ exports.clientRouter.get('/sites', async (req, res) => {
         try {
             sites = await (0, db_js_1.query)('SELECT id, domain, status, ssl FROM client_sites WHERE user_id = ?', [userId]);
         }
-        catch (_dbErr) {
-            sites = [{ id: 1, domain: 'miempresa.com', status: 'active', ssl: true }];
+        catch (dbErr) {
+            console.error('⚠️ client_sites DB query warning:', dbErr?.message || dbErr);
+            sites = [];
         }
         res.json({
             status: 'success',
-            sites: sites.length > 0 ? sites : [{ id: 1, domain: 'miempresa.com', status: 'active', ssl: true }],
+            sites,
         });
     }
     catch (err) {

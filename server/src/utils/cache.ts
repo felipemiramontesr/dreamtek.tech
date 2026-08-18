@@ -12,36 +12,30 @@ const l1Cache = new Map<string, CacheEntry<any>>();
 let redisClient: Redis | null = null;
 let isRedisConnected = false;
 
+export function handleRedisConnect(): void {
+  isRedisConnected = true;
+  metricsRegistry.setGauge('is_redis_connected', 1);
+}
+
+export function handleRedisError(_err?: unknown): void {
+  isRedisConnected = false;
+  metricsRegistry.setGauge('is_redis_connected', 0);
+}
+
 export function initRedisFromEnv(): void {
+  handleRedisError();
+  redisClient = null;
+
   if (process.env.REDIS_URL) {
-    try {
-      redisClient = new Redis(process.env.REDIS_URL, {
-        maxRetriesPerRequest: 1,
-        enableOfflineQueue: false,
-        connectTimeout: 2000,
-        tls: process.env.REDIS_URL.startsWith('rediss://') ? {} : undefined,
-      });
+    redisClient = new Redis(process.env.REDIS_URL, {
+      maxRetriesPerRequest: 1,
+      enableOfflineQueue: false,
+      connectTimeout: 2000,
+      tls: process.env.REDIS_URL.startsWith('rediss://') ? {} : undefined,
+    });
 
-      redisClient.on('connect', () => {
-        isRedisConnected = true;
-        metricsRegistry.setGauge('is_redis_connected', 1);
-        console.log('✅ Connected to L2 Redis Cache.');
-      });
-
-      redisClient.on('error', (err) => {
-        isRedisConnected = false;
-        metricsRegistry.setGauge('is_redis_connected', 0);
-        console.warn('⚠️ L2 Redis Cache Warning (Fail-Open Fallback to L1):', err.message);
-      });
-    } catch (_err) {
-      redisClient = null;
-      isRedisConnected = false;
-      metricsRegistry.setGauge('is_redis_connected', 0);
-    }
-  } else {
-    redisClient = null;
-    isRedisConnected = false;
-    metricsRegistry.setGauge('is_redis_connected', 0);
+    redisClient.on('connect', handleRedisConnect);
+    redisClient.on('error', handleRedisError);
   }
 }
 
@@ -63,10 +57,7 @@ function evictL1IfNeeded(): void {
 
   // LRU Eviction if size exceeds MAX_L1_ENTRIES
   if (l1Cache.size >= MAX_L1_ENTRIES) {
-    const oldestKey = l1Cache.keys().next().value;
-    if (oldestKey) {
-      l1Cache.delete(oldestKey);
-    }
+    l1Cache.delete(l1Cache.keys().next().value!);
   }
 
   metricsRegistry.setGauge('l1_cache_size', l1Cache.size);

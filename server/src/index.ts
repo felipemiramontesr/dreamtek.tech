@@ -17,8 +17,11 @@ import { clientRouter } from './routes/client.js';
 import { adminRouter } from './routes/admin.js';
 import { contactRouter } from './routes/contact.js';
 import { eventsRouter } from './routes/events.js';
+import assetsRouter from './routes/assets.js';
+import { sharesRouter } from './routes/shares.js';
 import { pool } from './db.js';
 import { getCache, setCache } from './utils/cache.js';
+
 
 dotenv.config({ path: path.join(__dirname, '../.env') });
 
@@ -138,7 +141,10 @@ app.use('/api/v1/checkout', checkoutRouter);
 app.use('/api/v1/client', clientRouter);
 app.use('/api/v1/admin', adminRouter);
 app.use('/api/v1/contact', sensitiveEndpointLimiter, contactRouter);
+app.use('/api/v1/assets', assetsRouter);
+app.use('/api/v1/shares', sharesRouter);
 app.use('/api/v1', eventsRouter);
+
 
 // Start HTTP Server
 const server =

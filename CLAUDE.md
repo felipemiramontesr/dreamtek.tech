@@ -1,9 +1,10 @@
-<!-- L-HARNESS:BEGIN protocolVersion=V.1.9.10-core do-not-edit-inside -->
+<!-- L-HARNESS:BEGIN protocolVersion=V.1.9.13-core do-not-edit-inside -->
 
-# Dreamtek.tech â€” Claude Code / Antigravity instructions
+# Dreamtek.tech — Claude Code / Antigravity instructions
 
-> **SSOT:** `protocols/north-star/001_NS_ProtocolL.md` â€” **L prevails**.  
-> Protocol **V.1.9.10-core** Â· Harness **1.6.0** Â· **governancePublish: local-only**
+> **SSOT:** `protocols/north-star/001_NS_ProtocolL.md` — **L prevails**.  
+> Protocol **V.1.9.13-core** · Harness **1.6.0** · **governancePublish: local-only**  
+> Charters: `protocols/annex/formal/RAPTOR_CHARTERS.md`
 
 ## North Star
 
@@ -11,56 +12,70 @@
 NO SIGNED FC = NO PRODUCT CODE.
 ```
 
-## Identity (this host often = dual O)
+## Identity (dual-host)
 
-| Callsign    | Seat | Craft     | When (this host often drives both) |
-| ----------- | ---- | --------- | ---------------------------------- |
-| **Alfa**    | O    | architect | design, FC outline, ADR            |
-| **Charlie** | O    | fullstack | implement only with signed FC      |
+| Callsign    | Seat | Craft     | When                          |
+| ----------- | ---- | --------- | ----------------------------- |
+| **Alfa**    | O    | architect | design, FC outline, ADR, G1   |
+| **Charlie** | O    | fullstack | implement only with signed FC |
 
-Host **Antigravity** is not an H author. Post as the **callsign of the act**.
+Host name is **never** H author. You never sign **L** (Ω only).  
+**R-ROLE-BOUND:** one callsign per act; switch role → new hPost as other callsign.
 
-You never sign **L** (Ω only).
+## Session start (mandatory)
 
-## Session start
-
-1. Read L (CHANNEL H + Conduct + OLR)
-2. Read H **header** + posts after **your** cursor only
-3. ACK via **hPost** (not by editing H)
-4. Never force-add `protocols/` to git
-
-## H channel (MANDATORY)
+1. Ω/user states **callsign** (Alfa or Charlie) for this chat.
+2. Read L (CHANNEL H + Conduct + Role bound + OLR).
+3. Read H header + posts after **your** cursor.
+4. ACK via hPost as that callsign.
+5. No product code until ACK + signed FC when implementing.
 
 ```bash
-# Architect act
-node scripts/hPost.mjs --author Alfa --message "[O architect] ACK H\nL_pin=V.1.9.10-core\nFC: (state)\nNext: (one line)\nNo product code without signed FC"
+# Alfa
+node scripts/hPost.mjs --author Alfa --message "[R-SESSION-INIT] ACK H
+L_pin=V.1.9.13-core Learned(L)=⊤
+Callsign=Alfa seat=O craft=architect
+FC: (state)
+Next: (one line)
+No product code without signed FC"
 
-# Driver / code / push act
-node scripts/hPost.mjs --host Antigravity --as Charlie --message "[O fullstack] …"
+# Charlie
+node scripts/hPost.mjs --host Antigravity --as Charlie --message "[R-SESSION-INIT] ACK H
+L_pin=V.1.9.13-core Learned(L)=⊤
+Callsign=Charlie seat=O craft=fullstack
+FC: (state)
+Next: (one line)
+No product code without signed FC"
 ```
 
-| Rule                 |                                                         |
-| -------------------- | ------------------------------------------------------- |
-| Write                | **only** `scripts/hPost.mjs` · callsign-only            |
-| Compact              | same callsign consecutive → EXTEND (no monologue flood) |
-| Diet                 | ≤6 non-empty lines — broker enforces                    |
-| Timestamp            | full datetime from broker                               |
-| Long dictamen/design | `protocols/analysis/` or FC file                        |
-| Verify               | `node scripts/hCheck.mjs`                               |
-| Forbidden            | `--author Antigravity` · manual edit of H               |
+Chat reply after ACK: `[ACK L] pin · callsign · FC · Next`
+
+## H channel
+
+| Rule      |                                                        |
+| --------- | ------------------------------------------------------ |
+| Write     | only `scripts/hPost.mjs` · callsign-only               |
+| Body      | no `###` lines · diet ≤6 · EXTEND same callsign        |
+| Forbidden | `--author Antigravity` · hand-edit H                   |
+| Verify    | `node scripts/hCheck.mjs` · `node scripts/verifyL.mjs` |
 
 ## Triggers
 
-| Trigger | Action                                             |
-| ------- | -------------------------------------------------- |
-| L       | Read L + H delta + ACK via hPost                   |
-| H       | Catch up delta + ACK via hPost                     |
-| S / SC  | Signed FC â€” execute phase (SC = re-read L slice) |
-| KAE     | Learned + KAE START ACK + L_pin + diet             |
+| Trigger | Action                                         |
+| ------- | ---------------------------------------------- |
+| L       | Read L + H delta + hPost ACK                   |
+| H       | Catch up + hPost ACK                           |
+| S / SC  | Signed FC — execute (SC = re-read L per phase) |
+| KAE     | Learned + KAE START ACK + L_pin + diet         |
+| X       | Next phase of active SC FC                     |
+
+## Standards
+
+OWASP map-mode + `STANDARDS_EVIDENCE.md` — no fake PASSED / no “ISO certified”.
 
 ## Product CI
 
-Build/test/deploy app (+ migrations when present). **Not** L/H gates.
+Build/test/deploy app. **Not** a substitute for L/H gates.
 
 <!-- L-HARNESS:END -->
 

@@ -89,4 +89,49 @@ describe('SSE Events Router & Real-Time Emitters (100% Coverage)', () => {
     expect(emitted).toBe(false);
     expect(activeClients.has('faulty-user')).toBe(false);
   });
+
+  it('debe manejar multi-conexiones y evento close cuando el usuario ya no existe en el mapa', async () => {
+    const { eventsRouter } = await import('../../../server/src/routes/events');
+    const getLayer = eventsRouter.stack.find(
+      (s: { route?: { path?: string } }) => s.route?.path === '/events',
+    );
+    const stack = (
+      getLayer as unknown as { route: { stack: { handle: (...args: unknown[]) => void }[] } }
+    ).route.stack;
+    const handler = stack[stack.length - 1].handle;
+
+    // Test without user
+    const resNoUser = { status: vi.fn().mockReturnThis(), json: vi.fn() };
+    handler({ user: null }, resNoUser);
+    expect(resNoUser.status).toHaveBeenCalledWith(401);
+
+    let closeCallback: (() => void) | null = null;
+    const mockReq = {
+      user: { userId: 'mock-user-close' },
+      on: (event: string, cb: () => void) => {
+        if (event === 'close') closeCallback = cb;
+      },
+    };
+    const mockRes = {
+      setHeader: () => {},
+      write: () => {},
+    };
+
+    // 1. First connection
+    handler(mockReq, mockRes);
+    expect(activeClients.has('mock-user-close')).toBe(true);
+
+    // 2. Second connection for same user (branch: activeClients.has is true)
+    handler(mockReq, mockRes);
+
+    // 3. Trigger close when set exists with size > 1
+    if (closeCallback) (closeCallback as () => void)();
+
+    // 4. Trigger close when set exists with size === 1 (deletes from map)
+    if (closeCallback) (closeCallback as () => void)();
+    expect(activeClients.has('mock-user-close')).toBe(false);
+
+    // 5. Trigger close when user is no longer in activeClients (branch: !set)
+    if (closeCallback) (closeCallback as () => void)();
+  });
 });

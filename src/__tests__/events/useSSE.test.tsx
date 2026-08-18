@@ -91,4 +91,18 @@ describe('useSSE React Hook Unit Tests', () => {
     expect(activeInstance?.close).toHaveBeenCalled();
     expect(onErrorMock).toHaveBeenCalled();
   });
+
+  it('debe manejar errores en onerror cuando onError no se proporciona y limpiar al desmontar', () => {
+    const { unmount } = renderHook(() => useSSE({ url: '/api/v1/events' }));
+    const activeInstance = mockInstances[mockInstances.length - 1];
+
+    act(() => {
+      if (activeInstance?.onerror) {
+        activeInstance.onerror(new Event('error'));
+      }
+    });
+
+    expect(activeInstance?.close).toHaveBeenCalled();
+    unmount();
+  });
 });

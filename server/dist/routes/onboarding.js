@@ -12,7 +12,8 @@ exports.onboardingRouter = (0, express_1.Router)();
  */
 exports.onboardingRouter.post('/lead', (0, validate_js_1.validate)(onboarding_schema_js_1.leadSchema), async (req, res) => {
     try {
-        const { email, full_name, phone, company, step_reached } = req.body;
+        const { email, phone, company, step_reached } = req.body;
+        const full_name = req.body.full_name || req.body.name;
         if (!email || !full_name || !phone) {
             res.status(400).json({ status: 'error', message: 'Nombre, email y teléfono son requeridos.' });
             return;

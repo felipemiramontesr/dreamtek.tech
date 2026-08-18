@@ -10,7 +10,7 @@ export function setStripeForTest(stripe: any) {
   testStripe = stripe;
 }
 
-function getStripe(key: string) {
+export function getStripe(key: string) {
   if (testStripe) return testStripe;
   return new Stripe(key);
 }
@@ -29,7 +29,8 @@ checkoutRouter.post('/session', async (req: Request, res: Response): Promise<voi
 
     const priceBase = billing_cycle === 'annual' ? 2599 : 2899;
     const currentKey = process.env.STRIPE_SECRET_KEY || 'sk_test_mock';
-    const userId = (req as any).user?.id ? String((req as any).user.id) : undefined;
+    const userObj = (req as any).user;
+    const userId = userObj ? String(userObj.id) : undefined;
 
     // Si Stripe no está configurado con clave real, retornar URL simulada de retorno directo
     if (currentKey === 'sk_test_mock') {
@@ -43,11 +44,12 @@ checkoutRouter.post('/session', async (req: Request, res: Response): Promise<voi
     }
 
     const stripeInstance = getStripe(currentKey);
+    const metadata = userId ? { userId } : {};
     const session = await stripeInstance.checkout.sessions.create({
       payment_method_types: ['card'],
       customer_email: email,
       client_reference_id: userId,
-      metadata: userId ? { userId } : undefined,
+      metadata,
       line_items: [
         {
           price_data: {
@@ -89,12 +91,9 @@ checkoutRouter.post('/webhook', async (req: Request, res: Response): Promise<voi
     if (sig && (webhookSecret !== 'whsec_mock_secret_key' || testStripe?.webhooks?.constructEvent)) {
       const stripeInstance = getStripe(process.env.STRIPE_SECRET_KEY || 'sk_test_mock');
       try {
-        const rawBody = Buffer.isBuffer(req.body)
-          ? req.body
-          : Buffer.from(typeof req.body === 'string' ? req.body : JSON.stringify(req.body));
-        event = stripeInstance.webhooks.constructEvent(rawBody, sig as string, webhookSecret);
+        event = stripeInstance.webhooks.constructEvent(req.body as any, sig as string, webhookSecret);
       } catch (err: any) {
-        res.status(400).json({ status: 'error', message: `Firma webhook inválida: ${err?.message || 'Signature mismatch'}` });
+        res.status(400).json({ status: 'error', message: `Firma webhook inválida: ${err.message}` });
         return;
       }
     } else {
@@ -102,8 +101,8 @@ checkoutRouter.post('/webhook', async (req: Request, res: Response): Promise<voi
         res.status(400).json({ status: 'error', message: 'Firma stripe-signature requerida.' });
         return;
       }
-      const rawBody = Buffer.isBuffer(req.body) ? req.body.toString('utf-8') : req.body;
-      event = typeof rawBody === 'string' ? JSON.parse(rawBody) : req.body;
+      const rawBody = Buffer.isBuffer(req.body) ? req.body.toString('utf-8') : JSON.stringify(req.body);
+      event = JSON.parse(rawBody);
     }
 
     if (!event || !event.type) {
@@ -139,14 +138,14 @@ checkoutRouter.post('/webhook', async (req: Request, res: Response): Promise<voi
       try {
         const existingOrder: any = await query('SELECT id FROM orders WHERE payment_gateway_id = ? LIMIT 1', [session.id]);
         if (existingOrder && existingOrder.length > 0) {
-          res.json({ received: true, duplicate: true, event_id: event.id || 'evt_mock' });
+          res.json({ received: true, duplicate: true, event_id: event.id });
           return;
         }
       } catch (dbErr) {
         console.warn('⚠️ Webhook idempotency check warning:', dbErr);
       }
 
-      const totalAmount = session.amount_total ? session.amount_total / 100 : 0;
+      const totalAmount = Number(session.amount_total) / 100;
       const renewsAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
 
       await query(
@@ -154,24 +153,26 @@ checkoutRouter.post('/webhook', async (req: Request, res: Response): Promise<voi
         [userId, 'paid', totalAmount, session.id]
       );
 
-      const subId = typeof session.subscription === 'string' ? session.subscription : session.id;
+      const subId = typeof session.subscription === 'string' ? session.subscription : String(session.id);
 
       await query(
         'INSERT INTO subscriptions (user_id, plan_id, billing_cycle, amount, status, renews_at) VALUES (?, ?, ?, ?, ?, ?)',
-        [userId, subId || 'corporate', 'monthly', totalAmount, 'active', renewsAt]
+        [userId, subId, 'monthly', totalAmount, 'active', renewsAt]
       );
     } else if (event.type === 'customer.subscription.updated') {
       const sub = event.data.object as Stripe.Subscription;
       const mappedStatus = sub.status === 'canceled' ? 'cancelled' : sub.status === 'past_due' ? 'past_due' : 'active';
-      await query('UPDATE subscriptions SET status = ? WHERE user_id = ? OR plan_id = ?', [mappedStatus, sub.customer || sub.id, sub.id]);
+      const customerId = String(sub.customer ?? sub.id);
+      await query('UPDATE subscriptions SET status = ? WHERE user_id = ? OR plan_id = ?', [mappedStatus, customerId, sub.id]);
     } else if (event.type === 'customer.subscription.deleted') {
       const sub = event.data.object as Stripe.Subscription;
-      await query('UPDATE subscriptions SET status = ? WHERE user_id = ? OR plan_id = ?', ['cancelled', sub.customer || sub.id, sub.id]);
+      const customerId = String(sub.customer ?? sub.id);
+      await query('UPDATE subscriptions SET status = ? WHERE user_id = ? OR plan_id = ?', ['cancelled', customerId, sub.id]);
     }
 
-    res.json({ received: true, event_id: event.id || 'evt_mock' });
+    res.json({ received: true, event_id: event.id });
   } catch (err: any) {
-    res.status(400).json({ status: 'error', message: err?.message || 'Error en procesamiento de webhook' });
+    res.status(400).json({ status: 'error', message: err.message });
   }
 });
 
@@ -217,6 +218,6 @@ checkoutRouter.get('/verify', async (req: Request, res: Response): Promise<void>
       });
     }
   } catch (err: any) {
-    res.status(500).json({ status: 'error', verified: false, message: err?.message || 'Error al verificar pago.' });
+    res.status(500).json({ status: 'error', verified: false, message: err.message });
   }
 });

@@ -15,6 +15,7 @@ server/dist
 
 # testing
 /coverage
+/storage/
 
 # next.js
 /.next/

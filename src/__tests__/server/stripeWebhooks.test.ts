@@ -1,7 +1,8 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import request from 'supertest';
+import express from 'express';
 import app from '../../../server/src/index';
-import { setStripeForTest } from '../../../server/src/routes/checkout';
+import { setStripeForTest, checkoutRouter } from '../../../server/src/routes/checkout';
 import * as db from '../../../server/src/db';
 
 vi.mock('../../../server/src/db', () => ({
@@ -107,6 +108,7 @@ describe('Stripe Webhooks & Subscription Engine (Comprehensive Suite)', () => {
       data: {
         object: {
           id: 'sub_stripe_123',
+          customer: 'cus_stripe_owner',
           status: 'canceled',
         },
       },
@@ -131,6 +133,7 @@ describe('Stripe Webhooks & Subscription Engine (Comprehensive Suite)', () => {
       data: {
         object: {
           id: 'sub_stripe_123',
+          customer: 'cus_stripe_owner',
           status: 'canceled',
         },
       },
@@ -159,6 +162,30 @@ describe('Stripe Webhooks & Subscription Engine (Comprehensive Suite)', () => {
 
     expect(res.status).toBe(400);
     expect(res.body.status).toBe('error');
+  });
+
+  it('debe responder 200 para eventos no manejados directamente', async () => {
+    const rawPayload = JSON.stringify({
+      id: 'evt_unhandled_123',
+      type: 'payment_intent.succeeded',
+      data: {
+        object: {
+          id: 'pi_123',
+        },
+      },
+    });
+
+    mockStripe.webhooks.constructEvent.mockReturnValue(JSON.parse(rawPayload));
+
+    const res = await request(app)
+      .post('/api/v1/checkout/webhook')
+      .set('stripe-signature', 't=123,v1=valid_sig')
+      .set('Content-Type', 'application/json')
+      .send(Buffer.from(rawPayload));
+
+    expect(res.status).toBe(200);
+    expect(res.body.received).toBe(true);
+    expect(res.body.event_id).toBe('evt_unhandled_123');
   });
 
   it('debe vincular por email cuando client_reference_id no se proporciona en checkout.session.completed', async () => {
@@ -249,6 +276,136 @@ describe('Stripe Webhooks & Subscription Engine (Comprehensive Suite)', () => {
     expect(res.body.duplicate).toBe(true);
   });
 
+  it('debe continuar si la verificación de idempotencia lanza excepción en base de datos', async () => {
+    vi.mocked(db.query).mockImplementationOnce((sql: string) => {
+      if (sql.includes('SELECT id FROM orders WHERE payment_gateway_id')) {
+        return Promise.reject(new Error('DB Error in idempotency check'));
+      }
+      return Promise.resolve([{ id: 1 }]);
+    });
+
+    const rawPayload = JSON.stringify({
+      id: 'evt_idempotency_fail',
+      type: 'checkout.session.completed',
+      data: {
+        object: {
+          id: 'cs_idempotency_fail',
+          client_reference_id: '1',
+          amount_total: 2000,
+        },
+      },
+    });
+
+    mockStripe.webhooks.constructEvent.mockReturnValue(JSON.parse(rawPayload));
+
+    const res = await request(app)
+      .post('/api/v1/checkout/webhook')
+      .set('stripe-signature', 't=123,v1=valid_sig')
+      .set('Content-Type', 'application/json')
+      .send(Buffer.from(rawPayload));
+
+    expect(res.status).toBe(200);
+    expect(res.body.received).toBe(true);
+  });
+
+  it('debe procesar payload en string plano cuando no hay webhook secret configurado', async () => {
+    const originalSecret = process.env.STRIPE_WEBHOOK_SECRET;
+    delete process.env.STRIPE_WEBHOOK_SECRET;
+
+    const payloadString = JSON.stringify({
+      id: 'evt_raw_string',
+      type: 'customer.subscription.updated',
+      data: {
+        object: {
+          id: 'sub_raw_123',
+          status: 'past_due',
+        },
+      },
+    });
+
+    const res = await request(app)
+      .post('/api/v1/checkout/webhook')
+      .set('Content-Type', 'application/json')
+      .send(payloadString);
+
+    expect(res.status).toBe(200);
+    expect(res.body.received).toBe(true);
+
+    process.env.STRIPE_WEBHOOK_SECRET = originalSecret;
+  });
+
+  it('debe procesar customer.subscription.deleted sin customer usando sub.id', async () => {
+    const rawPayload = JSON.stringify({
+      id: 'evt_sub_no_cust',
+      type: 'customer.subscription.deleted',
+      data: {
+        object: {
+          id: 'sub_no_customer_id',
+          status: 'canceled',
+        },
+      },
+    });
+
+    mockStripe.webhooks.constructEvent.mockReturnValue(JSON.parse(rawPayload));
+
+    const res = await request(app)
+      .post('/api/v1/checkout/webhook')
+      .set('stripe-signature', 't=123,v1=valid_sig')
+      .set('Content-Type', 'application/json')
+      .send(Buffer.from(rawPayload));
+
+    expect(res.status).toBe(200);
+    expect(res.body.received).toBe(true);
+  });
+
+  it('debe procesar customer.subscription.updated sin customer usando sub.id', async () => {
+    const rawPayload = JSON.stringify({
+      id: 'evt_sub_upd_no_cust',
+      type: 'customer.subscription.updated',
+      data: {
+        object: {
+          id: 'sub_stripe_no_cust_123',
+          status: 'past_due',
+        },
+      },
+    });
+
+    mockStripe.webhooks.constructEvent.mockReturnValue(JSON.parse(rawPayload));
+
+    const res = await request(app)
+      .post('/api/v1/checkout/webhook')
+      .set('stripe-signature', 't=123,v1=valid_sig')
+      .set('Content-Type', 'application/json')
+      .send(Buffer.from(rawPayload));
+
+    expect(res.status).toBe(200);
+    expect(res.body.received).toBe(true);
+  });
+
+  it('debe procesar webhook cuando body se envía como objeto directo sin Buffer', async () => {
+    const rawPayload = {
+      id: 'evt_obj_payload',
+      type: 'checkout.session.completed',
+      data: {
+        object: {
+          id: 'cs_obj_payload',
+          client_reference_id: '1',
+          amount_total: 1500,
+        },
+      },
+    };
+
+    mockStripe.webhooks.constructEvent.mockReturnValue(rawPayload);
+
+    const res = await request(app)
+      .post('/api/v1/checkout/webhook')
+      .set('stripe-signature', 't=123,v1=valid_sig')
+      .send(rawPayload);
+
+    expect(res.status).toBe(200);
+    expect(res.body.received).toBe(true);
+  });
+
   it('debe verificar sesión consultando orden en la base de datos en GET /verify (C-S9)', async () => {
     vi.mocked(db.query).mockImplementation((sql: string) => {
       if (sql.includes('SELECT status FROM orders')) {
@@ -262,5 +419,155 @@ describe('Stripe Webhooks & Subscription Engine (Comprehensive Suite)', () => {
     expect(resVerify.status).toBe(200);
     expect(resVerify.body.verified).toBe(true);
     expect(resVerify.body.session_id).toBe('cs_real_123');
+  });
+
+  it('debe manejar suscripciones con status past_due o active y sin sub.customer', async () => {
+    // 1. past_due without customer
+    const payloadPastDue = JSON.stringify({
+      id: 'evt_sub_past',
+      type: 'customer.subscription.updated',
+      data: {
+        object: {
+          id: 'sub_no_cust',
+          status: 'past_due',
+        },
+      },
+    });
+    mockStripe.webhooks.constructEvent.mockReturnValue(JSON.parse(payloadPastDue));
+    const resPast = await request(app)
+      .post('/api/v1/checkout/webhook')
+      .set('stripe-signature', 't=123,v1=valid_sig')
+      .set('Content-Type', 'application/json')
+      .send(Buffer.from(payloadPastDue));
+    expect(resPast.status).toBe(200);
+
+    // 2. active without customer
+    const payloadActive = JSON.stringify({
+      id: 'evt_sub_act',
+      type: 'customer.subscription.updated',
+      data: {
+        object: {
+          id: 'sub_no_cust_2',
+          status: 'active',
+        },
+      },
+    });
+    mockStripe.webhooks.constructEvent.mockReturnValue(JSON.parse(payloadActive));
+    const resAct = await request(app)
+      .post('/api/v1/checkout/webhook')
+      .set('stripe-signature', 't=123,v1=valid_sig')
+      .set('Content-Type', 'application/json')
+      .send(Buffer.from(payloadActive));
+    expect(resAct.status).toBe(200);
+
+    // 3. deleted without customer
+    const payloadDel = JSON.stringify({
+      id: 'evt_sub_del_nocust',
+      type: 'customer.subscription.deleted',
+      data: {
+        object: {
+          id: 'sub_no_cust_del',
+          status: 'canceled',
+        },
+      },
+    });
+    mockStripe.webhooks.constructEvent.mockReturnValue(JSON.parse(payloadDel));
+    const resDel = await request(app)
+      .post('/api/v1/checkout/webhook')
+      .set('stripe-signature', 't=123,v1=valid_sig')
+      .set('Content-Type', 'application/json')
+      .send(Buffer.from(payloadDel));
+    expect(resDel.status).toBe(200);
+  });
+
+  it('debe crear checkout session con y sin usuario y parámetros opcionales', async () => {
+    mockStripe.checkout.sessions.create.mockResolvedValue({
+      id: 'cs_created_123',
+      url: 'https://checkout.stripe.com/pay/cs_created_123',
+    });
+
+    // 1. Missing email
+    const resNoEmail = await request(app)
+      .post('/api/v1/checkout/session')
+      .send({ billing_cycle: 'annual' });
+    expect(resNoEmail.status).toBe(400);
+
+    // 2. Mock key (default sk_test_mock)
+    process.env.STRIPE_SECRET_KEY = 'sk_test_mock';
+    const resMock = await request(app)
+      .post('/api/v1/checkout/session')
+      .send({ email: 'client@dreamtek.tech' });
+    expect(resMock.status).toBe(200);
+    expect(resMock.body.session_id).toMatch(/cs_test_mock_/);
+
+    // 3. Real key with annual billing, template, and domain
+    process.env.STRIPE_SECRET_KEY = 'sk_live_real_123';
+    const resAnnual = await request(app).post('/api/v1/checkout/session').send({
+      email: 'client@dreamtek.tech',
+      billing_cycle: 'annual',
+      template_id: 'corporate',
+      domain_name: 'dreamtek.app',
+    });
+    expect(resAnnual.status).toBe(200);
+    expect(resAnnual.body.session_id).toBe('cs_created_123');
+
+    // 4. Real key with monthly billing (default template and domain fallbacks)
+    const resMonthly = await request(app).post('/api/v1/checkout/session').send({
+      email: 'client@dreamtek.tech',
+      billing_cycle: 'monthly',
+    });
+    expect(resMonthly.status).toBe(200);
+
+    // 5. Error case in create-session
+    mockStripe.checkout.sessions.create.mockRejectedValueOnce(new Error('Stripe API Down'));
+    const resErr = await request(app)
+      .post('/api/v1/checkout/session')
+      .send({ email: 'client@dreamtek.tech' });
+    expect(resErr.status).toBe(500);
+
+    // 6. Real key with req.user attached
+    const authApp = express();
+    authApp.use(express.json());
+    authApp.use((req, _res, next) => {
+      (req as unknown as { user?: { id: number } }).user = { id: 77 };
+      next();
+    });
+    authApp.use('/api/v1/checkout', checkoutRouter);
+
+    const resWithUser = await request(authApp)
+      .post('/api/v1/checkout/session')
+      .send({ email: 'authuser@dreamtek.tech' });
+    expect(resWithUser.status).toBe(200);
+
+    // Clean up
+    delete process.env.STRIPE_SECRET_KEY;
+  });
+
+  it('GET /verify debe manejar fallas, falta de session_id y mocks', async () => {
+    // 1. Missing session_id
+    const resMissing = await request(app).get('/api/v1/checkout/verify');
+    expect(resMissing.status).toBe(400);
+
+    // 2. Mock session_id
+    const resMock = await request(app).get('/api/v1/checkout/verify?session_id=mock');
+    expect(resMock.status).toBe(200);
+    expect(resMock.body.verified).toBe(true);
+
+    const resTestMock = await request(app).get(
+      '/api/v1/checkout/verify?session_id=cs_test_mock_999',
+    );
+    expect(resTestMock.status).toBe(200);
+
+    // 3. Unpaid order
+    vi.mocked(db.query).mockResolvedValueOnce([{ status: 'pending' }]);
+    const resPending = await request(app).get('/api/v1/checkout/verify?session_id=cs_pending_123');
+    expect(resPending.status).toBe(200);
+    expect(resPending.body.verified).toBe(false);
+
+    // 4. DB error in verify (fallback to success)
+    vi.mocked(db.query).mockRejectedValueOnce(new Error('DB verify fail'));
+    const resFallback = await request(app).get('/api/v1/checkout/verify?session_id=cs_db_fail');
+    expect(resFallback.status).toBe(200);
+    expect(resFallback.body.verified).toBe(true);
   });
 });
