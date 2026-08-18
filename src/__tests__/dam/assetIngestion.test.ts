@@ -180,13 +180,22 @@ describe('FC 003 — DAM Asset Ingestion & Storage Suite', () => {
 
       expect(fs.existsSync(derivatives[0].filePath)).toBe(true);
       expect(fs.existsSync(derivatives[1].filePath)).toBe(true);
+
+      // Call again with existing directory to cover the fs.existsSync(outDir) == true branch
+      const derivatives2 = await generateWebPDerivatives(pngBuffer, 'image/png', outDir);
+      expect(derivatives2.length).toBe(2);
     });
 
-    it('should skip image derivative generation for non-image MIME types (e.g. PDF)', async () => {
+    it('should skip image derivative generation for non-image MIME types (e.g. PDF) or image/gif', async () => {
       const pdfBuffer = Buffer.from('%PDF-1.7 ... dummy pdf content ...', 'utf-8');
       const outDir = path.join(testDir, 'pdf_derivatives');
       const derivatives = await generateWebPDerivatives(pdfBuffer, 'application/pdf', outDir);
       expect(derivatives).toEqual([]);
+
+      // Test image/gif branch
+      const gifBuffer = Buffer.from('GIF89a...', 'utf-8');
+      const gifDerivatives = await generateWebPDerivatives(gifBuffer, 'image/gif', outDir);
+      expect(gifDerivatives).toEqual([]);
     });
 
     it('should catch error gracefully if image derivative fails', async () => {
