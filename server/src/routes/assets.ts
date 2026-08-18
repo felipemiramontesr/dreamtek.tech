@@ -4,9 +4,11 @@ import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
 import { requireAuth, AuthenticatedRequest } from '../middleware/auth';
-import { uploadRateLimiter } from '../middleware/rateLimiter';
+import { uploadRateLimiter, searchRateLimiter, tagsRateLimiter } from '../middleware/rateLimiter';
 import { validate } from '../middleware/validate';
 import { createShareSchema } from '../schemas/share.schema';
+import { assetSearchQuerySchema } from '../schemas/assetSearch.schema';
+import { attachTagsSchema, assetMetadataSchema } from '../schemas/tag.schema';
 import { logSecurityEvent } from '../middleware/auditLogger';
 import { query } from '../db';
 import { validateMagicBytes } from '../utils/magicBytes';
@@ -171,53 +173,203 @@ router.post(
 
 /**
  * GET /api/v1/assets
- * List paginated active assets for the authenticated tenant.
+ * List and search paginated active assets for the authenticated tenant.
+ * Supports multi-variable filtering, full-text matching, tags, size and date ranges.
  */
 router.get(
   '/',
+  searchRateLimiter,
   requireAuth,
   async (req: AuthenticatedRequest, res: Response): Promise<void> => {
     try {
       const tenantId = getActorTenantId(req);
-      const page = Math.max(1, parseInt(String(req.query.page || '1'), 10));
-      const limit = Math.min(50, Math.max(1, parseInt(String(req.query.limit || '20'), 10)));
+      const parsed = assetSearchQuerySchema.safeParse(req.query);
+
+      if (!parsed.success) {
+        res.status(400).json({
+          status: 400,
+          error: 'Bad Request',
+          message: 'Parámetros de búsqueda inválidos.',
+          details: parsed.error.format(),
+        });
+        return;
+      }
+
+      const {
+        q,
+        workspace_id,
+        collection_id,
+        mime_type,
+        tag,
+        min_size,
+        max_size,
+        from_date,
+        to_date,
+        sort_by,
+        sort_order,
+        page,
+        limit,
+      } = parsed.data;
+
       const offset = (page - 1) * limit;
 
+      const conditions: string[] = [
+        'a.tenant_id = ?',
+        "a.status = 'ACTIVE'",
+        'a.deleted_at IS NULL',
+      ];
+      const params: any[] = [tenantId];
+
+      // Text search in title or file_path (sanitizing LIKE special characters)
+      if (q) {
+        const escapedQ = q.replace(/[%_\\]/g, '\\$&');
+        conditions.push('(a.title LIKE ? OR v.file_path LIKE ?)');
+        params.push(`%${escapedQ}%`, `%${escapedQ}%`);
+      }
+
+      // Workspace and Collection filters
+      if (workspace_id !== undefined) {
+        conditions.push('a.workspace_id = ?');
+        params.push(workspace_id);
+      }
+
+      if (collection_id !== undefined) {
+        conditions.push('a.collection_id = ?');
+        params.push(collection_id);
+      }
+
+      // MIME Type / Category Whitelist
+      if (mime_type) {
+        const lowerMime = mime_type.toLowerCase();
+        if (lowerMime === 'image') {
+          conditions.push("a.mime_type LIKE 'image/%'");
+        } else if (lowerMime === 'video') {
+          conditions.push("a.mime_type LIKE 'video/%'");
+        } else if (lowerMime === 'document') {
+          conditions.push(
+            "a.mime_type IN ('application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'text/plain')"
+          );
+        } else if (lowerMime === 'audio') {
+          conditions.push("a.mime_type LIKE 'audio/%'");
+        } else {
+          conditions.push('a.mime_type = ?');
+          params.push(mime_type);
+        }
+      }
+
+      // Tag filter
+      if (tag) {
+        conditions.push(
+          'EXISTS (SELECT 1 FROM asset_tags at2 JOIN tags t2 ON t2.id = at2.tag_id WHERE at2.asset_id = a.id AND t2.name = ?)'
+        );
+        params.push(tag);
+      }
+
+      // Size range filter on current version
+      if (min_size !== undefined) {
+        conditions.push('v.byte_size >= ?');
+        params.push(min_size);
+      }
+
+      if (max_size !== undefined) {
+        conditions.push('v.byte_size <= ?');
+        params.push(max_size);
+      }
+
+      // Date range filter
+      if (from_date) {
+        const parsedFrom = new Date(from_date);
+        if (!isNaN(parsedFrom.getTime())) {
+          conditions.push('a.created_at >= ?');
+          params.push(parsedFrom);
+        }
+      }
+
+      if (to_date) {
+        const parsedTo = new Date(to_date);
+        if (!isNaN(parsedTo.getTime())) {
+          conditions.push('a.created_at <= ?');
+          params.push(parsedTo);
+        }
+      }
+
+      // Sort Column Whitelist
+      let sortColumn = 'a.created_at';
+      if (sort_by === 'title') {
+        sortColumn = 'a.title';
+      } else if (sort_by === 'byte_size') {
+        sortColumn = 'v.byte_size';
+      }
+
+      const sortDir = sort_order === 'ASC' ? 'ASC' : 'DESC';
+
+      const whereClause = conditions.join(' AND ');
+
+      // Query paginated assets with tags
+      const queryParams = [...params, limit, offset];
       const assets = await query<any[]>(
-        `SELECT a.id, a.tenant_id, a.workspace_id, a.collection_id, a.title, a.mime_type, a.created_at,
-                v.id as current_version_id, v.version_number, v.byte_size, v.sha256_hash
+        `SELECT a.id, a.tenant_id, a.workspace_id, a.collection_id, a.title, a.mime_type, a.status, a.created_at,
+                v.id as current_version_id, v.version_number, v.byte_size, v.sha256_hash,
+                (
+                  SELECT GROUP_CONCAT(t.name SEPARATOR ',')
+                  FROM asset_tags at
+                  JOIN tags t ON t.id = at.tag_id
+                  WHERE at.asset_id = a.id
+                ) as tags
          FROM assets a
          LEFT JOIN asset_versions v ON v.asset_id = a.id AND v.version_number = 1
-         WHERE a.tenant_id = ? AND a.deleted_at IS NULL
-         ORDER BY a.id DESC
+         WHERE ${whereClause}
+         ORDER BY ${sortColumn} ${sortDir}
          LIMIT ? OFFSET ?`,
-        [tenantId, limit, offset]
+        queryParams
       );
 
-      const totalCountRes = await query<any[]>(
-        `SELECT COUNT(*) as total FROM assets WHERE tenant_id = ? AND deleted_at IS NULL`,
-        [tenantId]
+      // Query total count
+      const countRes = await query<any[]>(
+        `SELECT COUNT(DISTINCT a.id) as total
+         FROM assets a
+         LEFT JOIN asset_versions v ON v.asset_id = a.id AND v.version_number = 1
+         WHERE ${whereClause}`,
+        [...params]
       );
-      const total = totalCountRes[0]?.total || 0;
+      const total = Number(countRes[0]?.total || 0);
 
       res.status(200).json({
         status: 200,
         data: {
-          assets: assets,
+          assets: assets.map((row) => ({
+            id: row.id,
+            tenantId: row.tenant_id,
+            workspaceId: row.workspace_id,
+            collectionId: row.collection_id,
+            title: row.title,
+            mimeType: row.mime_type,
+            status: row.status,
+            createdAt: row.created_at,
+            currentVersion: row.current_version_id
+              ? {
+                  id: row.current_version_id,
+                  versionNumber: row.version_number,
+                  byteSize: row.byte_size,
+                  sha256: row.sha256_hash,
+                }
+              : null,
+            tags: row.tags ? String(row.tags).split(',') : [],
+          })),
           pagination: {
             page,
             limit,
             total,
-            totalPages: Math.ceil(total / limit),
+            totalPages: Math.ceil(total / limit) || 1,
           },
         },
       });
     } catch (err: any) {
-      console.error('List assets error:', err);
+      console.error('Search assets error:', err);
       res.status(500).json({
         status: 500,
         error: 'Internal Server Error',
-        message: 'Error al listar los activos digitales.',
+        message: 'Error al consultar y filtrar los activos digitales.',
       });
     }
   }
@@ -543,6 +695,321 @@ router.get(
     } catch (err: any) {
       console.error('List shares error:', err);
       res.status(500).json({ status: 500, error: 'Internal Server Error', message: 'Error al listar enlaces del activo.' });
+    }
+  }
+);
+
+/**
+ * POST /api/v1/assets/:id/tags
+ * Attach tags to an asset with Anti-IDOR validation.
+ */
+router.post(
+  '/:id/tags',
+  tagsRateLimiter,
+  requireAuth,
+  validate(attachTagsSchema),
+  async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+    try {
+      const tenantId = getActorTenantId(req);
+      const assetId = parseInt(String(req.params.id), 10);
+      const { tag_ids } = req.body;
+
+      if (isNaN(assetId)) {
+        res.status(400).json({ status: 400, error: 'Bad Request', message: 'ID de activo inválido.' });
+        return;
+      }
+
+      // Anti-IDOR: Check asset exists and belongs to active tenant
+      const assetRows = await query<any[]>(
+        'SELECT id FROM assets WHERE id = ? AND tenant_id = ? AND status = "ACTIVE" AND deleted_at IS NULL',
+        [assetId, tenantId]
+      );
+
+      if (!assetRows || assetRows.length === 0) {
+        res.status(404).json({ status: 404, error: 'Not Found', message: 'Activo digital no encontrado.' });
+        return;
+      }
+
+      // Verify all tags belong to tenant
+      for (const tagId of tag_ids) {
+        const tagRows = await query<any[]>(
+          'SELECT id FROM tags WHERE id = ? AND tenant_id = ?',
+          [tagId, tenantId]
+        );
+        if (!tagRows || tagRows.length === 0) {
+          res.status(400).json({
+            status: 400,
+            error: 'Bad Request',
+            message: `La etiqueta ID ${tagId} no existe o no pertenece a este tenant.`,
+          });
+          return;
+        }
+
+        await query<any>(
+          'INSERT IGNORE INTO asset_tags (asset_id, tag_id) VALUES (?, ?)',
+          [assetId, tagId]
+        );
+      }
+
+      await logSecurityEvent(req, {
+        eventType: 'ASSET_TAGS_ATTACHED',
+        userId: Number(req.user?.userId),
+        status: 'SUCCESS',
+        details: `Attached tags [${tag_ids.join(', ')}] to asset ID ${assetId}`,
+      });
+
+      res.status(200).json({
+        status: 200,
+        message: 'Etiquetas vinculadas exitosamente al activo digital.',
+        data: {
+          assetId,
+          tagIds: tag_ids,
+        },
+      });
+    } catch (err: any) {
+      console.error('Attach tags error:', err);
+      res.status(500).json({ status: 500, error: 'Internal Server Error', message: 'Error al vincular etiquetas.' });
+    }
+  }
+);
+
+/**
+ * DELETE /api/v1/assets/:id/tags/:tagId
+ * Detach a tag from an asset with Anti-IDOR validation.
+ */
+router.delete(
+  '/:id/tags/:tagId',
+  tagsRateLimiter,
+  requireAuth,
+  async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+    try {
+      const tenantId = getActorTenantId(req);
+      const assetId = parseInt(String(req.params.id), 10);
+      const tagId = parseInt(String(req.params.tagId), 10);
+
+      if (isNaN(assetId) || isNaN(tagId)) {
+        res.status(400).json({ status: 400, error: 'Bad Request', message: 'Parámetros inválidos.' });
+        return;
+      }
+
+      // Anti-IDOR: Check asset ownership
+      const assetRows = await query<any[]>(
+        'SELECT id FROM assets WHERE id = ? AND tenant_id = ? AND status = "ACTIVE" AND deleted_at IS NULL',
+        [assetId, tenantId]
+      );
+
+      if (!assetRows || assetRows.length === 0) {
+        res.status(404).json({ status: 404, error: 'Not Found', message: 'Activo digital no encontrado.' });
+        return;
+      }
+
+      await query<any>(
+        'DELETE FROM asset_tags WHERE asset_id = ? AND tag_id = ?',
+        [assetId, tagId]
+      );
+
+      await logSecurityEvent(req, {
+        eventType: 'ASSET_TAG_DETACHED',
+        userId: Number(req.user?.userId),
+        status: 'SUCCESS',
+        details: `Detached tag ID ${tagId} from asset ID ${assetId}`,
+      });
+
+      res.status(200).json({
+        status: 200,
+        message: 'Etiqueta desvinculada exitosamente.',
+        data: {
+          assetId,
+          tagId,
+        },
+      });
+    } catch (err: any) {
+      console.error('Detach tag error:', err);
+      res.status(500).json({ status: 500, error: 'Internal Server Error', message: 'Error al desvincular etiqueta.' });
+    }
+  }
+);
+
+/**
+ * GET /api/v1/assets/:id/metadata
+ * Retrieve custom structured metadata for an asset.
+ */
+router.get(
+  '/:id/metadata',
+  requireAuth,
+  async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+    try {
+      const tenantId = getActorTenantId(req);
+      const assetId = parseInt(String(req.params.id), 10);
+
+      if (isNaN(assetId)) {
+        res.status(400).json({ status: 400, error: 'Bad Request', message: 'ID de activo inválido.' });
+        return;
+      }
+
+      // Anti-IDOR
+      const assetRows = await query<any[]>(
+        'SELECT id FROM assets WHERE id = ? AND tenant_id = ? AND status = "ACTIVE" AND deleted_at IS NULL',
+        [assetId, tenantId]
+      );
+
+      if (!assetRows || assetRows.length === 0) {
+        res.status(404).json({ status: 404, error: 'Not Found', message: 'Activo digital no encontrado.' });
+        return;
+      }
+
+      const metaRows = await query<any[]>(
+        'SELECT id, meta_key, meta_value, data_type, created_at, updated_at FROM asset_metadata WHERE asset_id = ? ORDER BY meta_key ASC',
+        [assetId]
+      );
+
+      res.status(200).json({
+        status: 200,
+        data: metaRows.map((m) => ({
+          id: m.id,
+          metaKey: m.meta_key,
+          metaValue: m.meta_value,
+          dataType: m.data_type,
+          createdAt: m.created_at,
+          updatedAt: m.updated_at,
+        })),
+      });
+    } catch (err: any) {
+      console.error('Get metadata error:', err);
+      res.status(500).json({ status: 500, error: 'Internal Server Error', message: 'Error al consultar metadatos.' });
+    }
+  }
+);
+
+/**
+ * PUT /api/v1/assets/:id/metadata
+ * Upsert structured metadata for an asset with JSON validation & anti-IDOR.
+ */
+router.put(
+  '/:id/metadata',
+  tagsRateLimiter,
+  requireAuth,
+  validate(assetMetadataSchema),
+  async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+    try {
+      const tenantId = getActorTenantId(req);
+      const assetId = parseInt(String(req.params.id), 10);
+      const { meta_key, meta_value, data_type = 'STRING' } = req.body;
+
+      if (isNaN(assetId)) {
+        res.status(400).json({ status: 400, error: 'Bad Request', message: 'ID de activo inválido.' });
+        return;
+      }
+
+      // Anti-IDOR
+      const assetRows = await query<any[]>(
+        'SELECT id FROM assets WHERE id = ? AND tenant_id = ? AND status = "ACTIVE" AND deleted_at IS NULL',
+        [assetId, tenantId]
+      );
+
+      if (!assetRows || assetRows.length === 0) {
+        res.status(404).json({ status: 404, error: 'Not Found', message: 'Activo digital no encontrado.' });
+        return;
+      }
+
+      // Validate JSON data_type
+      if (data_type === 'JSON') {
+        try {
+          JSON.parse(meta_value);
+        } catch (_jsonErr) {
+          res.status(400).json({
+            status: 400,
+            error: 'Bad Request',
+            message: 'El valor no es un JSON válido para data_type=JSON.',
+          });
+          return;
+        }
+      }
+
+      await query<any>(
+        `INSERT INTO asset_metadata (asset_id, meta_key, meta_value, data_type)
+         VALUES (?, ?, ?, ?)
+         ON DUPLICATE KEY UPDATE meta_value = VALUES(meta_value), data_type = VALUES(data_type), updated_at = NOW()`,
+        [assetId, meta_key, meta_value, data_type]
+      );
+
+      await logSecurityEvent(req, {
+        eventType: 'ASSET_METADATA_UPSERT',
+        userId: Number(req.user?.userId),
+        status: 'SUCCESS',
+        details: `Upserted metadata key "${meta_key}" (${data_type}) on asset ID ${assetId}`,
+      });
+
+      res.status(200).json({
+        status: 200,
+        message: 'Metadatos guardados exitosamente.',
+        data: {
+          assetId,
+          metaKey: meta_key,
+          metaValue: meta_value,
+          dataType: data_type,
+        },
+      });
+    } catch (err: any) {
+      console.error('Upsert metadata error:', err);
+      res.status(500).json({ status: 500, error: 'Internal Server Error', message: 'Error al guardar metadatos.' });
+    }
+  }
+);
+
+/**
+ * DELETE /api/v1/assets/:id/metadata/:key
+ * Delete a metadata key from an asset with anti-IDOR validation.
+ */
+router.delete(
+  '/:id/metadata/:key',
+  tagsRateLimiter,
+  requireAuth,
+  async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+    try {
+      const tenantId = getActorTenantId(req);
+      const assetId = parseInt(String(req.params.id), 10);
+      const key = String(req.params.key);
+
+      if (isNaN(assetId) || !key) {
+        res.status(400).json({ status: 400, error: 'Bad Request', message: 'Parámetros inválidos.' });
+        return;
+      }
+
+      // Anti-IDOR
+      const assetRows = await query<any[]>(
+        'SELECT id FROM assets WHERE id = ? AND tenant_id = ? AND status = "ACTIVE" AND deleted_at IS NULL',
+        [assetId, tenantId]
+      );
+
+      if (!assetRows || assetRows.length === 0) {
+        res.status(404).json({ status: 404, error: 'Not Found', message: 'Activo digital no encontrado.' });
+        return;
+      }
+
+      await query<any>(
+        'DELETE FROM asset_metadata WHERE asset_id = ? AND meta_key = ?',
+        [assetId, key]
+      );
+
+      await logSecurityEvent(req, {
+        eventType: 'ASSET_METADATA_DELETED',
+        userId: Number(req.user?.userId),
+        status: 'SUCCESS',
+        details: `Deleted metadata key "${key}" from asset ID ${assetId}`,
+      });
+
+      res.status(200).json({
+        status: 200,
+        message: 'Metadato eliminado exitosamente.',
+        data: {
+          assetId,
+          metaKey: key,
+        },
+      });
+    } catch (err: any) {
+      console.error('Delete metadata error:', err);
+      res.status(500).json({ status: 500, error: 'Internal Server Error', message: 'Error al eliminar metadato.' });
     }
   }
 );

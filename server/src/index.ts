@@ -19,6 +19,7 @@ import { contactRouter } from './routes/contact.js';
 import { eventsRouter } from './routes/events.js';
 import assetsRouter from './routes/assets.js';
 import { sharesRouter } from './routes/shares.js';
+import { tagsRouter } from './routes/tags.js';
 import { pool } from './db.js';
 import { getCache, setCache } from './utils/cache.js';
 
@@ -143,6 +144,7 @@ app.use('/api/v1/admin', adminRouter);
 app.use('/api/v1/contact', sensitiveEndpointLimiter, contactRouter);
 app.use('/api/v1/assets', assetsRouter);
 app.use('/api/v1/shares', sharesRouter);
+app.use('/api/v1/tags', tagsRouter);
 app.use('/api/v1', eventsRouter);
 
 

@@ -80,4 +80,40 @@ export const shareRateLimiter = rateLimit({
   }
 });
 
+/**
+ * DAM Asset Search & Filtering Rate Limiter (OWASP A04)
+ * 100 requests per 1 minute window per IP
+ */
+export const searchRateLimiter = rateLimit({
+  windowMs: 1 * 60 * 1000,
+  max: 100,
+  standardHeaders: true,
+  legacyHeaders: false,
+  handler: (_req: Request, res: Response) => {
+    res.status(429).json({
+      status: 429,
+      error: 'Too Many Requests',
+      message: 'Límite de consultas de búsqueda alcanzado. Intente nuevamente en un minuto.'
+    });
+  }
+});
+
+/**
+ * DAM Tags & Metadata Rate Limiter (OWASP A04)
+ * 100 requests per 1 minute window per IP
+ */
+export const tagsRateLimiter = rateLimit({
+  windowMs: 1 * 60 * 1000,
+  max: 100,
+  standardHeaders: true,
+  legacyHeaders: false,
+  handler: (_req: Request, res: Response) => {
+    res.status(429).json({
+      status: 429,
+      error: 'Too Many Requests',
+      message: 'Límite de operaciones de etiquetas y metadatos alcanzado. Intente nuevamente en un minuto.'
+    });
+  }
+});
+
 
