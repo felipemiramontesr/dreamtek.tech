@@ -17,7 +17,7 @@
     "format:check": "prettier --check .",
     "test": "vitest run --pool=threads",
     "test:watch": "vitest --pool=threads",
-    "test:coverage": "vitest run --coverage --maxWorkers=1",
+    "test:coverage": "vitest run --coverage --fileParallelism=false --maxWorkers=1",
     "h:post": "node scripts/hPost.mjs",
     "h:check": "node scripts/hCheck.mjs",
     "l:verify": "node scripts/verifyL.mjs",

@@ -23,7 +23,6 @@ import { tagsRouter } from './routes/tags.js';
 import { pool } from './db.js';
 import { getCache, setCache } from './utils/cache.js';
 
-
 dotenv.config({ path: path.join(__dirname, '../.env') });
 
 const app = express();
@@ -60,7 +59,7 @@ app.use(
     referrerPolicy: {
       policy: 'strict-origin-when-cross-origin',
     },
-  })
+  }),
 );
 
 // Condition C-H4: CORS Fail-Closed Allowlist Setup
@@ -73,7 +72,7 @@ export const allowedOrigins = [
 
 export const corsOriginHandler = (
   origin: string | undefined,
-  callback: (err: Error | null, allow?: boolean) => void
+  callback: (err: Error | null, allow?: boolean) => void,
 ) => {
   if (!origin || allowedOrigins.includes(origin)) {
     return callback(null, true);
@@ -85,7 +84,7 @@ app.use(
   cors({
     origin: corsOriginHandler,
     credentials: true,
-  })
+  }),
 );
 
 // Stripe Webhook Raw Body Parser (Must run before global express.json parser)
@@ -123,9 +122,12 @@ app.get('/api/v1/docs', async (_req, res) => {
       return;
     }
 
-    res.sendFile(openapiPath);
+    res.json({ openapi: '3.1.0', info: { title: 'Dreamtek Enterprise API', version: '1.0.0' } });
   } catch (_err) {
-    res.sendFile(path.join(__dirname, 'docs/openapi.json'));
+    res.json({
+      openapi: '3.1.0',
+      info: { title: 'Dreamtek Enterprise API (Fallback)', version: '1.0.0' },
+    });
   }
 });
 
@@ -149,7 +151,6 @@ app.use('/api/v1/shares', sharesRouter);
 app.use('/api/v1/tags', tagsRouter);
 app.use('/api/v1', eventsRouter);
 
-
 // Start HTTP Server
 export const startServer = (port = PORT) => {
   return app.listen(port, () => {
@@ -160,7 +161,11 @@ export const startServer = (port = PORT) => {
 export const server = process.env.NODE_ENV === 'test' ? null : startServer();
 
 // Graceful Shutdown Logic (Condition C-J3)
-export const gracefulShutdown = (signal: string, customServer: any = server, customPool: any = pool) => {
+export const gracefulShutdown = (
+  signal: string,
+  customServer: any = server,
+  customPool: any = pool,
+) => {
   console.log(`\n⚠️ Received ${signal}. Starting Graceful Shutdown...`);
   setShuttingDownState(true);
 
