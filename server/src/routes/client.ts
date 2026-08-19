@@ -90,11 +90,9 @@ clientRouter.get('/sites', async (req: AuthenticatedRequest, res: Response): Pro
       sites,
     });
   } catch (err: any) {
-    res
-      .status(500)
-      .json({
-        status: 'error',
-        message: err.message || 'Error al obtener sitios web del cliente.',
-      });
+    res.status(500).json({
+      status: 'error',
+      message: err.message || 'Error al obtener sitios web del cliente.',
+    });
   }
 });

@@ -95,13 +95,11 @@ sharesRouter.get('/:token', async (req: Request, res: Response): Promise<void> =
     });
   } catch (err: any) {
     console.error('Resolve share error:', err);
-    res
-      .status(500)
-      .json({
-        status: 500,
-        error: 'Internal Server Error',
-        message: 'Error al consultar el enlace.',
-      });
+    res.status(500).json({
+      status: 500,
+      error: 'Internal Server Error',
+      message: 'Error al consultar el enlace.',
+    });
   }
 });
 
@@ -140,13 +138,11 @@ sharesRouter.get('/:token/stream', async (req: Request, res: Response): Promise<
     assertPathContained(file_path);
 
     if (!fs.existsSync(file_path)) {
-      res
-        .status(404)
-        .json({
-          status: 404,
-          error: 'Not Found',
-          message: 'Archivo físico no disponible en almacenamiento.',
-        });
+      res.status(404).json({
+        status: 404,
+        error: 'Not Found',
+        message: 'Archivo físico no disponible en almacenamiento.',
+      });
       return;
     }
 
@@ -177,13 +173,11 @@ sharesRouter.get('/:token/stream', async (req: Request, res: Response): Promise<
     fs.createReadStream(file_path).pipe(res);
   } catch (err: any) {
     console.error('Stream share error:', err);
-    res
-      .status(500)
-      .json({
-        status: 500,
-        error: 'Internal Server Error',
-        message: 'Error al transmitir archivo compartido.',
-      });
+    res.status(500).json({
+      status: 500,
+      error: 'Internal Server Error',
+      message: 'Error al transmitir archivo compartido.',
+    });
   }
 });
 
@@ -248,13 +242,11 @@ sharesRouter.get('/:token/thumbnail', async (req: Request, res: Response): Promi
     res.status(404).json({ status: 404, error: 'Not Found', message: 'Miniatura no disponible.' });
   } catch (err: any) {
     console.error('Thumbnail share error:', err);
-    res
-      .status(500)
-      .json({
-        status: 500,
-        error: 'Internal Server Error',
-        message: 'Error al obtener miniatura de compartición.',
-      });
+    res.status(500).json({
+      status: 500,
+      error: 'Internal Server Error',
+      message: 'Error al obtener miniatura de compartición.',
+    });
   }
 });
 

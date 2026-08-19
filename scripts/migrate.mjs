@@ -7,10 +7,12 @@ import dotenv from 'dotenv';
 dotenv.config();
 
 const isDryRun = process.argv.includes('--dry-run');
-const isProd = process.argv.includes('--env') && process.argv[process.argv.indexOf('--env') + 1] === 'production';
+const isProd =
+  process.argv.includes('--env') &&
+  process.argv[process.argv.indexOf('--env') + 1] === 'production';
 
 // Condition C-K2: In production mode, force localhost SSH tunnel port 127.0.0.1:3307
-const dbHost = isProd ? '127.0.0.1' : (process.env.DB_HOST || '127.0.0.1');
+const dbHost = isProd ? '127.0.0.1' : process.env.DB_HOST || '127.0.0.1';
 const dbPort = isProd ? 3307 : parseInt(process.env.DB_PORT || '3306', 10);
 const dbUser = process.env.DB_USER || 'root';
 const dbPassword = process.env.DB_PASSWORD || '';
@@ -24,7 +26,9 @@ function computeChecksum(content) {
 }
 
 async function runMigrations() {
-  console.log(`🚀 Starting Database Migration Runner (Env: ${isProd ? 'PRODUCTION' : 'DEVELOPMENT'}, Dry-Run: ${isDryRun})`);
+  console.log(
+    `🚀 Starting Database Migration Runner (Env: ${isProd ? 'PRODUCTION' : 'DEVELOPMENT'}, Dry-Run: ${isDryRun})`,
+  );
   console.log(`🔌 Target Host: ${dbHost}:${dbPort} | Database: ${dbName}`);
 
   const pool = mariadb.createPool({
@@ -53,7 +57,9 @@ async function runMigrations() {
     `);
 
     // Fetch applied migrations
-    const appliedRows = await conn.query('SELECT version, filename, checksum FROM schema_migrations ORDER BY id ASC');
+    const appliedRows = await conn.query(
+      'SELECT version, filename, checksum FROM schema_migrations ORDER BY id ASC',
+    );
     const appliedMap = new Map(appliedRows.map((r) => [r.filename, r]));
 
     // Read migrations directory
@@ -81,7 +87,9 @@ async function runMigrations() {
         const applied = appliedMap.get(filename);
         // Condition C-K3: Checksum mismatch HALT
         if (applied.checksum !== currentChecksum) {
-          console.error(`❌ CHECKSUM MISMATCH HALT: Migration file '${filename}' has been modified on disk after application!`);
+          console.error(
+            `❌ CHECKSUM MISMATCH HALT: Migration file '${filename}' has been modified on disk after application!`,
+          );
           console.error(`   Applied Checksum: ${applied.checksum}`);
           console.error(`   Current Checksum: ${currentChecksum}`);
           console.error(`   Aborting execution to prevent database corruption.`);
@@ -100,10 +108,14 @@ async function runMigrations() {
     }
 
     console.log(`📋 Found ${pending.length} pending migration(s):`);
-    pending.forEach((p) => console.log(`   - ${p.filename} (sha256: ${p.checksum.substring(0, 8)}...)`));
+    pending.forEach((p) =>
+      console.log(`   - ${p.filename} (sha256: ${p.checksum.substring(0, 8)}...)`),
+    );
 
     if (isDryRun) {
-      console.log(`🔍 [DRY-RUN MODE] Migration execution skipped. No database changes were applied.`);
+      console.log(
+        `🔍 [DRY-RUN MODE] Migration execution skipped. No database changes were applied.`,
+      );
       if (conn) conn.release();
       await pool.end();
       return;
@@ -129,7 +141,7 @@ async function runMigrations() {
 
       await conn.query(
         'INSERT INTO schema_migrations (version, filename, checksum, execution_time_ms) VALUES (?, ?, ?, ?)',
-        [versionStr, item.filename, item.checksum, durationMs]
+        [versionStr, item.filename, item.checksum, durationMs],
       );
 
       console.log(`✅ Migration '${item.filename}' applied successfully in ${durationMs}ms.`);

@@ -145,12 +145,10 @@ checkoutRouter.post('/webhook', async (req: Request, res: Response): Promise<voi
       }
 
       if (!userId) {
-        res
-          .status(400)
-          .json({
-            status: 'error',
-            message: 'No se pudo asociar el pago a ningún usuario registrado.',
-          });
+        res.status(400).json({
+          status: 'error',
+          message: 'No se pudo asociar el pago a ningún usuario registrado.',
+        });
         return;
       }
 

@@ -418,13 +418,11 @@ router.get('/:id', requireAuth, async (req: AuthenticatedRequest, res: Response)
     });
   } catch (err: any) {
     console.error('Get asset error:', err);
-    res
-      .status(500)
-      .json({
-        status: 500,
-        error: 'Internal Server Error',
-        message: 'Error al obtener el activo digital.',
-      });
+    res.status(500).json({
+      status: 500,
+      error: 'Internal Server Error',
+      message: 'Error al obtener el activo digital.',
+    });
   }
 });
 
@@ -457,13 +455,11 @@ router.get(
       );
 
       if (!rows || rows.length === 0) {
-        res
-          .status(404)
-          .json({
-            status: 404,
-            error: 'Not Found',
-            message: 'Activo no encontrado o acceso denegado.',
-          });
+        res.status(404).json({
+          status: 404,
+          error: 'Not Found',
+          message: 'Activo no encontrado o acceso denegado.',
+        });
         return;
       }
 
@@ -471,13 +467,11 @@ router.get(
       assertPathContained(file_path);
 
       if (!fs.existsSync(file_path)) {
-        res
-          .status(404)
-          .json({
-            status: 404,
-            error: 'Not Found',
-            message: 'Archivo físico no encontrado en almacenamiento NVMe.',
-          });
+        res.status(404).json({
+          status: 404,
+          error: 'Not Found',
+          message: 'Archivo físico no encontrado en almacenamiento NVMe.',
+        });
         return;
       }
 
@@ -490,13 +484,11 @@ router.get(
       stream.pipe(res);
     } catch (err: any) {
       console.error('Stream asset error:', err);
-      res
-        .status(500)
-        .json({
-          status: 500,
-          error: 'Internal Server Error',
-          message: 'Error al transmitir el activo digital.',
-        });
+      res.status(500).json({
+        status: 500,
+        error: 'Internal Server Error',
+        message: 'Error al transmitir el activo digital.',
+      });
     }
   },
 );
@@ -567,13 +559,11 @@ router.get(
       fs.createReadStream(file_path).pipe(res);
     } catch (err: any) {
       console.error('Thumbnail asset error:', err);
-      res
-        .status(500)
-        .json({
-          status: 500,
-          error: 'Internal Server Error',
-          message: 'Error al entregar la miniatura.',
-        });
+      res.status(500).json({
+        status: 500,
+        error: 'Internal Server Error',
+        message: 'Error al entregar la miniatura.',
+      });
     }
   },
 );
@@ -603,13 +593,11 @@ router.delete(
       );
 
       if (!result || result.affectedRows === 0) {
-        res
-          .status(404)
-          .json({
-            status: 404,
-            error: 'Not Found',
-            message: 'Activo no encontrado o ya eliminado.',
-          });
+        res.status(404).json({
+          status: 404,
+          error: 'Not Found',
+          message: 'Activo no encontrado o ya eliminado.',
+        });
         return;
       }
 
@@ -627,13 +615,11 @@ router.delete(
       });
     } catch (err: any) {
       console.error('Delete asset error:', err);
-      res
-        .status(500)
-        .json({
-          status: 500,
-          error: 'Internal Server Error',
-          message: 'Error al eliminar el activo digital.',
-        });
+      res.status(500).json({
+        status: 500,
+        error: 'Internal Server Error',
+        message: 'Error al eliminar el activo digital.',
+      });
     }
   },
 );
@@ -710,13 +696,11 @@ router.post(
       });
     } catch (err: any) {
       console.error('Create share error:', err);
-      res
-        .status(500)
-        .json({
-          status: 500,
-          error: 'Internal Server Error',
-          message: 'Error al generar enlace de compartición.',
-        });
+      res.status(500).json({
+        status: 500,
+        error: 'Internal Server Error',
+        message: 'Error al generar enlace de compartición.',
+      });
     }
   },
 );
@@ -756,13 +740,11 @@ router.get(
       });
     } catch (err: any) {
       console.error('List shares error:', err);
-      res
-        .status(500)
-        .json({
-          status: 500,
-          error: 'Internal Server Error',
-          message: 'Error al listar enlaces del activo.',
-        });
+      res.status(500).json({
+        status: 500,
+        error: 'Internal Server Error',
+        message: 'Error al listar enlaces del activo.',
+      });
     }
   },
 );
@@ -840,13 +822,11 @@ router.post(
       });
     } catch (err: any) {
       console.error('Attach tags error:', err);
-      res
-        .status(500)
-        .json({
-          status: 500,
-          error: 'Internal Server Error',
-          message: 'Error al vincular etiquetas.',
-        });
+      res.status(500).json({
+        status: 500,
+        error: 'Internal Server Error',
+        message: 'Error al vincular etiquetas.',
+      });
     }
   },
 );
@@ -907,13 +887,11 @@ router.delete(
       });
     } catch (err: any) {
       console.error('Detach tag error:', err);
-      res
-        .status(500)
-        .json({
-          status: 500,
-          error: 'Internal Server Error',
-          message: 'Error al desvincular etiqueta.',
-        });
+      res.status(500).json({
+        status: 500,
+        error: 'Internal Server Error',
+        message: 'Error al desvincular etiqueta.',
+      });
     }
   },
 );
@@ -968,13 +946,11 @@ router.get(
       });
     } catch (err: any) {
       console.error('Get metadata error:', err);
-      res
-        .status(500)
-        .json({
-          status: 500,
-          error: 'Internal Server Error',
-          message: 'Error al consultar metadatos.',
-        });
+      res.status(500).json({
+        status: 500,
+        error: 'Internal Server Error',
+        message: 'Error al consultar metadatos.',
+      });
     }
   },
 );
@@ -1054,13 +1030,11 @@ router.put(
       });
     } catch (err: any) {
       console.error('Upsert metadata error:', err);
-      res
-        .status(500)
-        .json({
-          status: 500,
-          error: 'Internal Server Error',
-          message: 'Error al guardar metadatos.',
-        });
+      res.status(500).json({
+        status: 500,
+        error: 'Internal Server Error',
+        message: 'Error al guardar metadatos.',
+      });
     }
   },
 );
@@ -1121,13 +1095,11 @@ router.delete(
       });
     } catch (err: any) {
       console.error('Delete metadata error:', err);
-      res
-        .status(500)
-        .json({
-          status: 500,
-          error: 'Internal Server Error',
-          message: 'Error al eliminar metadato.',
-        });
+      res.status(500).json({
+        status: 500,
+        error: 'Internal Server Error',
+        message: 'Error al eliminar metadato.',
+      });
     }
   },
 );

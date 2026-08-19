@@ -2,7 +2,16 @@ import { test, expect } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
 
 test.describe('WCAG 2.1 AA Accessibility Audit', () => {
-  const routes = ['/', '/cookies', '/privacidad', '/terminos', '/en'];
+  const routes = [
+    '/',
+    '/cookies',
+    '/privacidad',
+    '/terminos',
+    '/en',
+    '/en/cookies',
+    '/en/privacidad',
+    '/en/terminos',
+  ];
 
   for (const route of routes) {
     test(`debe pasar la auditoría de accesibilidad WCAG 2.1 AA en ${route}`, async ({ page }) => {

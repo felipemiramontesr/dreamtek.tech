@@ -1,19 +1,21 @@
 # ADR 004: Dual Dashboards (Client & Admin) & Server-Side RBAC API Boundaries
 
-* **Status**: Proposed (Pending FC 001d EN_FIRME)
-* **Date**: 2026-07-26
-* **Deciders**: Alfa (O/architect), Charlie (O/fullstack), Bravo (R), GrayMan (L)
-* **FC Reference**: `protocols/fc/001d_FC_Dual_Dashboards_UI.md`
+- **Status**: Proposed (Pending FC 001d EN_FIRME)
+- **Date**: 2026-07-26
+- **Deciders**: Alfa (O/architect), Charlie (O/fullstack), Bravo (R), GrayMan (L)
+- **FC Reference**: `protocols/fc/001d_FC_Dual_Dashboards_UI.md`
 
 ---
 
 ## 1. Context & Problem Statement
 
-*Dreamtek.tech* requires dedicated user portals:
+_Dreamtek.tech_ requires dedicated user portals:
+
 1. **Client Portal (`/dashboard`)**: Where subscribed clients view their active site instances, subscription renewal dates, billing history, and create support tickets.
 2. **Admin Portal (`/admin`)**: Where system administrators view global platform metrics (revenue, active subscriptions, total users), view registered client accounts (read-only), view all deployed sites, and respond to support tickets.
 
 Security & Architectural Requirements:
+
 1. **Static Export Boundary (OWASP A01/A04)**: Because Next.js uses static export (`output: 'export'`), pages under `/dashboard` and `/admin` are client-rendered. Client UI route guards redirect unauthenticated users to `/` and trigger the Auth Modal, but **the true authorization enforcement MUST reside strictly on the server-side PHP PDO API**.
 2. **Canonical Sites Join (C-D1)**: The `sites` table links to `subscriptions` via `subscription_id`, and `subscriptions` links to `users` via `user_id`. `/api/client/sites.php` queries sites using the canonical JOIN:
    ```sql
@@ -37,6 +39,7 @@ Security & Architectural Requirements:
 We freeze the dual dashboard architecture to client-rendered Next.js pages with 100% server-enforced PHP PDO RBAC.
 
 ### Architectural Guarantees:
+
 1. **Client Portal (`src/app/dashboard/page.tsx`)**:
    - Consumes `/api/client/sites.php`, `/api/client/subscription.php`, and `/api/client/tickets.php`.
    - Displays active sites via canonical JOIN, subscription status, and ticket creation form.
@@ -56,10 +59,10 @@ We freeze the dual dashboard architecture to client-rendered Next.js pages with 
 
 ## 4. Threat Mitigation Matrix
 
-| OWASP Vulnerability | Risk | Mitigation Strategy |
-|---------------------|------|---------------------|
+| OWASP Vulnerability            | Risk                             | Mitigation Strategy                                                                                                                      |
+| ------------------------------ | -------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
 | **A01: Broken Access Control** | IDOR / Unauthorized Admin Access | Vertical checks via `require_role('ADMIN')` on `/api/admin/*` and horizontal JOIN scoping `WHERE sub.user_id = :uid` on `/api/client/*`. |
-| **A02: Crypto Failures** | Token Tampering / Password Leak | Session lookup in MariaDB `sessions`; password_hash strictly excluded from all user lists. |
-| **A03: SQL Injection** | Database Manipulation | 100% PDO prepared statements for all dashboard queries and ticket creation. |
-| **A04: Insecure Design** | Relying on UI Route Guards | Server PHP endpoints enforce access rules regardless of client-side React state. |
-| **A05: Misconfiguration** | Unhandled Server Errors | Explicit HTTP 401 Unauthorized / 403 Forbidden responses with JSON error payloads. |
+| **A02: Crypto Failures**       | Token Tampering / Password Leak  | Session lookup in MariaDB `sessions`; password_hash strictly excluded from all user lists.                                               |
+| **A03: SQL Injection**         | Database Manipulation            | 100% PDO prepared statements for all dashboard queries and ticket creation.                                                              |
+| **A04: Insecure Design**       | Relying on UI Route Guards       | Server PHP endpoints enforce access rules regardless of client-side React state.                                                         |
+| **A05: Misconfiguration**      | Unhandled Server Errors          | Explicit HTTP 401 Unauthorized / 403 Forbidden responses with JSON error payloads.                                                       |

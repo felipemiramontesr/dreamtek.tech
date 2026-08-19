@@ -1,8 +1,8 @@
-name: "CI/CD Pipeline (Dreamtek)"
+name: 'CI/CD Pipeline (Dreamtek)'
 
 env:
-  ACTIONS_RUNNER_FORCE_NODE24: "true"
-  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+  ACTIONS_RUNNER_FORCE_NODE24: 'true'
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
 
 on:
   push:
@@ -15,7 +15,7 @@ on:
 
 jobs:
   matrix-backend-validation:
-    name: "🛡️ Matrix: backend-validation (${{ matrix.job_name }})"
+    name: '🛡️ Matrix: backend-validation (${{ matrix.job_name }})'
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -26,21 +26,21 @@ jobs:
           - 'crypto-fail-closed'
           - 'server-routes'
     steps:
-      - name: "📥 Checkout Code"
+      - name: '📥 Checkout Code'
         uses: actions/checkout@v5
 
-      - name: "⚙️ Setup Node.js 24"
+      - name: '⚙️ Setup Node.js 24'
         uses: actions/setup-node@v5
         with:
           node-version: '24.x'
           cache: 'npm'
 
-      - name: "📦 Install Root & Server Dependencies"
+      - name: '📦 Install Root & Server Dependencies'
         run: |
           npm ci || npm install
           npm --prefix server install
 
-      - name: "🛠️ Execute Matrix Task (${{ matrix.job_name }})"
+      - name: '🛠️ Execute Matrix Task (${{ matrix.job_name }})'
         run: |
           if [ "${{ matrix.job_name }}" = "build-tsc" ]; then
             echo "Building server TypeScript..."
@@ -62,36 +62,40 @@ jobs:
           fi
 
   matrix-frontend-validation:
-    name: "🎨 Matrix: frontend-validation (${{ matrix.job_name }})"
+    name: '🎨 Matrix: frontend-validation (${{ matrix.job_name }})'
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
         job_name:
           - 'unit-tests-vitest'
+          - 'scripts-harness'
           - 'eslint-next'
           - 'i18n-dictionaries'
           - 'next-build-export'
     steps:
-      - name: "📥 Checkout Code"
+      - name: '📥 Checkout Code'
         uses: actions/checkout@v5
 
-      - name: "⚙️ Setup Node.js 24"
+      - name: '⚙️ Setup Node.js 24'
         uses: actions/setup-node@v5
         with:
           node-version: '24.x'
           cache: 'npm'
 
-      - name: "📦 Install Dependencies"
+      - name: '📦 Install Dependencies'
         run: |
           npm ci || npm install
           npm --prefix server install
 
-      - name: "🛠️ Execute Matrix Task (${{ matrix.job_name }})"
+      - name: '🛠️ Execute Matrix Task (${{ matrix.job_name }})'
         run: |
           if [ "${{ matrix.job_name }}" = "unit-tests-vitest" ]; then
             echo "Running Vitest test suite with Coverage v8 and generating JSON report..."
             npx vitest run --coverage --reporter=default --reporter=json --outputFile=vitest-report.json --fileParallelism=false
+          elif [ "${{ matrix.job_name }}" = "scripts-harness" ]; then
+            echo "Running non-TS scripts unit harness..."
+            npm run test:scripts
           elif [ "${{ matrix.job_name }}" = "eslint-next" ]; then
             echo "Running ESLint..."
             npm run lint
@@ -104,7 +108,7 @@ jobs:
             npm run build
           fi
 
-      - name: "📤 Upload Vitest Report Artifact"
+      - name: '📤 Upload Vitest Report Artifact'
         if: matrix.job_name == 'unit-tests-vitest'
         uses: actions/upload-artifact@main
         with:
@@ -113,13 +117,13 @@ jobs:
           retention-days: 7
 
   db-verification:
-    name: "🏛️ Database (SQL) Verification"
+    name: '🏛️ Database (SQL) Verification'
     runs-on: ubuntu-latest
     steps:
-      - name: "📥 Checkout Code"
+      - name: '📥 Checkout Code'
         uses: actions/checkout@v5
 
-      - name: "🔍 Verify DDL Migration & Seed Scripts"
+      - name: '🔍 Verify DDL Migration & Seed Scripts'
         run: |
           echo "Verificando scripts de migración SQL en database/migrations/ y database/seeds/..."
           test -f database/migrations/001_initial_schema.sql
@@ -130,33 +134,33 @@ jobs:
           echo "✓ Todos los 5 archivos SQL DDL/Seed verificados exitosamente."
 
   secret-scan:
-    name: "🔍 Secret Scan (TruffleHog / GitLeaks)"
+    name: '🔍 Secret Scan (TruffleHog / GitLeaks)'
     runs-on: ubuntu-latest
     steps:
-      - name: "📥 Checkout Code"
+      - name: '📥 Checkout Code'
         uses: actions/checkout@v5
         with:
           fetch-depth: 0
 
-      - name: "🔒 Scan for Exposed Secrets"
+      - name: '🔒 Scan for Exposed Secrets'
         run: |
           echo "Scanning repository for committed API keys, private keys, or exposed credentials..."
           ! grep -rn "dreamtek_secret_jwt_key_2026" src/
           echo "✓ Verificación de secretos limpia. Cero credenciales expuestas."
 
   quality-gate:
-    name: "🏷️ Quality Gate & Code Analysis"
+    name: '🏷️ Quality Gate & Code Analysis'
     runs-on: ubuntu-latest
     steps:
-      - name: "📥 Checkout Code"
+      - name: '📥 Checkout Code'
         uses: actions/checkout@v5
 
-      - name: "⚙️ Setup Node.js 24"
+      - name: '⚙️ Setup Node.js 24'
         uses: actions/setup-node@v5
         with:
           node-version: '24.x'
 
-      - name: "📊 Code Structure & Standards Gate"
+      - name: '📊 Code Structure & Standards Gate'
         run: |
           echo "Verificando estructura de código y estándares de calidad..."
           test -f docs/decisions/001-host-model-and-mariadb-connection-pool.md
@@ -169,47 +173,56 @@ jobs:
           echo "✓ Quality Gate complacido."
 
   e2e-verification:
-    name: "🧪 E2E (Playwright) Verification"
+    name: '🧪 E2E (Playwright) Verification'
     needs: [matrix-backend-validation, matrix-frontend-validation, db-verification]
     runs-on: ubuntu-latest
     steps:
-      - name: "📥 Checkout Code"
+      - name: '📥 Checkout Code'
         uses: actions/checkout@v5
 
-      - name: "⚙️ Setup Node.js 24"
+      - name: '⚙️ Setup Node.js 24'
         uses: actions/setup-node@v5
         with:
           node-version: '24.x'
 
-      - name: "📦 Install Dependencies & Build Application"
+      - name: '📦 Install Dependencies & Build Application'
         run: |
           npm ci || npm install
           npm --prefix server install
           npm --prefix server run build
           npm run build
 
-      - name: "🧪 Verify Local Server Startup & Routes"
+      - name: '🌐 Install Playwright Browsers'
         run: |
-          echo "Verificando compilación de artefactos estáticos en out/..."
-          test -d out
-          test -f out/index.html
-          echo "✓ Verificación E2E de compilación estática y servidor completada con éxito."
+          npx playwright install --with-deps chromium
+
+      - name: '🧪 Run Playwright E2E & WCAG 2.1 AA Audits'
+        run: |
+          npx playwright test
 
   archon-global-certification:
-    name: "🔱 Archon Global Certification & OWASP Summary"
-    needs: [matrix-backend-validation, matrix-frontend-validation, db-verification, secret-scan, quality-gate, e2e-verification]
+    name: '🔱 Archon Global Certification & OWASP Summary'
+    needs:
+      [
+        matrix-backend-validation,
+        matrix-frontend-validation,
+        db-verification,
+        secret-scan,
+        quality-gate,
+        e2e-verification,
+      ]
     runs-on: ubuntu-latest
     steps:
-      - name: "📥 Checkout Code"
+      - name: '📥 Checkout Code'
         uses: actions/checkout@v5
 
-      - name: "📥 Download Vitest Report Artifact"
+      - name: '📥 Download Vitest Report Artifact'
         uses: actions/download-artifact@main
         with:
           name: vitest-report
         continue-on-error: true
 
-      - name: "📊 Compute Real Metrics & Generate Dashboard"
+      - name: '📊 Compute Real Metrics & Generate Dashboard'
         run: |
           PASSED_TESTS=74
           TOTAL_TESTS=74
@@ -267,26 +280,26 @@ jobs:
           cat step_summary.md
 
   deploy:
-    name: "🚀 Deployment to Hostinger"
+    name: '🚀 Deployment to Hostinger'
     needs: [archon-global-certification]
     runs-on: ubuntu-latest
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     steps:
-      - name: "📥 Checkout Code"
+      - name: '📥 Checkout Code'
         uses: actions/checkout@v5
 
-      - name: "⚙️ Setup Node.js 24"
+      - name: '⚙️ Setup Node.js 24'
         uses: actions/setup-node@v5
         with:
           node-version: '24.x'
           cache: 'npm'
 
-      - name: "📦 Install Dependencies & Build"
+      - name: '📦 Install Dependencies & Build'
         run: |
           npm ci || npm install
           npm run build
 
-      - name: "🚀 Deploy to Hostinger FTP (Native LFTP FTPS)"
+      - name: '🚀 Deploy to Hostinger FTP (Native LFTP FTPS)'
         env:
           FTP_SERVER: ${{ secrets.FTP_SERVER }}
           FTP_USER: ${{ secrets.FTP_USER }}
@@ -308,4 +321,3 @@ jobs:
             mirror --reverse --verbose --only-newer;
             quit;
           "
-

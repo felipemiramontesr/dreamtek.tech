@@ -1,18 +1,19 @@
 # ADR 002: Authentication Engine, Opaque Session Store & RBAC
 
-* **Status**: Accepted
-* **Date**: 2026-07-25
-* **Deciders**: Alfa (O/architect), Charlie (O/fullstack), Bravo (R), GrayMan (L)
-* **FC Reference**: `protocols/fc/001b_FC_Auth_Engine_and_RBAC.md`
+- **Status**: Accepted
+- **Date**: 2026-07-25
+- **Deciders**: Alfa (O/architect), Charlie (O/fullstack), Bravo (R), GrayMan (L)
+- **FC Reference**: `protocols/fc/001b_FC_Auth_Engine_and_RBAC.md`
 
 ---
 
 ## 1. Context & Problem Statement
 
-*Dreamtek.tech* requires a secure authentication and authorization mechanism for client accounts and internal administration.
+_Dreamtek.tech_ requires a secure authentication and authorization mechanism for client accounts and internal administration.
 The authentication model must operate under a Next.js static export (`output: 'export'`) communicating with a PHP 8.x PDO backend hosted on Hostinger.
 
 Security requirements:
+
 1. Prevent XSS token theft (OWASP A02): Prohibition of localStorage / sessionStorage for credentials.
 2. Prevent session hijacking and unrevocable tokens (OWASP A01 / A07): Avoid JWTs or cleartext user ID cookies.
 3. Mitigate brute-force attacks (OWASP A07): Rate limiting attempts.
@@ -25,6 +26,7 @@ Security requirements:
 We freeze the session management architecture to **Option (A): Opaque 256-bit Session Tokens backed by MariaDB `sessions` table**.
 
 ### Architectural Guarantees:
+
 1. **Cookie Configuration**:
    - Name: `dreamtek_session`
    - Attributes: `HttpOnly; Secure (prod); SameSite=Strict; Path=/api/; Max-Age=86400`
@@ -50,9 +52,9 @@ We freeze the session management architecture to **Option (A): Opaque 256-bit Se
 
 ## 3. Threat Mitigation Matrix
 
-| OWASP Vulnerability | Risk | Mitigation Strategy |
-|---------------------|------|---------------------|
-| **A01: Broken Access Control** | Privilege Escalation / IDOR | Middleware `require_role('ADMIN')` enforces strict RBAC; sessions bound to DB user record. |
-| **A02: Cryptographic Failures** | Secret / Token Leakage | HTTP-Only SameSite=Strict cookies; zero tokens stored in localStorage; SHA-256 token hashing; BCRYPT cost 12 password hashing. |
-| **A03: SQL Injection** | Query Compromise | 100% PDO prepared statements across all auth and session queries. |
-| **A07: Auth Failures** | Brute Force / Session Hijacking | IP/email rate limiting (5 attempts/15 min); session ID regeneration on login; server-side session deletion on logout. |
+| OWASP Vulnerability             | Risk                            | Mitigation Strategy                                                                                                            |
+| ------------------------------- | ------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| **A01: Broken Access Control**  | Privilege Escalation / IDOR     | Middleware `require_role('ADMIN')` enforces strict RBAC; sessions bound to DB user record.                                     |
+| **A02: Cryptographic Failures** | Secret / Token Leakage          | HTTP-Only SameSite=Strict cookies; zero tokens stored in localStorage; SHA-256 token hashing; BCRYPT cost 12 password hashing. |
+| **A03: SQL Injection**          | Query Compromise                | 100% PDO prepared statements across all auth and session queries.                                                              |
+| **A07: Auth Failures**          | Brute Force / Session Hijacking | IP/email rate limiting (5 attempts/15 min); session ID regeneration on login; server-side session deletion on logout.          |

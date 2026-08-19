@@ -1,4 +1,4 @@
-name: "🏛️ Production Database Migrations (Self-Hosted SSH Tunnel)"
+name: '🏛️ Production Database Migrations (Self-Hosted SSH Tunnel)'
 
 on:
   workflow_dispatch:
@@ -16,23 +16,23 @@ on:
 
 jobs:
   production-migrate:
-    name: "🏛️ Run Production MariaDB Migrations"
+    name: '🏛️ Run Production MariaDB Migrations'
     runs-on: self-hosted
     steps:
-      - name: "📥 Checkout Code"
+      - name: '📥 Checkout Code'
         uses: actions/checkout@v4
 
-      - name: "⚙️ Setup Node.js 24"
+      - name: '⚙️ Setup Node.js 24'
         uses: actions/setup-node@v4
         with:
           node-version: '24.x'
 
-      - name: "📦 Install Dependencies"
+      - name: '📦 Install Dependencies'
         run: |
           npm ci || npm install
           npm --prefix server install
 
-      - name: "🔒 Establish Ephemeral SSH Tunnel to Hostinger DB"
+      - name: '🔒 Establish Ephemeral SSH Tunnel to Hostinger DB'
         env:
           SSH_HOST: ${{ secrets.SSH_HOST }}
           SSH_USER: ${{ secrets.SSH_USER }}
@@ -48,7 +48,7 @@ jobs:
           echo "SSH_PID=$SSH_PID" >> $GITHUB_ENV
           sleep 3
 
-      - name: "🚀 Execute Database Migrations"
+      - name: '🚀 Execute Database Migrations'
         env:
           DB_USER: ${{ secrets.PROD_DB_USER }}
           DB_PASSWORD: ${{ secrets.PROD_DB_PASSWORD }}
@@ -60,7 +60,7 @@ jobs:
           fi
           node scripts/migrate.mjs --env production $DRY_FLAG
 
-      - name: "🧹 Close Ephemeral SSH Tunnel"
+      - name: '🧹 Close Ephemeral SSH Tunnel'
         if: always()
         run: |
           if [ -n "$SSH_PID" ]; then

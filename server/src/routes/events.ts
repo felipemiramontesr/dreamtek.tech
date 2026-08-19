@@ -40,13 +40,11 @@ export function sendSSEEventToUser(userId: string, eventType: string, payload: u
 eventsRouter.get('/events', requireAuth, (req: AuthenticatedRequest, res: Response) => {
   const userId = req.user?.userId ? String(req.user.userId) : '';
   if (!userId) {
-    res
-      .status(401)
-      .json({
-        status: 401,
-        error: 'Unauthorized',
-        message: 'Autenticación requerida para stream SSE.',
-      });
+    res.status(401).json({
+      status: 401,
+      error: 'Unauthorized',
+      message: 'Autenticación requerida para stream SSE.',
+    });
     return;
   }
 
