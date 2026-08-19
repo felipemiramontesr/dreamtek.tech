@@ -1,5 +1,5 @@
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { render, screen, fireEvent, waitFor, cleanup } from '@testing-library/react';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import React from 'react';
 import { OnboardingWizard } from '@/components/onboarding/OnboardingWizard';
 import * as onboardingClient from '@/lib/onboarding/client';
@@ -15,6 +15,12 @@ describe('OnboardingWizard Component (100% Coverage Suite)', () => {
   beforeEach(() => {
     vi.resetAllMocks();
     window.alert = vi.fn();
+    window.history.pushState({}, '', '/');
+  });
+
+  afterEach(() => {
+    cleanup();
+    vi.restoreAllMocks();
     window.history.pushState({}, '', '/');
   });
 
@@ -106,6 +112,11 @@ describe('OnboardingWizard Component (100% Coverage Suite)', () => {
   });
 
   it('debe manejar la redirección de checkout a URL de Stripe en Step 4', async () => {
+    const originalLocation = window.location;
+    // @ts-expect-error mock location in jsdom
+    delete window.location;
+    window.location = { ...originalLocation, href: '' } as unknown as Location;
+
     vi.mocked(onboardingClient.submitLead).mockResolvedValueOnce({
       status: 'success',
       lead_id: 1,
@@ -139,7 +150,10 @@ describe('OnboardingWizard Component (100% Coverage Suite)', () => {
 
     await waitFor(() => {
       expect(onboardingClient.createCheckoutSession).toHaveBeenCalled();
+      expect(window.location.href).toBe('https://checkout.stripe.com/pay/cs_test_123');
     });
+
+    window.location = originalLocation;
   });
 
   it('debe validar campos requeridos vacíos en Step 1 y mostrar mensaje de error', () => {
