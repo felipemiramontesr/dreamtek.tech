@@ -130,7 +130,7 @@ export function Services({ dict }: { dict: Dictionary }) {
                 {service.badges.map((badge, idx) => (
                   <span
                     key={idx}
-                    className="px-2 py-1 text-xs font-semibold uppercase tracking-wider text-[#FF2D00] bg-[#FF2D00]/10 rounded-md border border-[#FF2D00]/20"
+                    className="px-2 py-1 text-xs font-semibold uppercase tracking-wider text-[#FF8A65] bg-[#FF2D00]/15 rounded-md border border-[#FF2D00]/20"
                   >
                     {badge}
                   </span>

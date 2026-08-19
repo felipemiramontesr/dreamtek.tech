@@ -16,6 +16,8 @@ server/dist
 # testing
 /coverage
 /storage/
+playwright-report/
+test-results/
 
 # next.js
 /.next/

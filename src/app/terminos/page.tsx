@@ -32,7 +32,7 @@ export default function Terminos() {
             <h2 className="text-2xl font-bold text-white mb-2 text-left">
               Términos de Servicio y Condiciones de Uso
             </h2>
-            <p className="text-sm text-white/40 text-left">
+            <p className="text-sm text-white/70 text-left">
               Última actualización: 14 de julio de 2026
             </p>
 

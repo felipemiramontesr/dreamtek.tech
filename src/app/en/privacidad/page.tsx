@@ -28,7 +28,7 @@ export default function Privacy() {
           </h1>
 
           <div className="glass-panel p-8 sm:p-12 rounded-2xl space-y-8 text-white/80 font-light leading-relaxed text-base">
-            <p className="text-sm text-white/40">Last updated: July 6, 2026</p>
+            <p className="text-sm text-white/70">Last updated: July 6, 2026</p>
 
             <p>
               At <strong>Dreamtek.tech</strong> (hereinafter, &ldquo;Dreamtek&rdquo;), we take the

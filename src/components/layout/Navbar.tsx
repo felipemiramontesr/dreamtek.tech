@@ -150,14 +150,14 @@ export function Navbar({ dict, lang = 'es', onOpenAuthModal }: NavbarProps) {
                 <a
                   href={getTogglePath('es')}
                   onClick={() => handleLangClick('es')}
-                  className={`relative z-10 w-[36px] h-[26px] flex items-center justify-center text-[11px] font-bold tracking-wider transition-colors duration-300 ${lang === 'es' ? 'text-white' : 'text-white/40 hover:text-white/80'}`}
+                  className={`relative z-10 w-[36px] h-[26px] flex items-center justify-center text-[11px] font-bold tracking-wider transition-colors duration-300 ${lang === 'es' ? 'text-white' : 'text-white/70 hover:text-white'}`}
                 >
                   ES
                 </a>
                 <a
                   href={getTogglePath('en')}
                   onClick={() => handleLangClick('en')}
-                  className={`relative z-10 w-[36px] h-[26px] flex items-center justify-center text-[11px] font-bold tracking-wider transition-colors duration-300 ${lang === 'en' ? 'text-white' : 'text-white/40 hover:text-white/80'}`}
+                  className={`relative z-10 w-[36px] h-[26px] flex items-center justify-center text-[11px] font-bold tracking-wider transition-colors duration-300 ${lang === 'en' ? 'text-white' : 'text-white/70 hover:text-white'}`}
                 >
                   EN
                 </a>
@@ -240,7 +240,7 @@ export function Navbar({ dict, lang = 'es', onOpenAuthModal }: NavbarProps) {
                   closeMenu();
                   handleLangClick('es');
                 }}
-                className={`relative z-10 w-[32px] h-[24px] flex items-center justify-center text-[10px] font-bold tracking-wider transition-colors duration-300 ${lang === 'es' ? 'text-white' : 'text-white/40'}`}
+                className={`relative z-10 w-[32px] h-[24px] flex items-center justify-center text-[10px] font-bold tracking-wider transition-colors duration-300 ${lang === 'es' ? 'text-white' : 'text-white/70'}`}
               >
                 ES
               </a>
@@ -250,7 +250,7 @@ export function Navbar({ dict, lang = 'es', onOpenAuthModal }: NavbarProps) {
                   closeMenu();
                   handleLangClick('en');
                 }}
-                className={`relative z-10 w-[32px] h-[24px] flex items-center justify-center text-[10px] font-bold tracking-wider transition-colors duration-300 ${lang === 'en' ? 'text-white' : 'text-white/40'}`}
+                className={`relative z-10 w-[32px] h-[24px] flex items-center justify-center text-[10px] font-bold tracking-wider transition-colors duration-300 ${lang === 'en' ? 'text-white' : 'text-white/70'}`}
               >
                 EN
               </a>

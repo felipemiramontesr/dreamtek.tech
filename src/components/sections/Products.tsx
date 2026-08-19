@@ -104,7 +104,7 @@ export function Products({ dict }: { dict: Dictionary }) {
           <div className="flex flex-col items-center gap-1.5 mt-6 lg:mt-3">
             <div className="flex items-center gap-3 bg-white/5 border border-white/10 px-4 py-1.5 rounded-full backdrop-blur-md">
               <span
-                className={`text-sm font-medium transition-colors duration-200 ${!isAnnual ? 'text-white' : 'text-white/40'}`}
+                className={`text-sm font-medium transition-colors duration-200 ${!isAnnual ? 'text-white' : 'text-white/70'}`}
               >
                 {dict.products.monthly}
               </span>
@@ -119,7 +119,7 @@ export function Products({ dict }: { dict: Dictionary }) {
                 <div className="w-11 h-6 bg-white/10 border border-white/20 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-5 after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-[#FF2D00] after:border-none after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-white/15 duration-300 transition-all shadow-[inset_0_0_4px_rgba(0,0,0,0.4)]" />
               </label>
               <span
-                className={`text-sm font-medium transition-colors duration-200 ${isAnnual ? 'text-white' : 'text-white/40'}`}
+                className={`text-sm font-medium transition-colors duration-200 ${isAnnual ? 'text-white' : 'text-white/70'}`}
               >
                 {dict.products.annual}
               </span>
@@ -160,7 +160,7 @@ export function Products({ dict }: { dict: Dictionary }) {
                       {isAnnual ? plan.annualPrice : plan.price}
                     </span>
                     {plan.priceSuffix ? (
-                      <span className="text-white/40 text-sm sm:text-base font-light font-sans self-end pb-1">
+                      <span className="text-white/70 text-sm sm:text-base font-light font-sans self-end pb-1">
                         {plan.priceSuffix}
                       </span>
                     ) : (
@@ -251,7 +251,7 @@ export function Products({ dict }: { dict: Dictionary }) {
             <div className="flex flex-col items-center gap-1">
               <div className="flex items-center gap-2.5 sm:gap-3 bg-white/5 border border-white/10 px-3.5 py-1.5 rounded-full">
                 <span
-                  className={`text-xs sm:text-sm font-medium transition-colors duration-200 ${!isAnnual ? 'text-white' : 'text-white/40'}`}
+                  className={`text-xs sm:text-sm font-medium transition-colors duration-200 ${!isAnnual ? 'text-white' : 'text-white/70'}`}
                 >
                   {dict.products.monthly}
                 </span>
@@ -266,7 +266,7 @@ export function Products({ dict }: { dict: Dictionary }) {
                   <div className="w-11 h-6 bg-white/10 border border-white/20 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-5 after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-[#FF2D00] after:border-none after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-white/15 duration-300 transition-all shadow-[inset_0_0_4px_rgba(0,0,0,0.4)]" />
                 </label>
                 <span
-                  className={`text-xs sm:text-sm font-medium transition-colors duration-200 ${isAnnual ? 'text-white' : 'text-white/40'}`}
+                  className={`text-xs sm:text-sm font-medium transition-colors duration-200 ${isAnnual ? 'text-white' : 'text-white/70'}`}
                 >
                   {dict.products.annual}
                 </span>
@@ -329,7 +329,7 @@ export function Products({ dict }: { dict: Dictionary }) {
                 className={`flex-1 text-center py-2 text-[10px] font-bold tracking-widest transition-all ${
                   activeTab === 'includes'
                     ? 'text-emerald-400 border-b-2 border-emerald-400'
-                    : 'text-white/40'
+                    : 'text-white/70'
                 }`}
               >
                 {dict.products.modal.tabs.includes}
@@ -340,7 +340,7 @@ export function Products({ dict }: { dict: Dictionary }) {
                 className={`flex-1 text-center py-2 text-[10px] font-bold tracking-widest transition-all ${
                   activeTab === 'excludes'
                     ? 'text-sky-400 border-b-2 border-sky-400'
-                    : 'text-white/40'
+                    : 'text-white/70'
                 }`}
               >
                 {dict.products.modal.tabs.excludes}
@@ -351,7 +351,7 @@ export function Products({ dict }: { dict: Dictionary }) {
                 className={`flex-1 text-center py-2 text-[10px] font-bold tracking-widest transition-all ${
                   activeTab === 'process'
                     ? 'text-sky-400 border-b-2 border-sky-400'
-                    : 'text-white/40'
+                    : 'text-white/70'
                 }`}
               >
                 {dict.products.modal.tabs.process}

@@ -177,14 +177,14 @@ export const OnboardingWizard: React.FC<OnboardingWizardProps> = ({ isAnnual, on
                     ? 'bg-[#FF2D00] text-white shadow-[0_0_15px_rgba(255,45,0,0.6)]'
                     : step > s
                       ? 'bg-white/10 text-emerald-400 border border-emerald-500/40'
-                      : 'bg-white/5 text-white/40 border border-white/10'
+                      : 'bg-white/5 text-white/70 border border-white/10'
                 }`}
               >
                 {step > s ? '✓' : s}
               </div>
               <span
                 className={`hidden sm:inline text-xs font-medium ${
-                  step === s ? 'text-[#FF2D00] font-bold' : 'text-white/40'
+                  step === s ? 'text-[#FF2D00] font-bold' : 'text-white/70'
                 }`}
               >
                 {s === 1 && 'Contacto'}

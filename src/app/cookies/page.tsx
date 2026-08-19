@@ -32,7 +32,7 @@ export default function CookiesPage() {
             <h2 className="text-2xl font-bold text-white mb-2 text-left">
               Política de Manejo de Cookies y Tecnologías de Almacenamiento
             </h2>
-            <p className="text-sm text-white/40 text-left">
+            <p className="text-sm text-white/70 text-left">
               Última actualización: 14 de julio de 2026
             </p>
 
