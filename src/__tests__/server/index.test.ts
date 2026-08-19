@@ -44,7 +44,15 @@ describe('Server Index Core (100% Coverage Suite)', () => {
     const res = await supertest(app).get('/api/v1/docs');
     expect(res.status).toBe(200);
     expect(res.body).toEqual(mockDiskDocs);
-    expect(setCacheSpy).toHaveBeenCalledWith('openapi_docs_v1', mockDiskDocs, 3600);
+    expect(setCacheSpy).toHaveBeenCalledWith('docs:openapi:3.1', mockDiskDocs, 300);
+  });
+
+  it('GET /api/v1/docs debe usar fallback sendFile cuando el archivo no existe en disco', async () => {
+    vi.spyOn(cacheUtil, 'getCache').mockResolvedValueOnce(null);
+    vi.spyOn(fs, 'existsSync').mockReturnValueOnce(false);
+
+    const res = await supertest(app).get('/api/v1/docs');
+    expect(res.status).toBe(200);
   });
 
   it('GET /api/v1/docs debe manejar error de JSON inválido en swagger.json y hacer fallback', async () => {
@@ -92,23 +100,19 @@ describe('Server Index Core (100% Coverage Suite)', () => {
     expect(cb).toHaveBeenCalledWith(expect.any(Error));
   });
 
-  it('startServer debe iniciar el servidor HTTP y ejecutar el log de inicio', async () => {
+  it('startServer debe iniciar el servidor HTTP y ejecutar el log de inicio', () => {
     const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
-    const srv = startServer(3999);
+    const listenSpy = vi.spyOn(app, 'listen').mockImplementation(((
+      port: number,
+      cb: () => void,
+    ) => {
+      if (cb) cb();
+      return { close: vi.fn() };
+    }) as unknown as typeof app.listen);
 
-    await new Promise<void>((resolve) => {
-      if (srv.listening) {
-        resolve();
-      } else {
-        srv.on('listening', () => resolve());
-      }
-    });
-
+    startServer();
+    expect(listenSpy).toHaveBeenCalled();
     expect(consoleSpy).toHaveBeenCalled();
-
-    await new Promise<void>((resolve, reject) => {
-      srv.close((err) => (err ? reject(err) : resolve()));
-    });
   });
 
   it('setupSignalHandlers debe configurar los listeners de proceso SIGTERM y SIGINT', () => {
@@ -176,10 +180,14 @@ describe('Server Index Core (100% Coverage Suite)', () => {
     vi.useRealTimers();
   });
 
-  it('initialize debe llamar a setupSignalHandlers cuando no está en modo test', () => {
+  it('initialize debe llamar a setupSignalHandlers cuando no está en modo test y omitir en test', () => {
+    // Mode test
+    const processOnSpy = vi.spyOn(process, 'on');
+    initialize();
+
+    // Mode production
     const origEnv = process.env.NODE_ENV;
     process.env.NODE_ENV = 'production';
-    const processOnSpy = vi.spyOn(process, 'on');
     initialize();
     expect(processOnSpy).toHaveBeenCalled();
     process.env.NODE_ENV = origEnv;

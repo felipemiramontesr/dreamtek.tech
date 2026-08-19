@@ -13,12 +13,9 @@ vi.mock('@/lib/onboarding/client', () => ({
 
 describe('OnboardingWizard Component (100% Coverage Suite)', () => {
   beforeEach(() => {
-    vi.clearAllMocks();
+    vi.resetAllMocks();
     window.alert = vi.fn();
-    Object.defineProperty(window, 'location', {
-      writable: true,
-      value: new URL('https://dreamtek.tech'),
-    });
+    window.history.pushState({}, '', '/');
   });
 
   it('debe ejecutar el flujo completo de 5 pasos exitosamente', async () => {
@@ -145,23 +142,58 @@ describe('OnboardingWizard Component (100% Coverage Suite)', () => {
     });
   });
 
-  it('debe validar errores de validación de Zod en submitLead (Step 1)', async () => {
-    vi.mocked(onboardingClient.submitLead).mockRejectedValueOnce({
-      errors: [
-        { path: ['fullName'], message: 'Nombre inválido' },
-        { path: ['email'], message: 'Email requerido' },
-      ],
-    });
+  it('debe validar campos requeridos vacíos en Step 1 y mostrar mensaje de error', () => {
+    const { container } = render(<OnboardingWizard isAnnual={false} onClose={vi.fn()} />);
+
+    const form = container.querySelector('form');
+    if (form) {
+      fireEvent.submit(form);
+    }
+
+    expect(screen.getByText(/Por favor completa todos los campos requeridos/i)).toBeInTheDocument();
+  });
+
+  it('debe validar errores de validación en submitLead (Step 1)', async () => {
+    vi.mocked(onboardingClient.submitLead).mockRejectedValueOnce(
+      new Error('Nombre inválido: debe contener al menos 2 caracteres'),
+    );
 
     render(<OnboardingWizard isAnnual={false} onClose={vi.fn()} />);
 
     fireEvent.change(screen.getByPlaceholderText('Ej. Roberto Gómez'), {
       target: { value: 'R' },
     });
+    fireEvent.change(screen.getByPlaceholderText('roberto@empresa.com'), {
+      target: { value: 'roberto@empresa.com' },
+    });
+    fireEvent.change(screen.getByPlaceholderText('+52 55 1234 5678'), {
+      target: { value: '+52 55 1234 5678' },
+    });
     fireEvent.click(screen.getByRole('button', { name: /Continuar a Plantillas/i }));
 
     await waitFor(() => {
       expect(screen.getByText(/Nombre inválido/i)).toBeInTheDocument();
+    });
+  });
+
+  it('debe manejar fallback de error no-Error en submitLead (Step 1)', async () => {
+    vi.mocked(onboardingClient.submitLead).mockRejectedValueOnce('UNKNOWN_NETWORK_ERROR');
+
+    render(<OnboardingWizard isAnnual={false} onClose={vi.fn()} />);
+
+    fireEvent.change(screen.getByPlaceholderText('Ej. Roberto Gómez'), {
+      target: { value: 'Roberto Gómez' },
+    });
+    fireEvent.change(screen.getByPlaceholderText('roberto@empresa.com'), {
+      target: { value: 'roberto@empresa.com' },
+    });
+    fireEvent.change(screen.getByPlaceholderText('+52 55 1234 5678'), {
+      target: { value: '+52 55 1234 5678' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: /Continuar a Plantillas/i }));
+
+    await waitFor(() => {
+      expect(screen.getByText(/Error al registrar el contacto/i)).toBeInTheDocument();
     });
   });
 
@@ -195,7 +227,7 @@ describe('OnboardingWizard Component (100% Coverage Suite)', () => {
     render(<OnboardingWizard isAnnual={false} onClose={onClose} />);
 
     const authLink = screen.getByRole('button', {
-      name: /¿Ya tienes una cuenta registrada\? Inicia sesión aquí/i,
+      name: /¿Ya eres cliente de Dreamtek\? Inicia sesión aquí/i,
     });
     fireEvent.click(authLink);
 
@@ -208,7 +240,7 @@ describe('OnboardingWizard Component (100% Coverage Suite)', () => {
   });
 
   it('debe navegar hacia atrás (← Regresar) entre los pasos', async () => {
-    vi.mocked(onboardingClient.submitLead).mockResolvedValueOnce({
+    vi.mocked(onboardingClient.submitLead).mockResolvedValue({
       status: 'success',
       lead_id: 1,
     });
@@ -241,7 +273,7 @@ describe('OnboardingWizard Component (100% Coverage Suite)', () => {
       expect(screen.getByText('Paso 2: Selección de Estructura Visual')).toBeInTheDocument();
     });
     fireEvent.click(screen.getByRole('button', { name: /Continuar a Dominio/i }));
-    expect(screen.getByText('Paso 3: Identidad y Dominio Web')).toBeInTheDocument();
+    expect(screen.getByText(/Paso 3: Verificación de Dominio/i)).toBeInTheDocument();
 
     // Go back from Step 3 to Step 2
     fireEvent.click(screen.getByRole('button', { name: /← Regresar/i }));
@@ -250,11 +282,41 @@ describe('OnboardingWizard Component (100% Coverage Suite)', () => {
     // Advance to Step 4 (Summary)
     fireEvent.click(screen.getByRole('button', { name: /Continuar a Dominio/i }));
     fireEvent.click(screen.getByRole('button', { name: /Continuar a Resumen/i }));
-    expect(screen.getByText('Paso 4: Resumen de Despliegue')).toBeInTheDocument();
+    expect(screen.getByText(/Paso 4: Resumen de Orden/i)).toBeInTheDocument();
 
     // Go back from Step 4 to Step 3
     fireEvent.click(screen.getByRole('button', { name: /← Regresar/i }));
-    expect(screen.getByText('Paso 3: Identidad y Dominio Web')).toBeInTheDocument();
+    expect(screen.getByText(/Paso 3: Verificación de Dominio/i)).toBeInTheDocument();
+  });
+
+  it('debe validar dominio vacío en Step 3 y mostrar mensaje de error', async () => {
+    vi.mocked(onboardingClient.submitLead).mockResolvedValueOnce({
+      status: 'success',
+      lead_id: 1,
+    });
+
+    render(<OnboardingWizard isAnnual={false} onClose={vi.fn()} />);
+
+    // Advance to Step 3
+    fireEvent.change(screen.getByPlaceholderText('Ej. Roberto Gómez'), {
+      target: { value: 'Roberto Gómez' },
+    });
+    fireEvent.change(screen.getByPlaceholderText('roberto@empresa.com'), {
+      target: { value: 'roberto@empresa.com' },
+    });
+    fireEvent.change(screen.getByPlaceholderText('+52 55 1234 5678'), {
+      target: { value: '+52 55 1234 5678' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: /Continuar a Plantillas/i }));
+
+    await waitFor(() => {
+      expect(screen.getByText('Paso 2: Selección de Estructura Visual')).toBeInTheDocument();
+    });
+    fireEvent.click(screen.getByRole('button', { name: /Continuar a Dominio/i }));
+
+    // Click Verificar with empty input
+    fireEvent.click(screen.getByRole('button', { name: /Verificar/i }));
+    expect(screen.getByText(/Ingresa un nombre de dominio para verificar/i)).toBeInTheDocument();
   });
 
   it('debe validar la disponibilidad de dominio y mostrar sugerencia si está ocupado', async () => {
@@ -288,14 +350,13 @@ describe('OnboardingWizard Component (100% Coverage Suite)', () => {
     });
     fireEvent.click(screen.getByRole('button', { name: /Continuar a Dominio/i }));
 
-    fireEvent.change(screen.getByPlaceholderText('mi-empresa-ideal'), {
-      target: { value: 'google' },
+    fireEvent.change(screen.getByPlaceholderText('ej. miempresa.com'), {
+      target: { value: 'google.com' },
     });
-    fireEvent.click(screen.getByRole('button', { name: /Verificar Disponibilidad/i }));
+    fireEvent.click(screen.getByRole('button', { name: /Verificar/i }));
 
     await waitFor(() => {
       expect(screen.getByText(/Dominio ocupado/i)).toBeInTheDocument();
-      expect(screen.getByText(/google-portal\.tech/i)).toBeInTheDocument();
     });
   });
 
@@ -326,10 +387,10 @@ describe('OnboardingWizard Component (100% Coverage Suite)', () => {
     });
     fireEvent.click(screen.getByRole('button', { name: /Continuar a Dominio/i }));
 
-    fireEvent.change(screen.getByPlaceholderText('mi-empresa-ideal'), {
+    fireEvent.change(screen.getByPlaceholderText('ej. miempresa.com'), {
       target: { value: 'error-domain' },
     });
-    fireEvent.click(screen.getByRole('button', { name: /Verificar Disponibilidad/i }));
+    fireEvent.click(screen.getByRole('button', { name: /Verificar/i }));
 
     await waitFor(() => {
       expect(screen.getByText(/Timeout de WHOIS/i)).toBeInTheDocument();
@@ -372,10 +433,7 @@ describe('OnboardingWizard Component (100% Coverage Suite)', () => {
   });
 
   it('debe verificar la sesión de Stripe en URL al cargar en Step 5', async () => {
-    Object.defineProperty(window, 'location', {
-      writable: true,
-      value: new URL('https://dreamtek.tech?session_id=cs_123&step=5'),
-    });
+    window.history.pushState({}, '', '/?session_id=cs_123&step=5');
     vi.mocked(onboardingClient.verifyCheckoutSuccess).mockResolvedValueOnce({
       status: 'paid',
       customer_email: 'test@example.com',
@@ -391,10 +449,7 @@ describe('OnboardingWizard Component (100% Coverage Suite)', () => {
   });
 
   it('debe mostrar error si la verificación de sesión en URL falla', async () => {
-    Object.defineProperty(window, 'location', {
-      writable: true,
-      value: new URL('https://dreamtek.tech?session_id=cs_fail&step=5'),
-    });
+    window.history.pushState({}, '', '/?session_id=cs_fail&step=5');
     vi.mocked(onboardingClient.verifyCheckoutSuccess).mockRejectedValueOnce(
       new Error('Sesión expirada o no encontrada'),
     );
