@@ -4,6 +4,8 @@
  * Pure type definitions for client-side and API contract safety.
  */
 
+export const DB_SCHEMA_VERSION = '1.0.0';
+
 export type UserRole = 'CLIENT' | 'ADMIN';
 export type BillingCycle = 'monthly' | 'annual';
 export type SubscriptionStatus = 'active' | 'past_due' | 'cancelled';

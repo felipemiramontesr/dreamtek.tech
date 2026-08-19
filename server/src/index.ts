@@ -63,25 +63,27 @@ app.use(
   })
 );
 
-// CORS Fail-Closed Allowlist Setup (Condition C-H4)
-const allowedOrigins = [
+// Condition C-H4: CORS Fail-Closed Allowlist Setup
+export const allowedOrigins = [
   'http://localhost:3000',
   'https://dreamtek.tech',
   'https://www.dreamtek.tech',
+  ...(process.env.CORS_ORIGIN ? [process.env.CORS_ORIGIN] : []),
 ];
 
-if (process.env.CORS_ORIGIN) {
-  allowedOrigins.push(process.env.CORS_ORIGIN);
-}
+export const corsOriginHandler = (
+  origin: string | undefined,
+  callback: (err: Error | null, allow?: boolean) => void
+) => {
+  if (!origin || allowedOrigins.includes(origin)) {
+    return callback(null, true);
+  }
+  return callback(new Error('CORS Policy: Origin not allowed by Access-Control-Allow-Origin'));
+};
 
 app.use(
   cors({
-    origin: (origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) => {
-      if (!origin || allowedOrigins.includes(origin)) {
-        return callback(null, true);
-      }
-      return callback(new Error('CORS Policy: Origin not allowed by Access-Control-Allow-Origin'));
-    },
+    origin: corsOriginHandler,
     credentials: true,
   })
 );
@@ -149,15 +151,16 @@ app.use('/api/v1', eventsRouter);
 
 
 // Start HTTP Server
-const server =
-  process.env.NODE_ENV !== 'test'
-    ? app.listen(PORT, () => {
-        console.log(`🚀 Dreamtek Node.js API Server running on port ${PORT}`);
-      })
-    : null;
+export const startServer = (port = PORT) => {
+  return app.listen(port, () => {
+    console.log(`🚀 Dreamtek Node.js API Server running on port ${port}`);
+  });
+};
+
+export const server = process.env.NODE_ENV === 'test' ? null : startServer();
 
 // Graceful Shutdown Logic (Condition C-J3)
-const gracefulShutdown = (signal: string) => {
+export const gracefulShutdown = (signal: string, customServer: any = server, customPool: any = pool) => {
   console.log(`\n⚠️ Received ${signal}. Starting Graceful Shutdown...`);
   setShuttingDownState(true);
 
@@ -168,12 +171,12 @@ const gracefulShutdown = (signal: string) => {
   }, 10000);
   forceExitTimeout.unref();
 
-  if (server) {
-    server.close(async () => {
+  if (customServer) {
+    customServer.close(async () => {
       console.log('🔒 Express HTTP server closed. Closing MariaDB connection pool...');
       try {
-        if (pool && typeof pool.end === 'function') {
-          await pool.end();
+        if (customPool && typeof customPool.end === 'function') {
+          await customPool.end();
         }
         console.log('✅ MariaDB pool closed cleanly. Process exiting.');
         process.exit(0);
@@ -187,9 +190,18 @@ const gracefulShutdown = (signal: string) => {
   }
 };
 
-if (process.env.NODE_ENV !== 'test') {
+export const setupSignalHandlers = () => {
   process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
   process.on('SIGINT', () => gracefulShutdown('SIGINT'));
-}
+};
 
+export const initialize = () => {
+  if (process.env.NODE_ENV !== 'test') {
+    setupSignalHandlers();
+  }
+};
+
+initialize();
+
+export { app };
 export default app;

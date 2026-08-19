@@ -2,8 +2,9 @@ import { render, screen, fireEvent } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { Products } from '@/components/sections/Products';
 import { es } from '@/i18n/dictionaries/es';
+import { en } from '@/i18n/dictionaries/en';
 
-describe('Products Component with Onboarding Wizard', () => {
+describe('Products Component (100% Coverage Suite)', () => {
   beforeEach(() => {
     document.body.className = '';
     vi.restoreAllMocks();
@@ -22,18 +23,45 @@ describe('Products Component with Onboarding Wizard', () => {
     });
   });
 
-  it('debe abrir el Modal Informativo al hacer clic en "Ver Alcance y Detalles" y pasar al Onboarding Wizard al pulsar el CTA', () => {
+  it('debe abrir el Modal Informativo y permitir cambiar entre las pestañas móviles (Incluye / Exclusiones / Proceso)', () => {
     render(<Products dict={es} />);
 
     const openModalBtn = screen.getByRole('button', { name: /Ver Alcance y Detalles/i });
     fireEvent.click(openModalBtn);
 
-    // Debe mostrar la vista informativa original
+    // Default tab: includes
     expect(screen.getAllByText(es.products.modal.includesTitle).length).toBeGreaterThan(0);
-    expect(document.body.classList.contains('modal-open')).toBe(true);
 
-    // Al hacer clic en el botón del footer "Iniciar mi Posicionamiento Web", pasa al Wizard (Paso 1)
-    const ctaWizardBtn = screen.getByRole('button', { name: new RegExp(`${es.products.modal.ctaText}`, 'i') });
+    // Switch to excludes tab
+    const excludesTabBtn = screen.getByRole('button', {
+      name: new RegExp(es.products.modal.tabs.excludes, 'i'),
+    });
+    fireEvent.click(excludesTabBtn);
+    expect(screen.getAllByText(es.products.modal.excludesTitle).length).toBeGreaterThan(0);
+
+    // Switch to process tab
+    const processTabBtn = screen.getByRole('button', {
+      name: new RegExp(es.products.modal.tabs.process, 'i'),
+    });
+    fireEvent.click(processTabBtn);
+    expect(screen.getAllByText(es.products.modal.processTitle).length).toBeGreaterThan(0);
+
+    // Switch back to includes tab
+    const includesTabBtn = screen.getByRole('button', {
+      name: new RegExp(es.products.modal.tabs.includes, 'i'),
+    });
+    fireEvent.click(includesTabBtn);
+    expect(screen.getAllByText(es.products.modal.includesTitle).length).toBeGreaterThan(0);
+  });
+
+  it('debe pasar al Wizard al pulsar el CTA del footer del modal y cerrarlo', () => {
+    render(<Products dict={es} />);
+
+    fireEvent.click(screen.getByRole('button', { name: /Ver Alcance y Detalles/i }));
+
+    const ctaWizardBtn = screen.getByRole('button', {
+      name: new RegExp(`${es.products.modal.ctaText}`, 'i'),
+    });
     fireEvent.click(ctaWizardBtn);
 
     expect(screen.getByText(/Paso 1: Información de Contacto/i)).toBeInTheDocument();
@@ -45,16 +73,54 @@ describe('Products Component with Onboarding Wizard', () => {
     expect(document.body.classList.contains('modal-open')).toBe(false);
   });
 
-  it('debe cerrar el modal al hacer clic en el backdrop de fondo', () => {
-    const { container } = render(<Products dict={es} />);
+  it('debe abrir el modal en modo Onboarding y permitir cerrarlo desde el wizard', () => {
+    render(<Products dict={es} />);
 
     fireEvent.click(screen.getByRole('button', { name: /Ver Alcance y Detalles/i }));
+
+    const ctaWizardBtn = screen.getByRole('button', {
+      name: new RegExp(`${es.products.modal.ctaText}`, 'i'),
+    });
+    fireEvent.click(ctaWizardBtn);
+
+    expect(screen.getByText(/Paso 1: Información de Contacto/i)).toBeInTheDocument();
+
+    // Click link inside wizard which calls onClose on the modal
+    const authLink = screen.getByRole('button', {
+      name: /¿Ya eres cliente de Dreamtek\? Inicia sesión aquí/i,
+    });
+    fireEvent.click(authLink);
+
+    expect(screen.queryByText(/Paso 1: Información de Contacto/i)).not.toBeInTheDocument();
+  });
+
+  it('debe alternar la facturación anual dentro del modal y permitir regresar de onboarding a info', () => {
+    render(<Products dict={es} />);
+
+    // Open modal in info mode
+    fireEvent.click(screen.getByRole('button', { name: /Ver Alcance y Detalles/i }));
+
+    // Toggle annual switch inside modal headerAction
+    const modalAnnualToggle = screen.getByRole('checkbox', { name: /facturación anual modal/i });
+    fireEvent.click(modalAnnualToggle);
+    expect(screen.getAllByText(es.products.save).length).toBeGreaterThan(0);
+
+    // Switch to onboarding wizard mode
+    const ctaWizardBtn = screen.getByRole('button', {
+      name: new RegExp(`${es.products.modal.ctaText}`, 'i'),
+    });
+    fireEvent.click(ctaWizardBtn);
+    expect(screen.getByText(/Paso 1: Información de Contacto/i)).toBeInTheDocument();
+
+    // Click return to info button in header
+    const returnToInfoBtn = screen.getByRole('button', { name: /VOLVER A ALCANCE Y DETALLES/i });
+    fireEvent.click(returnToInfoBtn);
+
     expect(screen.getAllByText(es.products.modal.includesTitle).length).toBeGreaterThan(0);
+  });
 
-    const backdrop = container.querySelector('.fixed.inset-0 > .absolute.inset-0');
-    expect(backdrop).toBeInTheDocument();
-
-    fireEvent.click(backdrop!);
-    expect(screen.queryByText(es.products.modal.includesTitle)).not.toBeInTheDocument();
+  it('debe soportar la renderización en inglés', () => {
+    render(<Products dict={en} lang="en" />);
+    expect(screen.getByText(en.products.subtitle)).toBeInTheDocument();
   });
 });

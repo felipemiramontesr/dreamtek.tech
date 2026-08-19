@@ -54,13 +54,11 @@ export const OnboardingWizard: React.FC<OnboardingWizardProps> = ({ isAnnual, on
     }
     return 1;
   });
-  const [loading, setLoading] = useState<boolean>(() => {
-    if (typeof window !== 'undefined') {
-      const urlParams = new URLSearchParams(window.location.search);
-      return Boolean(urlParams.get('session_id'));
-    }
-    return false;
-  });
+  const [loading, setLoading] = useState<boolean>(() =>
+    typeof window !== 'undefined'
+      ? Boolean(new URLSearchParams(window.location.search).get('session_id'))
+      : false,
+  );
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   // Form State

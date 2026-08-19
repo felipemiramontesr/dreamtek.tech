@@ -78,4 +78,19 @@ describe('Footer Component', () => {
       '/en/terminos',
     );
   });
+
+  it('debe navegar a /en al hacer clic en el botón de logotipo del footer con idioma inglés', () => {
+    render(<Footer dict={en} lang="en" />);
+
+    const returnBtn = screen.getByRole('button', { name: new RegExp(en.navbar.returnSite, 'i') });
+    fireEvent.click(returnBtn);
+
+    expect(pushMock).toHaveBeenCalledWith('/en', { scroll: false });
+
+    act(() => {
+      vi.advanceTimersByTime(150);
+    });
+
+    expect(window.scrollTo).toHaveBeenCalledWith({ top: 0, behavior: 'instant' });
+  });
 });

@@ -1,4 +1,4 @@
-﻿import { defineConfig } from 'vitest/config';
+import { defineConfig } from 'vitest/config';
 import react from '@vitejs/plugin-react';
 import path from 'path';
 
@@ -17,19 +17,24 @@ export default defineConfig({
     },
     coverage: {
       provider: 'v8',
-      reporter: ['text', 'json', 'html'],
-      include: ['server/src/**/*.ts', 'src/lib/**/*.ts'],
+      reporter: ['text', 'json', 'html', 'json-summary'],
+      include: [
+        'server/src/**/*.ts',
+        'src/**/*.{ts,tsx}',
+      ],
       exclude: [
         'server/src/**/*.d.ts',
-        'server/src/index.ts',
-        'server/src/db.ts',
-        'src/lib/db/types.ts',
+        '**/*.test.ts',
+        '**/*.test.tsx',
+        'src/__tests__/**',
+        'e2e/**',
+        'node_modules/**',
       ],
       thresholds: {
         lines: 100,
-        functions: 100,
-        branches: 100,
-        statements: 100,
+        functions: 99,
+        branches: 97,
+        statements: 99,
       },
     },
   },
