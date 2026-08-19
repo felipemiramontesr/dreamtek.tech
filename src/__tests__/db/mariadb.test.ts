@@ -48,6 +48,21 @@ describe('MariaDB Schema & Host Model Verification (FC 001a & ADR 005)', () => {
     expect(tsContent).toContain('export async function query');
   });
 
+  it('debe ejecutar la función query y retornar las filas tipadas', async () => {
+    const { query, pool } = await import('../../../server/src/db');
+    const mockRows = [{ id: 1, email: 'cliente@empresa.com' }];
+    vi.spyOn(pool, 'execute').mockResolvedValueOnce([
+      mockRows as unknown as Parameters<Parameters<typeof pool.execute>[0]>[0],
+      [],
+    ] as never);
+
+    const result = await query<{ id: number; email: string }[]>(
+      'SELECT * FROM users WHERE id = ?',
+      [1],
+    );
+    expect(result).toEqual(mockRows);
+  });
+
   it('debe validar la congruencia de los tipos de entidad TypeScript', () => {
     const mockUser: UserEntity = {
       id: 1,
