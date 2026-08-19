@@ -5,7 +5,7 @@ import sharp from 'sharp';
 import { query } from '../db';
 
 export const STORAGE_ROOT = path.resolve(
-  process.env.DAM_STORAGE_ROOT || path.join(process.cwd(), 'storage', 'dam')
+  process.env.DAM_STORAGE_ROOT || path.join(process.cwd(), 'storage', 'dam'),
 );
 
 // Ensure storage root exists
@@ -36,39 +36,39 @@ export function computeBufferSha256(buffer: Buffer): string {
  * Auto-bootstrap default Workspace and Collection for a Tenant if none exists.
  */
 export async function getOrCreateDefaultWorkspace(
-  tenantId: number
+  tenantId: number,
 ): Promise<{ workspaceId: number; collectionId: number }> {
   // Check if workspace exists
   const workspaces = await query<any[]>(
     'SELECT id FROM workspaces WHERE tenant_id = ? ORDER BY id ASC LIMIT 1',
-    [tenantId]
+    [tenantId],
   );
 
   let workspaceId: number;
   if (workspaces && workspaces.length > 0) {
     workspaceId = workspaces[0].id;
   } else {
-    const res = await query<any>(
-      'INSERT INTO workspaces (tenant_id, name) VALUES (?, ?)',
-      [tenantId, 'General Workspace']
-    );
+    const res = await query<any>('INSERT INTO workspaces (tenant_id, name) VALUES (?, ?)', [
+      tenantId,
+      'General Workspace',
+    ]);
     workspaceId = res.insertId;
   }
 
   // Check if collection exists
   const collections = await query<any[]>(
     'SELECT id FROM collections WHERE workspace_id = ? ORDER BY id ASC LIMIT 1',
-    [workspaceId]
+    [workspaceId],
   );
 
   let collectionId: number;
   if (collections && collections.length > 0) {
     collectionId = collections[0].id;
   } else {
-    const res = await query<any>(
-      'INSERT INTO collections (workspace_id, name) VALUES (?, ?)',
-      [workspaceId, 'Todos los Archivos']
-    );
+    const res = await query<any>('INSERT INTO collections (workspace_id, name) VALUES (?, ?)', [
+      workspaceId,
+      'Todos los Archivos',
+    ]);
     collectionId = res.insertId;
   }
 
@@ -89,7 +89,7 @@ export interface GeneratedDerivative {
 export async function generateWebPDerivatives(
   inputBuffer: Buffer,
   mimeType: string,
-  outDir: string
+  outDir: string,
 ): Promise<GeneratedDerivative[]> {
   const derivatives: GeneratedDerivative[] = [];
 

@@ -6,17 +6,22 @@ import { metricsRegistry } from '../utils/metrics';
  */
 export function normalizeRoutePath(rawPath: string): string {
   if (!rawPath) return '/';
-  
+
   // Remove query strings
   const cleanPath = rawPath.split('?')[0];
 
-  return cleanPath
-    // Replace UUIDs
-    .replace(/[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}/g, ':id')
-    // Replace numeric IDs (e.g. /users/123 -> /users/:id)
-    .replace(/\/\d+/g, '/:id')
-    // Replace hex tokens
-    .replace(/\/[0-9a-fA-F]{16,}/g, '/:token');
+  return (
+    cleanPath
+      // Replace UUIDs
+      .replace(
+        /[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}/g,
+        ':id',
+      )
+      // Replace numeric IDs (e.g. /users/123 -> /users/:id)
+      .replace(/\/\d+/g, '/:id')
+      // Replace hex tokens
+      .replace(/\/[0-9a-fA-F]{16,}/g, '/:token')
+  );
 }
 
 export function metricsMiddleware(req: Request, res: Response, next: NextFunction): void {

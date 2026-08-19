@@ -21,7 +21,9 @@ interface JwtTokenPayload {
 
 function getJwtSecret(): string {
   if (process.env.NODE_ENV === 'production' && !process.env.JWT_SECRET) {
-    throw new Error('FATAL SECURITY ERROR: JWT_SECRET environment variable is missing in production.');
+    throw new Error(
+      'FATAL SECURITY ERROR: JWT_SECRET environment variable is missing in production.',
+    );
   }
   return process.env.JWT_SECRET || 'dreamtek_dev_jwt_secret_key_2026';
 }
@@ -54,7 +56,7 @@ export function requireAuth(req: AuthenticatedRequest, res: Response, next: Next
 
   try {
     const decoded = jwt.verify(token, getJwtSecret(), { algorithms: ['HS512'] }) as JwtTokenPayload;
-    
+
     // Condition C-M1 & C-M2: Standardize userId, email, and uppercase role
     req.user = {
       userId: decoded.userId || decoded.uid || decoded.id || 0,

@@ -15,10 +15,15 @@ clientRouter.get('/dashboard', async (req: AuthenticatedRequest, res: Response):
   try {
     const userId = req.user?.userId;
 
-    const users = await query<any[]>('SELECT id, full_name, email, role, created_at FROM users WHERE id = ? LIMIT 1', [userId]);
+    const users = await query<any[]>(
+      'SELECT id, full_name, email, role, created_at FROM users WHERE id = ? LIMIT 1',
+      [userId],
+    );
 
     if (users.length === 0) {
-      res.status(404).json({ status: 404, error: 'Not Found', message: 'Perfil de cliente no encontrado.' });
+      res
+        .status(404)
+        .json({ status: 404, error: 'Not Found', message: 'Perfil de cliente no encontrado.' });
       return;
     }
 
@@ -27,7 +32,10 @@ clientRouter.get('/dashboard', async (req: AuthenticatedRequest, res: Response):
     // Safely query user sites without fake demo fallbacks (Rule F01 / Condition 001m R3)
     let sites: any[] = [];
     try {
-      sites = await query<any[]>('SELECT id, domain, status, ssl FROM client_sites WHERE user_id = ?', [userId]);
+      sites = await query<any[]>(
+        'SELECT id, domain, status, ssl FROM client_sites WHERE user_id = ?',
+        [userId],
+      );
     } catch (dbErr: any) {
       console.error('⚠️ client_sites DB query warning:', dbErr?.message || dbErr);
       sites = [];
@@ -43,12 +51,19 @@ clientRouter.get('/dashboard', async (req: AuthenticatedRequest, res: Response):
         created_at: user.created_at,
       },
       services: [
-        { id: 'srv-1', name: 'Escolta WEB — Posicionamiento', status: 'active', billing_cycle: 'annual' },
+        {
+          id: 'srv-1',
+          name: 'Escolta WEB — Posicionamiento',
+          status: 'active',
+          billing_cycle: 'annual',
+        },
       ],
       sites,
     });
   } catch (err: any) {
-    res.status(500).json({ status: 'error', message: err.message || 'Error al obtener el panel de cliente.' });
+    res
+      .status(500)
+      .json({ status: 'error', message: err.message || 'Error al obtener el panel de cliente.' });
   }
 });
 
@@ -61,7 +76,10 @@ clientRouter.get('/sites', async (req: AuthenticatedRequest, res: Response): Pro
     const userId = req.user?.userId;
     let sites: any[] = [];
     try {
-      sites = await query<any[]>('SELECT id, domain, status, ssl FROM client_sites WHERE user_id = ?', [userId]);
+      sites = await query<any[]>(
+        'SELECT id, domain, status, ssl FROM client_sites WHERE user_id = ?',
+        [userId],
+      );
     } catch (dbErr: any) {
       console.error('⚠️ client_sites DB query warning:', dbErr?.message || dbErr);
       sites = [];
@@ -72,6 +90,11 @@ clientRouter.get('/sites', async (req: AuthenticatedRequest, res: Response): Pro
       sites,
     });
   } catch (err: any) {
-    res.status(500).json({ status: 'error', message: err.message || 'Error al obtener sitios web del cliente.' });
+    res
+      .status(500)
+      .json({
+        status: 'error',
+        message: err.message || 'Error al obtener sitios web del cliente.',
+      });
   }
 });

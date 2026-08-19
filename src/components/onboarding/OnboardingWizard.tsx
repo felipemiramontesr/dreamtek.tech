@@ -46,18 +46,14 @@ const TEMPLATES: TemplateOption[] = [
 
 export const OnboardingWizard: React.FC<OnboardingWizardProps> = ({ isAnnual, onClose }) => {
   const [step, setStep] = useState<number>(() => {
-    if (typeof window !== 'undefined') {
-      const urlParams = new URLSearchParams(window.location.search);
-      if (urlParams.get('session_id') && urlParams.get('step') === '5') {
-        return 5;
-      }
+    const urlParams = new URLSearchParams(window.location.search);
+    if (urlParams.get('session_id') && urlParams.get('step') === '5') {
+      return 5;
     }
     return 1;
   });
   const [loading, setLoading] = useState<boolean>(() =>
-    typeof window !== 'undefined'
-      ? Boolean(new URLSearchParams(window.location.search).get('session_id'))
-      : false,
+    Boolean(new URLSearchParams(window.location.search).get('session_id')),
   );
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
@@ -76,22 +72,19 @@ export const OnboardingWizard: React.FC<OnboardingWizardProps> = ({ isAnnual, on
 
   // Handle URL Session Verification if returning from Stripe
   useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const urlParams = new URLSearchParams(window.location.search);
-      const urlSessionId = urlParams.get('session_id');
+    const urlParams = new URLSearchParams(window.location.search);
+    const urlSessionId = urlParams.get('session_id');
 
-      if (urlSessionId) {
-        verifyCheckoutSuccess(urlSessionId)
-          .then(() => {
-            setLoading(false);
-          })
-          .catch((err: unknown) => {
-            setLoading(false);
-            const msg =
-              err instanceof Error ? err.message : 'Error al validar el pago de la orden.';
-            setErrorMessage(msg);
-          });
-      }
+    if (urlSessionId) {
+      verifyCheckoutSuccess(urlSessionId)
+        .then(() => {
+          setLoading(false);
+        })
+        .catch((err: unknown) => {
+          setLoading(false);
+          const msg = err instanceof Error ? err.message : 'Error al validar el pago de la orden.';
+          setErrorMessage(msg);
+        });
     }
   }, []);
 

@@ -34,10 +34,7 @@ export function computeSanitizedPayloadHash(body: any): string | null {
  * Log a security audit event to security_audit_logs.
  * Never stores raw passwords or secrets (Condition C-H6).
  */
-export async function logSecurityEvent(
-  req: Request,
-  options: AuditLogOptions
-): Promise<void> {
+export async function logSecurityEvent(req: Request, options: AuditLogOptions): Promise<void> {
   const ipAddress =
     (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() ||
     req.ip ||
@@ -55,12 +52,12 @@ export async function logSecurityEvent(
       `INSERT INTO security_audit_logs 
        (event_type, user_id, ip_address, user_agent, payload_sha256, status, details) 
        VALUES (?, ?, ?, ?, ?, ?, ?)`,
-      [options.eventType, userId, ipAddress, userAgent, payloadHash, status, details]
+      [options.eventType, userId, ipAddress, userAgent, payloadHash, status, details],
     );
   } catch (err) {
     // Fail-safe: Non-blocking fallback log to stdout/stderr if DB is unavailable
     console.warn(
-      `[SECURITY_AUDIT_FALLBACK] event=${options.eventType} ip=${ipAddress} status=${status}`
+      `[SECURITY_AUDIT_FALLBACK] event=${options.eventType} ip=${ipAddress} status=${status}`,
     );
   }
 }

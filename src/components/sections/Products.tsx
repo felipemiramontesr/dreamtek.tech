@@ -185,7 +185,7 @@ export function Products({ dict }: { dict: Dictionary }) {
                     }`}
                   >
                     {dict.products.billedAnnually}
-                    {plan.annualTotal || '\u00A0'}
+                    {plan.annualTotal}
                   </span>
                 </div>
 
@@ -213,7 +213,7 @@ export function Products({ dict }: { dict: Dictionary }) {
               <div className="mt-auto pt-4">
                 {plan.id === 'starterkit' ? (
                   <Button
-                    variant={plan.featured ? 'primary' : 'outline'}
+                    variant="outline"
                     className="w-full font-sans tracking-wide"
                     onClick={handleOpenModal}
                   >

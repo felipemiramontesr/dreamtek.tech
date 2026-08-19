@@ -59,12 +59,7 @@ export function validateMagicBytes(buffer: Buffer): ValidatedMime | null {
   }
 
   // PDF: %PDF (25 50 44 46)
-  if (
-    buffer[0] === 0x25 &&
-    buffer[1] === 0x50 &&
-    buffer[2] === 0x44 &&
-    buffer[3] === 0x46
-  ) {
+  if (buffer[0] === 0x25 && buffer[1] === 0x50 && buffer[2] === 0x44 && buffer[3] === 0x46) {
     return { mime: 'application/pdf', ext: 'pdf' };
   }
 

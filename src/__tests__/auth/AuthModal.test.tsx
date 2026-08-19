@@ -240,17 +240,77 @@ describe('AuthModal Component (100% Coverage Suite)', () => {
     expect(screen.getByText(es.auth.fillAllFields)).toBeInTheDocument();
   });
 
-  it('debe usar textos por defecto cuando dict.auth no está definido', () => {
-    render(<AuthModal isOpen={true} onClose={vi.fn()} dict={{} as unknown as typeof es} />);
+  it('debe usar textos por defecto cuando dict.auth no está definido y probar fallbacks de error', async () => {
+    const { container } = render(
+      <AuthModal isOpen={true} onClose={vi.fn()} dict={{} as unknown as typeof es} />,
+    );
 
     expect(screen.getByRole('heading', { name: 'Área de Clientes' })).toBeInTheDocument();
     expect(screen.getAllByRole('button', { name: 'Iniciar Sesión' }).length).toBeGreaterThan(0);
     expect(screen.getByText('¿No tienes cuenta aún? Regístrate aquí')).toBeInTheDocument();
 
-    // Switch to register
+    // 1. Submit empty login form with no dict.auth
+    const form = container.querySelector('form');
+    if (form) {
+      fireEvent.submit(form);
+    }
+    expect(screen.getByText('Por favor completa todos los campos requeridos.')).toBeInTheDocument();
+
+    // 2. Login error with non-Error object
+    vi.mocked(authClient.loginUser).mockRejectedValueOnce({});
+    fireEvent.change(screen.getByPlaceholderText('carlos@empresa.com'), {
+      target: { value: 'test@example.com' },
+    });
+    fireEvent.change(screen.getByPlaceholderText('••••••••'), {
+      target: { value: 'password123' },
+    });
+    if (form) {
+      fireEvent.submit(form);
+    }
+    await waitFor(() => {
+      expect(screen.getByText('Error al iniciar sesión.')).toBeInTheDocument();
+    });
+
+    // 3. Switch to register mode
     fireEvent.click(screen.getByRole('button', { name: 'Crear Cuenta' }));
     expect(screen.getAllByRole('button', { name: 'Crear Cuenta' }).length).toBeGreaterThan(0);
     expect(screen.getByText('¿Ya tienes una cuenta? Inicia sesión aquí')).toBeInTheDocument();
+
+    // 4. Submit empty register form with no dict.auth
+    if (form) {
+      fireEvent.submit(form);
+    }
+    expect(screen.getByText('Por favor completa todos los campos requeridos.')).toBeInTheDocument();
+
+    // 5. Password mismatch with no dict.auth
+    fireEvent.change(screen.getByPlaceholderText('ej. Carlos Mendoza'), {
+      target: { value: 'User' },
+    });
+    fireEvent.change(screen.getByPlaceholderText('carlos@empresa.com'), {
+      target: { value: 'user@example.com' },
+    });
+    fireEvent.change(screen.getAllByPlaceholderText('••••••••')[0], {
+      target: { value: 'pass1' },
+    });
+    fireEvent.change(screen.getAllByPlaceholderText('••••••••')[1], {
+      target: { value: 'pass2' },
+    });
+    if (form) {
+      fireEvent.submit(form);
+    }
+    expect(screen.getByText('Las contraseñas no coinciden.')).toBeInTheDocument();
+
+    // 6. Register error with non-Error object
+    vi.mocked(authClient.registerUser).mockRejectedValueOnce({});
+    fireEvent.change(screen.getAllByPlaceholderText('••••••••')[1], {
+      target: { value: 'pass1' },
+    });
+    if (form) {
+      fireEvent.submit(form);
+    }
+    await waitFor(() => {
+      expect(screen.getByText('Error al crear la cuenta.')).toBeInTheDocument();
+    });
   });
 
   it('debe llamar a onClose cuando se hace clic en el botón de cerrar', () => {

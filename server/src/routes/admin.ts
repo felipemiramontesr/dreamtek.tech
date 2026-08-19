@@ -14,14 +14,18 @@ adminRouter.use(requireRole(['ADMIN']));
  */
 adminRouter.get('/leads', async (_req: AuthenticatedRequest, res: Response): Promise<void> => {
   try {
-    const leads = await query<any[]>('SELECT * FROM leads ORDER BY created_at DESC LIMIT 100').catch(() => []);
+    const leads = await query<any[]>(
+      'SELECT * FROM leads ORDER BY created_at DESC LIMIT 100',
+    ).catch(() => []);
     res.json({
       status: 'success',
       total: leads.length,
       leads,
     });
   } catch (err: any) {
-    res.status(500).json({ status: 'error', message: err.message || 'Error al consultar prospectos.' });
+    res
+      .status(500)
+      .json({ status: 'error', message: err.message || 'Error al consultar prospectos.' });
   }
 });
 
@@ -37,10 +41,12 @@ adminRouter.get('/audit-logs', async (req: AuthenticatedRequest, res: Response):
 
     const logs = await query<any[]>(
       'SELECT id, event_type, ip_address, user_agent, payload_sha256, created_at FROM security_audit_logs ORDER BY id DESC LIMIT ? OFFSET ?',
-      [limit, offset]
+      [limit, offset],
     ).catch(() => []);
 
-    const countResult = await query<any[]>('SELECT COUNT(*) as total FROM security_audit_logs').catch(() => [{ total: 0 }]);
+    const countResult = await query<any[]>(
+      'SELECT COUNT(*) as total FROM security_audit_logs',
+    ).catch(() => [{ total: 0 }]);
     const total = countResult[0]?.total || 0;
 
     res.json({
@@ -51,7 +57,9 @@ adminRouter.get('/audit-logs', async (req: AuthenticatedRequest, res: Response):
       logs,
     });
   } catch (err: any) {
-    res.status(500).json({ status: 'error', message: err.message || 'Error al consultar logs de auditoría.' });
+    res
+      .status(500)
+      .json({ status: 'error', message: err.message || 'Error al consultar logs de auditoría.' });
   }
 });
 
@@ -61,8 +69,12 @@ adminRouter.get('/audit-logs', async (req: AuthenticatedRequest, res: Response):
  */
 adminRouter.get('/metrics', async (_req: AuthenticatedRequest, res: Response): Promise<void> => {
   try {
-    const leadsCount = await query<any[]>('SELECT COUNT(*) as total FROM leads').catch(() => [{ total: 0 }]);
-    const usersCount = await query<any[]>('SELECT COUNT(*) as total FROM users').catch(() => [{ total: 0 }]);
+    const leadsCount = await query<any[]>('SELECT COUNT(*) as total FROM leads').catch(() => [
+      { total: 0 },
+    ]);
+    const usersCount = await query<any[]>('SELECT COUNT(*) as total FROM users').catch(() => [
+      { total: 0 },
+    ]);
 
     res.json({
       status: 'success',
@@ -74,6 +86,8 @@ adminRouter.get('/metrics', async (_req: AuthenticatedRequest, res: Response): P
       },
     });
   } catch (err: any) {
-    res.status(500).json({ status: 'error', message: err.message || 'Error al consultar métricas.' });
+    res
+      .status(500)
+      .json({ status: 'error', message: err.message || 'Error al consultar métricas.' });
   }
 });

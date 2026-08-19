@@ -368,4 +368,95 @@ describe('Contact Component', () => {
       expect(screen.getByText(es.contact.errors.sendCode)).toBeInTheDocument();
     });
   });
+
+  it('debe manejar data.message y fallbacks en verificación y reenvío', async () => {
+    let callIdx = 0;
+    global.fetch = vi.fn().mockImplementation((_url) => {
+      callIdx++;
+      if (callIdx === 1) {
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve({ success: true }),
+        });
+      }
+      if (callIdx === 2) {
+        // Resend with data.message
+        return Promise.resolve({
+          ok: false,
+          json: () => Promise.resolve({ message: 'Mensaje de reenvío' }),
+        });
+      }
+      if (callIdx === 3) {
+        // Resend with empty object (fallback)
+        return Promise.resolve({
+          ok: false,
+          json: () => Promise.resolve({}),
+        });
+      }
+      if (callIdx === 4) {
+        // Verify with data.message
+        return Promise.resolve({
+          ok: false,
+          json: () => Promise.resolve({ message: 'Mensaje de verificación' }),
+        });
+      }
+      // Verify with empty object (fallback)
+      return Promise.resolve({
+        ok: false,
+        json: () => Promise.resolve({}),
+      });
+    });
+
+    render(<Contact dict={es} />);
+
+    fireEvent.change(screen.getByPlaceholderText(es.contact.form.namePlaceholder), {
+      target: { value: 'Felipe' },
+    });
+    fireEvent.change(screen.getByPlaceholderText(es.contact.form.emailPlaceholder), {
+      target: { value: 'felipe@test.com' },
+    });
+    fireEvent.change(screen.getByPlaceholderText(es.contact.form.messagePlaceholder), {
+      target: { value: 'Hola' },
+    });
+    fireEvent.click(
+      screen.getByRole('button', { name: new RegExp(es.contact.button.submit, 'i') }),
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText(es.contact.code.label)).toBeInTheDocument();
+    });
+
+    const resendBtn = screen.getByRole('button', { name: /Reenviar código/i });
+
+    // 1. Resend with data.message
+    fireEvent.click(resendBtn);
+    await waitFor(() => {
+      expect(screen.getByText('Mensaje de reenvío')).toBeInTheDocument();
+    });
+
+    // 2. Resend with empty object fallback
+    fireEvent.click(resendBtn);
+    await waitFor(() => {
+      expect(screen.getByText(es.contact.code.resendError)).toBeInTheDocument();
+    });
+
+    // 3. Verify with data.message
+    fireEvent.change(screen.getByPlaceholderText('000000'), {
+      target: { value: '111111' },
+    });
+    fireEvent.click(
+      screen.getByRole('button', { name: new RegExp(es.contact.button.verify, 'i') }),
+    );
+    await waitFor(() => {
+      expect(screen.getByText('Mensaje de verificación')).toBeInTheDocument();
+    });
+
+    // 4. Verify with fallback error
+    fireEvent.click(
+      screen.getByRole('button', { name: new RegExp(es.contact.button.verify, 'i') }),
+    );
+    await waitFor(() => {
+      expect(screen.getByText(es.contact.errors.verifyCode)).toBeInTheDocument();
+    });
+  });
 });

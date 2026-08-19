@@ -160,4 +160,3 @@ export function setRedisStateForTest(client: any, connected: boolean): void {
   redisClient = client;
   isRedisConnected = connected;
 }
-

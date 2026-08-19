@@ -29,10 +29,8 @@ export function SpaceBackground() {
 
   useEffect(() => {
     const canvas = canvasRef.current;
-    if (!canvas) return;
-
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
+    const ctx = canvas?.getContext('2d');
+    if (!canvas || !ctx) return;
 
     let animationFrameId: number;
     let width = (canvas.width = window.innerWidth);
@@ -61,7 +59,6 @@ export function SpaceBackground() {
     const meteors: Meteor[] = [];
 
     const handleResize = () => {
-      if (!canvas) return;
       width = canvas.width = window.innerWidth;
       height = canvas.height = window.innerHeight;
     };
@@ -137,9 +134,16 @@ export function SpaceBackground() {
       if (Math.random() < 0.0025 && meteors.filter((m) => m.active).length < 2) {
         // Spawn from top or right edges
         const startFromTop = Math.random() > 0.4;
+        let startX = width + 10;
+        let startY = Math.random() * height * 0.4;
+        if (startFromTop) {
+          startX = Math.random() * width * 0.8 + width * 0.2;
+          startY = -10;
+        }
+
         meteors.push({
-          x: startFromTop ? Math.random() * width * 0.8 + width * 0.2 : width + 10,
-          y: startFromTop ? -10 : Math.random() * height * 0.4,
+          x: startX,
+          y: startY,
           length: Math.random() * 60 + 40, // 40px to 100px length
           speed: Math.random() * 6 + 7, // 7px to 13px per frame
           angle: Math.PI * 0.78, // diagonal down-left
@@ -149,54 +153,54 @@ export function SpaceBackground() {
       }
 
       // Draw and update active meteors
-      meteors.forEach((meteor) => {
-        if (!meteor.active) return;
+      meteors
+        .filter((meteor) => meteor.active)
+        .forEach((meteor) => {
+          // Move meteor along angle
+          const dx = Math.cos(meteor.angle) * meteor.speed;
+          const dy = Math.sin(meteor.angle) * meteor.speed;
+          meteor.x += dx;
+          meteor.y += dy;
 
-        // Move meteor along angle
-        const dx = Math.cos(meteor.angle) * meteor.speed;
-        const dy = Math.sin(meteor.angle) * meteor.speed;
-        meteor.x += dx;
-        meteor.y += dy;
+          // Fade opacity slightly as it moves
+          meteor.opacity -= 0.008;
 
-        // Fade opacity slightly as it moves
-        meteor.opacity -= 0.008;
+          // Check bounds or fade out
+          if (meteor.opacity <= 0 || meteor.y > height + 20 || meteor.x < -20) {
+            meteor.active = false;
+            return;
+          }
 
-        // Check bounds or fade out
-        if (meteor.opacity <= 0 || meteor.y > height + 20 || meteor.x < -20) {
-          meteor.active = false;
-          return;
-        }
+          // Parallax offset (meteors are far away but react to mouse)
+          const renderX = meteor.x - mouse.x * 0.5;
+          const renderY = meteor.y - mouse.y * 0.5;
 
-        // Parallax offset (meteors are far away but react to mouse)
-        const renderX = meteor.x - mouse.x * 0.5;
-        const renderY = meteor.y - mouse.y * 0.5;
+          // Draw meteor trail with linear gradient
+          const grad = ctx.createLinearGradient(
+            renderX,
+            renderY,
+            renderX - Math.cos(meteor.angle) * meteor.length,
+            renderY - Math.sin(meteor.angle) * meteor.length,
+          );
+          grad.addColorStop(0, `rgba(255, 255, 255, ${meteor.opacity})`); // bright white head
+          grad.addColorStop(0.15, `rgba(255, 45, 0, ${meteor.opacity * 0.85})`); // red/orange core
+          grad.addColorStop(1, 'rgba(255, 255, 255, 0)'); // fade out tail
 
-        // Draw meteor trail with linear gradient
-        const grad = ctx.createLinearGradient(
-          renderX,
-          renderY,
-          renderX - Math.cos(meteor.angle) * meteor.length,
-          renderY - Math.sin(meteor.angle) * meteor.length,
-        );
-        grad.addColorStop(0, `rgba(255, 255, 255, ${meteor.opacity})`); // bright white head
-        grad.addColorStop(0.15, `rgba(255, 45, 0, ${meteor.opacity * 0.85})`); // red/orange core
-        grad.addColorStop(1, 'rgba(255, 255, 255, 0)'); // fade out tail
-
-        // Save canvas state to apply shadowBlur in red/orange glow
-        ctx.save();
-        ctx.beginPath();
-        ctx.strokeStyle = grad;
-        ctx.lineWidth = 1.8;
-        ctx.shadowBlur = 4;
-        ctx.shadowColor = '#FF2D00';
-        ctx.moveTo(renderX, renderY);
-        ctx.lineTo(
-          renderX - Math.cos(meteor.angle) * meteor.length,
-          renderY - Math.sin(meteor.angle) * meteor.length,
-        );
-        ctx.stroke();
-        ctx.restore();
-      });
+          // Save canvas state to apply shadowBlur in red/orange glow
+          ctx.save();
+          ctx.beginPath();
+          ctx.strokeStyle = grad;
+          ctx.lineWidth = 1.8;
+          ctx.shadowBlur = 4;
+          ctx.shadowColor = '#FF2D00';
+          ctx.moveTo(renderX, renderY);
+          ctx.lineTo(
+            renderX - Math.cos(meteor.angle) * meteor.length,
+            renderY - Math.sin(meteor.angle) * meteor.length,
+          );
+          ctx.stroke();
+          ctx.restore();
+        });
 
       // Cleanup inactive meteors to keep array small
       while (meteors.length > 0 && !meteors[0].active) {

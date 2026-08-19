@@ -94,6 +94,22 @@ describe('Products Component (100% Coverage Suite)', () => {
     expect(screen.queryByText(/Paso 1: Información de Contacto/i)).not.toBeInTheDocument();
   });
 
+  it('debe alternar la facturación anual dentro de la sección principal y actualizar precios', () => {
+    render(<Products dict={es} />);
+
+    const sectionToggle = screen.getByRole('checkbox', { name: 'Facturación anual' });
+    expect(sectionToggle).not.toBeChecked();
+
+    // Toggle on (annual)
+    fireEvent.click(sectionToggle);
+    expect(sectionToggle).toBeChecked();
+    expect(screen.getAllByText(es.products.save).length).toBeGreaterThan(0);
+
+    // Toggle off (monthly)
+    fireEvent.click(sectionToggle);
+    expect(sectionToggle).not.toBeChecked();
+  });
+
   it('debe alternar la facturación anual dentro del modal y permitir regresar de onboarding a info', () => {
     render(<Products dict={es} />);
 
@@ -119,8 +135,41 @@ describe('Products Component (100% Coverage Suite)', () => {
     expect(screen.getAllByText(es.products.modal.includesTitle).length).toBeGreaterThan(0);
   });
 
-  it('debe soportar la renderización en inglés', () => {
+  it('debe soportar la renderización en inglés y taxNote fallback en modal anual', () => {
     render(<Products dict={en} lang="en" />);
     expect(screen.getByText(en.products.subtitle)).toBeInTheDocument();
+
+    // Open modal in english and toggle annual to test modal taxNote
+    fireEvent.click(screen.getByRole('button', { name: /View Scope & Details/i }));
+    const modalToggle = screen.getByRole('checkbox', { name: /facturación anual modal/i });
+    fireEvent.click(modalToggle);
+    expect(screen.getByText(en.products.modal.annualTaxNote)).toBeInTheDocument();
+  });
+
+  it('debe renderizar badge de plan, variante featured y fallback de taxNote cuando annualTaxNote no existe', () => {
+    const customDict = {
+      ...es,
+      products: {
+        ...es.products,
+        plans: es.products.plans.map((p, idx) => ({
+          ...p,
+          badge: idx === 0 ? 'DESTACADO' : '',
+          featured: idx === 0 || idx === 1 ? true : false,
+        })),
+        modal: {
+          ...es.products.modal,
+          annualTaxNote: undefined,
+        },
+      },
+    };
+
+    render(<Products dict={customDict as unknown as typeof es} />);
+    expect(screen.getByText('DESTACADO')).toBeInTheDocument();
+
+    // Open modal and toggle annual with annualTaxNote undefined
+    fireEvent.click(screen.getByRole('button', { name: /Ver Alcance y Detalles/i }));
+    const modalToggle = screen.getByRole('checkbox', { name: /facturación anual modal/i });
+    fireEvent.click(modalToggle);
+    expect(screen.getByText(es.products.modal.taxNote)).toBeInTheDocument();
   });
 });

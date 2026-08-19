@@ -8,6 +8,8 @@ import {
   setupSignalHandlers,
   initialize,
   corsOriginHandler,
+  getCorsOrigins,
+  createServerInstance,
 } from '../../../server/src/index';
 import * as cacheUtil from '../../../server/src/utils/cache';
 
@@ -26,7 +28,7 @@ describe('Server Index Core (100% Coverage Suite)', () => {
     });
   });
 
-  it('GET /api/v1/docs debe retornar documentación desde caché si existe', async () => {
+  it('GET /api/v1/docs debe responder con la documentación OpenAPI desde caché si existe', async () => {
     const mockCachedDocs = { openapi: '3.1.0', info: { title: 'Cached Docs' } };
     vi.spyOn(cacheUtil, 'getCache').mockResolvedValueOnce(mockCachedDocs);
 
@@ -35,7 +37,7 @@ describe('Server Index Core (100% Coverage Suite)', () => {
     expect(res.body).toEqual(mockCachedDocs);
   });
 
-  it('GET /api/v1/docs debe leer swagger.json desde disco y almacenar en caché', async () => {
+  it('GET /api/v1/docs debe leer swagger.json de disco y cachearlo si no estaba en caché', async () => {
     vi.spyOn(cacheUtil, 'getCache').mockResolvedValueOnce(null);
     const setCacheSpy = vi.spyOn(cacheUtil, 'setCache').mockResolvedValueOnce();
     const mockDiskDocs = { openapi: '3.1.0', info: { title: 'Disk Docs' } };
@@ -98,6 +100,22 @@ describe('Server Index Core (100% Coverage Suite)', () => {
 
     corsOriginHandler('https://attacker.org', cb);
     expect(cb).toHaveBeenCalledWith(expect.any(Error));
+
+    // Test getCorsOrigins with CORS_ORIGIN set
+    const origEnv = process.env.CORS_ORIGIN;
+    process.env.CORS_ORIGIN = 'https://custom-origin.com';
+    expect(getCorsOrigins()).toContain('https://custom-origin.com');
+    process.env.CORS_ORIGIN = origEnv;
+  });
+
+  it('createServerInstance debe devolver null en modo test e instanciar en prod', () => {
+    expect(createServerInstance('test')).toBeNull();
+    const listenSpy = vi
+      .spyOn(app, 'listen')
+      .mockReturnValue({ close: vi.fn() } as unknown as ReturnType<typeof app.listen>);
+    const inst = createServerInstance('production');
+    expect(inst).toBeDefined();
+    expect(listenSpy).toHaveBeenCalled();
   });
 
   it('startServer debe iniciar el servidor HTTP y ejecutar el log de inicio', () => {
@@ -115,11 +133,23 @@ describe('Server Index Core (100% Coverage Suite)', () => {
     expect(consoleSpy).toHaveBeenCalled();
   });
 
-  it('setupSignalHandlers debe configurar los listeners de proceso SIGTERM y SIGINT', () => {
-    const processOnSpy = vi.spyOn(process, 'on');
+  it('setupSignalHandlers debe configurar y disparar listeners SIGTERM y SIGINT', () => {
+    const listeners: Record<string, () => void> = {};
+    vi.spyOn(process, 'on').mockImplementation((event: string, cb: unknown) => {
+      listeners[event] = cb as () => void;
+      return process;
+    });
+
     setupSignalHandlers();
-    expect(processOnSpy).toHaveBeenCalledWith('SIGTERM', expect.any(Function));
-    expect(processOnSpy).toHaveBeenCalledWith('SIGINT', expect.any(Function));
+    expect(listeners['SIGTERM']).toBeDefined();
+    expect(listeners['SIGINT']).toBeDefined();
+
+    const exitSpy = vi
+      .spyOn(process, 'exit')
+      .mockImplementation((() => {}) as unknown as typeof process.exit);
+    listeners['SIGTERM']();
+    listeners['SIGINT']();
+    expect(exitSpy).toHaveBeenCalled();
   });
 
   it('gracefulShutdown debe cerrar el servidor HTTP y el pool de MariaDB limpiamente', async () => {

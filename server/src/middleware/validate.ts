@@ -4,10 +4,7 @@ import { ZodSchema, ZodIssue } from 'zod';
 /**
  * Generic Zod boundary validation middleware (ISO 25010 Functional Suitability & OWASP A04/A05)
  */
-export function validate(
-  schema: ZodSchema,
-  target: 'body' | 'query' | 'params' = 'body'
-) {
+export function validate(schema: ZodSchema, target: 'body' | 'query' | 'params' = 'body') {
   return (req: Request, res: Response, next: NextFunction): void => {
     const result = schema.safeParse(req[target]);
 

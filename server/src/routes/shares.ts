@@ -31,7 +31,7 @@ export async function resolveValidShare(token: string): Promise<any | null> {
      JOIN assets a ON a.id = s.asset_id
      WHERE s.share_token_hash = ?
      LIMIT 1`,
-    [tokenHash]
+    [tokenHash],
   );
 
   if (!rows || rows.length === 0) {
@@ -45,7 +45,8 @@ export async function resolveValidShare(token: string): Promise<any | null> {
   const isExpired = new Date(share.expires_at) <= now;
   const isRevoked = share.revoked_at !== null && share.revoked_at !== undefined;
   const isAssetDeleted = share.asset_deleted_at !== null && share.asset_deleted_at !== undefined;
-  const isExhausted = share.max_uses !== null && share.max_uses !== undefined && share.current_uses >= share.max_uses;
+  const isExhausted =
+    share.max_uses !== null && share.max_uses !== undefined && share.current_uses >= share.max_uses;
 
   if (isExpired || isRevoked || isAssetDeleted || isExhausted) {
     return null;
@@ -75,7 +76,7 @@ sharesRouter.get('/:token', async (req: Request, res: Response): Promise<void> =
     // Fetch latest version byte_size
     const versions = await query<any[]>(
       `SELECT byte_size FROM asset_versions WHERE asset_id = ? ORDER BY version_number DESC LIMIT 1`,
-      [share.asset_id]
+      [share.asset_id],
     );
     const byteSize = versions[0]?.byte_size ?? 0;
 
@@ -94,7 +95,13 @@ sharesRouter.get('/:token', async (req: Request, res: Response): Promise<void> =
     });
   } catch (err: any) {
     console.error('Resolve share error:', err);
-    res.status(500).json({ status: 500, error: 'Internal Server Error', message: 'Error al consultar el enlace.' });
+    res
+      .status(500)
+      .json({
+        status: 500,
+        error: 'Internal Server Error',
+        message: 'Error al consultar el enlace.',
+      });
   }
 });
 
@@ -119,11 +126,13 @@ sharesRouter.get('/:token/stream', async (req: Request, res: Response): Promise<
     // Fetch latest version file_path & byte_size
     const versions = await query<any[]>(
       `SELECT file_path, byte_size FROM asset_versions WHERE asset_id = ? ORDER BY version_number DESC LIMIT 1`,
-      [share.asset_id]
+      [share.asset_id],
     );
 
     if (!versions || versions.length === 0) {
-      res.status(404).json({ status: 404, error: 'Not Found', message: 'Archivo no encontrado en el sistema.' });
+      res
+        .status(404)
+        .json({ status: 404, error: 'Not Found', message: 'Archivo no encontrado en el sistema.' });
       return;
     }
 
@@ -131,20 +140,27 @@ sharesRouter.get('/:token/stream', async (req: Request, res: Response): Promise<
     assertPathContained(file_path);
 
     if (!fs.existsSync(file_path)) {
-      res.status(404).json({ status: 404, error: 'Not Found', message: 'Archivo físico no disponible en almacenamiento.' });
+      res
+        .status(404)
+        .json({
+          status: 404,
+          error: 'Not Found',
+          message: 'Archivo físico no disponible en almacenamiento.',
+        });
       return;
     }
 
     // Increment current_uses and record access log
     try {
-      await query('UPDATE asset_shares SET current_uses = current_uses + 1 WHERE id = ?', [share.id]);
+      await query('UPDATE asset_shares SET current_uses = current_uses + 1 WHERE id = ?', [
+        share.id,
+      ]);
       const ip = String(req.ip);
       const userAgent = String(req.headers['user-agent']);
-      await query('INSERT INTO share_access_logs (share_id, ip_address, user_agent) VALUES (?, ?, ?)', [
-        share.id,
-        ip,
-        userAgent,
-      ]);
+      await query(
+        'INSERT INTO share_access_logs (share_id, ip_address, user_agent) VALUES (?, ?, ?)',
+        [share.id, ip, userAgent],
+      );
     } catch {
       // Non-blocking access log update
     }
@@ -153,12 +169,21 @@ sharesRouter.get('/:token/stream', async (req: Request, res: Response): Promise<
     res.setHeader('Content-Length', byte_size);
     res.setHeader('X-Content-Type-Options', 'nosniff');
     const disposition = share.permission === 'DOWNLOAD' ? 'attachment' : 'inline';
-    res.setHeader('Content-Disposition', `${disposition}; filename="${encodeURIComponent(share.title)}"`);
+    res.setHeader(
+      'Content-Disposition',
+      `${disposition}; filename="${encodeURIComponent(share.title)}"`,
+    );
 
     fs.createReadStream(file_path).pipe(res);
   } catch (err: any) {
     console.error('Stream share error:', err);
-    res.status(500).json({ status: 500, error: 'Internal Server Error', message: 'Error al transmitir archivo compartido.' });
+    res
+      .status(500)
+      .json({
+        status: 500,
+        error: 'Internal Server Error',
+        message: 'Error al transmitir archivo compartido.',
+      });
   }
 });
 
@@ -187,7 +212,7 @@ sharesRouter.get('/:token/thumbnail', async (req: Request, res: Response): Promi
        WHERE v.asset_id = ? AND d.derivative_type = 'THUMBNAIL_200W'
        ORDER BY v.version_number DESC
        LIMIT 1`,
-      [share.asset_id]
+      [share.asset_id],
     );
 
     if (rows && rows.length > 0) {
@@ -205,7 +230,7 @@ sharesRouter.get('/:token/thumbnail', async (req: Request, res: Response): Promi
     // Fallback to original if image without thumbnail derivative
     const fallbackRows = await query<any[]>(
       `SELECT file_path, byte_size FROM asset_versions WHERE asset_id = ? ORDER BY version_number DESC LIMIT 1`,
-      [share.asset_id]
+      [share.asset_id],
     );
 
     if (fallbackRows && fallbackRows.length > 0 && share.mime_type.startsWith('image/')) {
@@ -223,7 +248,13 @@ sharesRouter.get('/:token/thumbnail', async (req: Request, res: Response): Promi
     res.status(404).json({ status: 404, error: 'Not Found', message: 'Miniatura no disponible.' });
   } catch (err: any) {
     console.error('Thumbnail share error:', err);
-    res.status(500).json({ status: 500, error: 'Internal Server Error', message: 'Error al obtener miniatura de compartición.' });
+    res
+      .status(500)
+      .json({
+        status: 500,
+        error: 'Internal Server Error',
+        message: 'Error al obtener miniatura de compartición.',
+      });
   }
 });
 
@@ -240,7 +271,9 @@ sharesRouter.post(
       const shareId = parseInt(String(req.params.id), 10);
 
       if (isNaN(shareId)) {
-        res.status(400).json({ status: 400, error: 'Bad Request', message: 'ID de enlace inválido.' });
+        res
+          .status(400)
+          .json({ status: 400, error: 'Bad Request', message: 'ID de enlace inválido.' });
         return;
       }
 
@@ -248,7 +281,7 @@ sharesRouter.post(
         `UPDATE asset_shares
          SET revoked_at = NOW()
          WHERE id = ? AND tenant_id = ? AND revoked_at IS NULL`,
-        [shareId, tenantId]
+        [shareId, tenantId],
       );
 
       if (!updateResult || updateResult.affectedRows === 0) {
@@ -274,7 +307,9 @@ sharesRouter.post(
       });
     } catch (err: any) {
       console.error('Revoke share error:', err);
-      res.status(500).json({ status: 500, error: 'Internal Server Error', message: 'Error al revocar enlace.' });
+      res
+        .status(500)
+        .json({ status: 500, error: 'Internal Server Error', message: 'Error al revocar enlace.' });
     }
-  }
+  },
 );

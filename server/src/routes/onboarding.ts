@@ -9,44 +9,46 @@ export const onboardingRouter = Router();
 /**
  * POST /api/v1/onboarding/lead
  */
-onboardingRouter.post('/lead', validate(leadSchema), async (req: Request, res: Response): Promise<void> => {
-  try {
-    const { email, phone, company, step_reached } = req.body;
-    const full_name = req.body.full_name || req.body.name;
+onboardingRouter.post(
+  '/lead',
+  validate(leadSchema),
+  async (req: Request, res: Response): Promise<void> => {
+    try {
+      const { email, phone, company, step_reached } = req.body;
+      const full_name = req.body.full_name || req.body.name;
 
-    if (!email || !full_name || !phone) {
-      res.status(400).json({ status: 'error', message: 'Nombre, email y teléfono son requeridos.' });
-      return;
+      if (!email || !full_name || !phone) {
+        res
+          .status(400)
+          .json({ status: 'error', message: 'Nombre, email y teléfono son requeridos.' });
+        return;
+      }
+
+      const existing = await query<any[]>('SELECT id FROM leads WHERE email = ? LIMIT 1', [email]);
+
+      // Condition C-L2: Invalidate lead cache on write operation
+      await invalidateCache('lead');
+
+      if (existing.length > 0) {
+        await query(
+          'UPDATE leads SET full_name = ?, phone = ?, company = ?, step_reached = ? WHERE id = ?',
+          [full_name, phone, company || '', step_reached || 1, existing[0].id],
+        );
+        res.json({ status: 'success', lead_id: existing[0].id, message: 'Prospecto actualizado.' });
+      } else {
+        const result = await query<any>(
+          'INSERT INTO leads (full_name, email, phone, company, step_reached) VALUES (?, ?, ?, ?, ?)',
+          [full_name, email, phone, company || '', step_reached || 1],
+        );
+        res.json({ status: 'success', lead_id: result.insertId, message: 'Prospecto registrado.' });
+      }
+    } catch (err: any) {
+      res
+        .status(500)
+        .json({ status: 'error', message: err.message || 'Error al procesar el prospecto.' });
     }
-
-    const existing = await query<any[]>('SELECT id FROM leads WHERE email = ? LIMIT 1', [email]);
-
-    // Condition C-L2: Invalidate lead cache on write operation
-    await invalidateCache('lead');
-
-    if (existing.length > 0) {
-      await query('UPDATE leads SET full_name = ?, phone = ?, company = ?, step_reached = ? WHERE id = ?', [
-        full_name,
-        phone,
-        company || '',
-        step_reached || 1,
-        existing[0].id,
-      ]);
-      res.json({ status: 'success', lead_id: existing[0].id, message: 'Prospecto actualizado.' });
-    } else {
-      const result = await query<any>('INSERT INTO leads (full_name, email, phone, company, step_reached) VALUES (?, ?, ?, ?, ?)', [
-        full_name,
-        email,
-        phone,
-        company || '',
-        step_reached || 1,
-      ]);
-      res.json({ status: 'success', lead_id: result.insertId, message: 'Prospecto registrado.' });
-    }
-  } catch (err: any) {
-    res.status(500).json({ status: 'error', message: err.message || 'Error al procesar el prospecto.' });
-  }
-});
+  },
+);
 
 /**
  * POST /api/v1/onboarding/domain

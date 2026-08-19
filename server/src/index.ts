@@ -63,7 +63,7 @@ app.use(
 );
 
 // Condition C-H4: CORS Fail-Closed Allowlist Setup
-export const allowedOrigins = [
+export const getCorsOrigins = () => [
   'http://localhost:3000',
   'https://dreamtek.tech',
   'https://www.dreamtek.tech',
@@ -74,7 +74,8 @@ export const corsOriginHandler = (
   origin: string | undefined,
   callback: (err: Error | null, allow?: boolean) => void,
 ) => {
-  if (!origin || allowedOrigins.includes(origin)) {
+  const allowed = getCorsOrigins();
+  if (!origin || allowed.includes(origin)) {
     return callback(null, true);
   }
   return callback(new Error('CORS Policy: Origin not allowed by Access-Control-Allow-Origin'));
@@ -158,7 +159,11 @@ export const startServer = (port = PORT) => {
   });
 };
 
-export const server = process.env.NODE_ENV === 'test' ? null : startServer();
+export const createServerInstance = (env = process.env.NODE_ENV) => {
+  return env === 'test' ? null : startServer();
+};
+
+export const server = createServerInstance();
 
 // Graceful Shutdown Logic (Condition C-J3)
 export const gracefulShutdown = (

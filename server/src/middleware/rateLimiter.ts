@@ -13,8 +13,8 @@ export const globalRateLimiter = rateLimit({
   message: {
     status: 429,
     error: 'Too Many Requests',
-    message: 'Too many requests from this IP, please try again after 15 minutes.'
-  }
+    message: 'Too many requests from this IP, please try again after 15 minutes.',
+  },
 });
 
 /**
@@ -39,9 +39,9 @@ export const sensitiveEndpointLimiter = rateLimit({
     res.status(429).json({
       status: 429,
       error: 'Too Many Requests',
-      message: 'Too many sensitive operations attempted. Please try again after 15 minutes.'
+      message: 'Too many sensitive operations attempted. Please try again after 15 minutes.',
     });
-  }
+  },
 });
 
 /**
@@ -57,9 +57,9 @@ export const uploadRateLimiter = rateLimit({
     res.status(429).json({
       status: 429,
       error: 'Too Many Requests',
-      message: 'Upload limit reached. Please try again after 15 minutes.'
+      message: 'Upload limit reached. Please try again after 15 minutes.',
     });
-  }
+  },
 });
 
 /**
@@ -75,9 +75,9 @@ export const shareRateLimiter = rateLimit({
     res.status(429).json({
       status: 429,
       error: 'Too Many Requests',
-      message: 'Demasiadas solicitudes al enlace de compartición. Intente nuevamente en un minuto.'
+      message: 'Demasiadas solicitudes al enlace de compartición. Intente nuevamente en un minuto.',
     });
-  }
+  },
 });
 
 /**
@@ -93,9 +93,9 @@ export const searchRateLimiter = rateLimit({
     res.status(429).json({
       status: 429,
       error: 'Too Many Requests',
-      message: 'Límite de consultas de búsqueda alcanzado. Intente nuevamente en un minuto.'
+      message: 'Límite de consultas de búsqueda alcanzado. Intente nuevamente en un minuto.',
     });
-  }
+  },
 });
 
 /**
@@ -111,9 +111,8 @@ export const tagsRateLimiter = rateLimit({
     res.status(429).json({
       status: 429,
       error: 'Too Many Requests',
-      message: 'Límite de operaciones de etiquetas y metadatos alcanzado. Intente nuevamente en un minuto.'
+      message:
+        'Límite de operaciones de etiquetas y metadatos alcanzado. Intente nuevamente en un minuto.',
     });
-  }
+  },
 });
-
-

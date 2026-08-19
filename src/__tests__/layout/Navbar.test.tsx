@@ -134,15 +134,22 @@ describe('Navbar Component (100% Coverage Suite)', () => {
   });
 
   it('debe navegar al inicio en inglés al hacer clic en el logotipo con lang="en"', () => {
+    vi.useFakeTimers();
     render(<Navbar dict={en} lang="en" />);
 
     const logoBtn = screen.getByRole('button', { name: /Dreamtek/i });
     fireEvent.click(logoBtn);
 
     expect(pushMock).toHaveBeenCalledWith('/en', { scroll: false });
+    act(() => {
+      vi.advanceTimersByTime(150);
+    });
+    expect(window.scrollTo).toHaveBeenCalled();
+    vi.useRealTimers();
   });
 
   it('debe renderizar el botón de retorno al sitio en páginas legales y calcular ruta toggle correcta', () => {
+    vi.useFakeTimers();
     mockPathname = '/privacidad';
 
     const { rerender } = render(<Navbar dict={es} lang="es" />);
@@ -152,6 +159,9 @@ describe('Navbar Component (100% Coverage Suite)', () => {
 
     fireEvent.click(returnBtn);
     expect(pushMock).toHaveBeenCalledWith('/', { scroll: false });
+    act(() => {
+      vi.advanceTimersByTime(150);
+    });
 
     // English legal page
     mockPathname = '/en/terminos';
@@ -159,6 +169,16 @@ describe('Navbar Component (100% Coverage Suite)', () => {
     const enReturnBtn = screen.getByRole('button', { name: new RegExp(en.navbar.returnSite, 'i') });
     fireEvent.click(enReturnBtn);
     expect(pushMock).toHaveBeenCalledWith('/en', { scroll: false });
+    act(() => {
+      vi.advanceTimersByTime(150);
+    });
+    vi.useRealTimers();
+
+    // Non-root landing page path toggle to English (exercises /en${pathname})
+    mockPathname = '/demo';
+    rerender(<Navbar dict={es} lang="es" />);
+    const demoEnLink = screen.getAllByRole('link', { name: 'EN' })[0];
+    expect(demoEnLink.getAttribute('href')).toBe('/en/demo');
 
     // Root page path toggle to English
     mockPathname = '/';

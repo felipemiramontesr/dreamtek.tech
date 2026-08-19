@@ -74,7 +74,9 @@ checkoutRouter.post('/session', async (req: Request, res: Response): Promise<voi
       checkout_url: session.url,
     });
   } catch (err: any) {
-    res.status(500).json({ status: 'error', message: err.message || 'Error al generar la sesión de pago.' });
+    res
+      .status(500)
+      .json({ status: 'error', message: err.message || 'Error al generar la sesión de pago.' });
   }
 });
 
@@ -88,12 +90,21 @@ checkoutRouter.post('/webhook', async (req: Request, res: Response): Promise<voi
 
     let event: Stripe.Event;
 
-    if (sig && (webhookSecret !== 'whsec_mock_secret_key' || testStripe?.webhooks?.constructEvent)) {
+    if (
+      sig &&
+      (webhookSecret !== 'whsec_mock_secret_key' || testStripe?.webhooks?.constructEvent)
+    ) {
       const stripeInstance = getStripe(process.env.STRIPE_SECRET_KEY || 'sk_test_mock');
       try {
-        event = stripeInstance.webhooks.constructEvent(req.body as any, sig as string, webhookSecret);
+        event = stripeInstance.webhooks.constructEvent(
+          req.body as any,
+          sig as string,
+          webhookSecret,
+        );
       } catch (err: any) {
-        res.status(400).json({ status: 'error', message: `Firma webhook inválida: ${err.message}` });
+        res
+          .status(400)
+          .json({ status: 'error', message: `Firma webhook inválida: ${err.message}` });
         return;
       }
     } else {
@@ -101,7 +112,9 @@ checkoutRouter.post('/webhook', async (req: Request, res: Response): Promise<voi
         res.status(400).json({ status: 'error', message: 'Firma stripe-signature requerida.' });
         return;
       }
-      const rawBody = Buffer.isBuffer(req.body) ? req.body.toString('utf-8') : JSON.stringify(req.body);
+      const rawBody = Buffer.isBuffer(req.body)
+        ? req.body.toString('utf-8')
+        : JSON.stringify(req.body);
       event = JSON.parse(rawBody);
     }
 
@@ -120,7 +133,9 @@ checkoutRouter.post('/webhook', async (req: Request, res: Response): Promise<voi
 
       if (!userId && email) {
         try {
-          const userRows: any = await query('SELECT id FROM users WHERE email = ? LIMIT 1', [email]);
+          const userRows: any = await query('SELECT id FROM users WHERE email = ? LIMIT 1', [
+            email,
+          ]);
           if (userRows && userRows.length > 0) {
             userId = userRows[0].id;
           }
@@ -130,13 +145,21 @@ checkoutRouter.post('/webhook', async (req: Request, res: Response): Promise<voi
       }
 
       if (!userId) {
-        res.status(400).json({ status: 'error', message: 'No se pudo asociar el pago a ningún usuario registrado.' });
+        res
+          .status(400)
+          .json({
+            status: 'error',
+            message: 'No se pudo asociar el pago a ningún usuario registrado.',
+          });
         return;
       }
 
       // Check idempotency (C-S5)
       try {
-        const existingOrder: any = await query('SELECT id FROM orders WHERE payment_gateway_id = ? LIMIT 1', [session.id]);
+        const existingOrder: any = await query(
+          'SELECT id FROM orders WHERE payment_gateway_id = ? LIMIT 1',
+          [session.id],
+        );
         if (existingOrder && existingOrder.length > 0) {
           res.json({ received: true, duplicate: true, event_id: event.id });
           return;
@@ -150,24 +173,34 @@ checkoutRouter.post('/webhook', async (req: Request, res: Response): Promise<voi
 
       await query(
         'INSERT INTO orders (user_id, status, amount, payment_gateway_id) VALUES (?, ?, ?, ?)',
-        [userId, 'paid', totalAmount, session.id]
+        [userId, 'paid', totalAmount, session.id],
       );
 
-      const subId = typeof session.subscription === 'string' ? session.subscription : String(session.id);
+      const subId =
+        typeof session.subscription === 'string' ? session.subscription : String(session.id);
 
       await query(
         'INSERT INTO subscriptions (user_id, plan_id, billing_cycle, amount, status, renews_at) VALUES (?, ?, ?, ?, ?, ?)',
-        [userId, subId, 'monthly', totalAmount, 'active', renewsAt]
+        [userId, subId, 'monthly', totalAmount, 'active', renewsAt],
       );
     } else if (event.type === 'customer.subscription.updated') {
       const sub = event.data.object as Stripe.Subscription;
-      const mappedStatus = sub.status === 'canceled' ? 'cancelled' : sub.status === 'past_due' ? 'past_due' : 'active';
+      const mappedStatus =
+        sub.status === 'canceled' ? 'cancelled' : sub.status === 'past_due' ? 'past_due' : 'active';
       const customerId = String(sub.customer ?? sub.id);
-      await query('UPDATE subscriptions SET status = ? WHERE user_id = ? OR plan_id = ?', [mappedStatus, customerId, sub.id]);
+      await query('UPDATE subscriptions SET status = ? WHERE user_id = ? OR plan_id = ?', [
+        mappedStatus,
+        customerId,
+        sub.id,
+      ]);
     } else if (event.type === 'customer.subscription.deleted') {
       const sub = event.data.object as Stripe.Subscription;
       const customerId = String(sub.customer ?? sub.id);
-      await query('UPDATE subscriptions SET status = ? WHERE user_id = ? OR plan_id = ?', ['cancelled', customerId, sub.id]);
+      await query('UPDATE subscriptions SET status = ? WHERE user_id = ? OR plan_id = ?', [
+        'cancelled',
+        customerId,
+        sub.id,
+      ]);
     }
 
     res.json({ received: true, event_id: event.id });
@@ -199,7 +232,10 @@ checkoutRouter.get('/verify', async (req: Request, res: Response): Promise<void>
     }
 
     try {
-      const orderRows: any = await query('SELECT status FROM orders WHERE payment_gateway_id = ? LIMIT 1', [session_id]);
+      const orderRows: any = await query(
+        'SELECT status FROM orders WHERE payment_gateway_id = ? LIMIT 1',
+        [session_id],
+      );
       const isPaid = orderRows && orderRows.length > 0 && orderRows[0].status === 'paid';
 
       res.json({

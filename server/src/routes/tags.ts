@@ -37,7 +37,7 @@ tagsRouter.get(
          WHERE t.tenant_id = ?
          GROUP BY t.id, t.name, t.color, t.created_at
          ORDER BY t.name ASC`,
-        [tenantId]
+        [tenantId],
       );
 
       res.status(200).json({
@@ -58,7 +58,7 @@ tagsRouter.get(
         message: 'Error al consultar las etiquetas.',
       });
     }
-  }
+  },
 );
 
 /**
@@ -76,10 +76,10 @@ tagsRouter.post(
       const { name, color = '#00bfff' } = req.body;
 
       // Check unique constraint per tenant
-      const existing = await query<any[]>(
-        'SELECT id FROM tags WHERE tenant_id = ? AND name = ?',
-        [tenantId, name]
-      );
+      const existing = await query<any[]>('SELECT id FROM tags WHERE tenant_id = ? AND name = ?', [
+        tenantId,
+        name,
+      ]);
 
       if (existing && existing.length > 0) {
         res.status(409).json({
@@ -92,7 +92,7 @@ tagsRouter.post(
 
       const insertRes = await query<any>(
         'INSERT INTO tags (tenant_id, name, color) VALUES (?, ?, ?)',
-        [tenantId, name, color]
+        [tenantId, name, color],
       );
 
       const tagId = Number(insertRes.insertId);
@@ -121,5 +121,5 @@ tagsRouter.post(
         message: 'Error al crear la etiqueta.',
       });
     }
-  }
+  },
 );

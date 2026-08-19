@@ -448,8 +448,8 @@ describe('OnboardingWizard Component (100% Coverage Suite)', () => {
     });
   });
 
-  it('debe mostrar error si la verificación de sesión en URL falla', async () => {
-    window.history.pushState({}, '', '/?session_id=cs_fail&step=5');
+  it('debe mostrar error si la verificación de sesión en URL falla con Error', async () => {
+    window.history.pushState({}, '', '/?session_id=cs_fail_err&step=5');
     vi.mocked(onboardingClient.verifyCheckoutSuccess).mockRejectedValueOnce(
       new Error('Sesión expirada o no encontrada'),
     );
@@ -458,6 +458,70 @@ describe('OnboardingWizard Component (100% Coverage Suite)', () => {
 
     await waitFor(() => {
       expect(screen.getByText(/Sesión expirada o no encontrada/i)).toBeInTheDocument();
+    });
+  });
+
+  it('debe mostrar error fallback si la verificación de sesión en URL falla con objeto no-Error', async () => {
+    window.history.pushState({}, '', '/?session_id=cs_fail_obj&step=5');
+    vi.mocked(onboardingClient.verifyCheckoutSuccess).mockRejectedValueOnce({});
+
+    render(<OnboardingWizard isAnnual={false} onClose={vi.fn()} />);
+
+    await waitFor(() => {
+      expect(screen.getByText(/Error al validar el pago de la orden/i)).toBeInTheDocument();
+    });
+  });
+
+  it('debe mostrar errores fallback en Step 1, Step 3 y Step 4 cuando las promesas rechazan con objeto no-Error', async () => {
+    // Step 1: submitLead rejects with {}
+    vi.mocked(onboardingClient.submitLead).mockRejectedValueOnce({});
+
+    render(<OnboardingWizard isAnnual={false} onClose={vi.fn()} />);
+
+    fireEvent.change(screen.getByPlaceholderText('Ej. Roberto Gómez'), {
+      target: { value: 'Roberto Gómez' },
+    });
+    fireEvent.change(screen.getByPlaceholderText('roberto@empresa.com'), {
+      target: { value: 'roberto@empresa.com' },
+    });
+    fireEvent.change(screen.getByPlaceholderText('+52 55 1234 5678'), {
+      target: { value: '+52 55 1234 5678' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: /Continuar a Plantillas/i }));
+
+    await waitFor(() => {
+      expect(screen.getByText(/Error al registrar el contacto/i)).toBeInTheDocument();
+    });
+
+    // Advance to Step 3 with valid submitLead
+    vi.mocked(onboardingClient.submitLead).mockResolvedValueOnce({
+      status: 'success',
+      lead_id: 1,
+    });
+    fireEvent.click(screen.getByRole('button', { name: /Continuar a Plantillas/i }));
+    await waitFor(() => {
+      expect(screen.getByText('Paso 2: Selección de Estructura Visual')).toBeInTheDocument();
+    });
+    fireEvent.click(screen.getByRole('button', { name: /Continuar a Dominio/i }));
+
+    // Step 3: checkDomainAvailability rejects with {}
+    vi.mocked(onboardingClient.checkDomainAvailability).mockRejectedValueOnce({});
+    fireEvent.change(screen.getByPlaceholderText('ej. miempresa.com'), {
+      target: { value: 'test-fallback.com' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: /Verificar/i }));
+
+    await waitFor(() => {
+      expect(screen.getByText(/Error al consultar disponibilidad/i)).toBeInTheDocument();
+    });
+
+    // Step 4: Advance to Step 4 and createCheckoutSession rejects with {}
+    fireEvent.click(screen.getByRole('button', { name: /Continuar a Resumen/i }));
+    vi.mocked(onboardingClient.createCheckoutSession).mockRejectedValueOnce({});
+    fireEvent.click(screen.getByRole('button', { name: /Proceder al Pago Seguro/i }));
+
+    await waitFor(() => {
+      expect(screen.getByText(/Error al iniciar la sesión de pago/i)).toBeInTheDocument();
     });
   });
 });

@@ -35,7 +35,8 @@ const DEFAULT_LATENCY_BUCKETS = [0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.
 class MetricsRegistry {
   private counters: Map<string, CounterEntry[]> = new Map();
   private gauges: Map<string, GaugeEntry[]> = new Map();
-  private histograms: Map<string, { bucketsConfig: number[]; entries: HistogramEntry[] }> = new Map();
+  private histograms: Map<string, { bucketsConfig: number[]; entries: HistogramEntry[] }> =
+    new Map();
 
   constructor() {
     this.initDefaultMetrics();
@@ -88,7 +89,11 @@ class MetricsRegistry {
     this.gauges.set(name, list);
   }
 
-  public observeHistogram(name: string, durationSeconds: number, labels: Record<string, string> = {}): void {
+  public observeHistogram(
+    name: string,
+    durationSeconds: number,
+    labels: Record<string, string> = {},
+  ): void {
     let histo = this.histograms.get(name);
     if (!histo) {
       histo = { bucketsConfig: DEFAULT_LATENCY_BUCKETS, entries: [] };
@@ -115,7 +120,12 @@ class MetricsRegistry {
     }
   }
 
-  public recordHttpRequest(method: string, route: string, status: number, durationSeconds: number): void {
+  public recordHttpRequest(
+    method: string,
+    route: string,
+    status: number,
+    durationSeconds: number,
+  ): void {
     const labels = { method: method.toUpperCase(), route, status: String(status) };
     this.incCounter('http_requests_total', labels, 1);
     this.observeHistogram('http_request_duration_seconds', durationSeconds, labels);

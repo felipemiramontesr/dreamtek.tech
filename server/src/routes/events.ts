@@ -40,7 +40,13 @@ export function sendSSEEventToUser(userId: string, eventType: string, payload: u
 eventsRouter.get('/events', requireAuth, (req: AuthenticatedRequest, res: Response) => {
   const userId = req.user?.userId ? String(req.user.userId) : '';
   if (!userId) {
-    res.status(401).json({ status: 401, error: 'Unauthorized', message: 'Autenticación requerida para stream SSE.' });
+    res
+      .status(401)
+      .json({
+        status: 401,
+        error: 'Unauthorized',
+        message: 'Autenticación requerida para stream SSE.',
+      });
     return;
   }
 
@@ -51,7 +57,9 @@ eventsRouter.get('/events', requireAuth, (req: AuthenticatedRequest, res: Respon
   res.setHeader('X-Accel-Buffering', 'no');
 
   // Enviar mensaje de bienvenida / handshake
-  res.write(`event: connected\ndata: ${JSON.stringify({ message: 'SSE Stream Activo', userId, timestamp: new Date().toISOString() })}\n\n`);
+  res.write(
+    `event: connected\ndata: ${JSON.stringify({ message: 'SSE Stream Activo', userId, timestamp: new Date().toISOString() })}\n\n`,
+  );
 
   // Registrar cliente
   if (!activeClients.has(userId)) {

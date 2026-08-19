@@ -54,7 +54,7 @@ export function Hero({ dict, onOpenAuthModal }: HeroProps) {
             onClick={() => {
               if (onOpenAuthModal) {
                 onOpenAuthModal();
-              } else if (typeof window !== 'undefined') {
+              } else {
                 window.dispatchEvent(
                   new CustomEvent('open-auth-modal', { detail: { mode: 'login' } }),
                 );
