@@ -9,6 +9,7 @@ import { validate } from '../middleware/validate';
 import { createShareSchema } from '../schemas/share.schema';
 import { assetSearchQuerySchema } from '../schemas/assetSearch.schema';
 import { attachTagsSchema, assetMetadataSchema } from '../schemas/tag.schema';
+import { moveAssetLocationSchema } from '../schemas/workspace.schema';
 import { logSecurityEvent } from '../middleware/auditLogger';
 import { query } from '../db';
 import { validateMagicBytes } from '../utils/magicBytes';
@@ -1324,6 +1325,183 @@ router.delete(
         status: 500,
         error: 'Internal Server Error',
         message: 'Error al eliminar metadato.',
+      });
+    }
+  },
+);
+
+/**
+ * PATCH /api/v1/assets/:id/location
+ * Relocate asset to a different collection and/or workspace within the same tenant.
+ * Requires EDIT permission on source asset and EDIT permission on destination collection/workspace.
+ */
+router.patch(
+  '/:id/location',
+  requireAuth,
+  validate(moveAssetLocationSchema, 'body'),
+  async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+    try {
+      const tenantId = getActorTenantId(req);
+      const assetId = parseInt(String(req.params.id), 10);
+
+      if (isNaN(assetId)) {
+        res
+          .status(400)
+          .json({ status: 400, error: 'Bad Request', message: 'ID de activo inválido.' });
+        return;
+      }
+
+      const { workspace_id: destWorkspaceId, collection_id: destCollectionId = null } = req.body;
+
+      // 1. Fetch source asset and anti-IDOR check
+      const assetRows = await query<any[]>(
+        'SELECT id, tenant_id, workspace_id, collection_id, status, deleted_at FROM assets WHERE id = ? AND tenant_id = ? AND deleted_at IS NULL',
+        [assetId, tenantId],
+      );
+
+      if (!assetRows || assetRows.length === 0) {
+        res.status(404).json({
+          status: 404,
+          error: 'Not Found',
+          message: 'Activo no encontrado o ya eliminado.',
+        });
+        return;
+      }
+
+      const asset = assetRows[0];
+      const actor = {
+        id: req.user!.userId,
+        role: req.user!.role,
+        tenantId,
+      };
+
+      // 2. ACL check on source asset ('EDIT')
+      const sourceEval = await evaluateAclPermission(actor, 'ASSET', assetId, 'EDIT', {
+        tenantId: asset.tenant_id,
+        workspaceId: asset.workspace_id,
+        collectionId: asset.collection_id,
+        status: asset.status,
+        deletedAt: asset.deleted_at,
+      });
+
+      if (!sourceEval.allowed) {
+        res.status(403).json({
+          status: 403,
+          error: 'Forbidden',
+          message:
+            'Acceso denegado por política de control de acceso (ACL) en el activo de origen.',
+        });
+        return;
+      }
+
+      // 3. Validate destination workspace
+      const wsRows = await query<any[]>(
+        'SELECT id, tenant_id FROM workspaces WHERE id = ? AND tenant_id = ?',
+        [destWorkspaceId, tenantId],
+      );
+
+      if (!wsRows || wsRows.length === 0) {
+        res.status(400).json({
+          status: 400,
+          error: 'Bad Request',
+          message: 'El espacio de trabajo de destino no existe o pertenece a otro tenant.',
+        });
+        return;
+      }
+
+      // 4. Validate destination collection (if specified) and check ACL
+      if (destCollectionId !== null) {
+        const colRows = await query<any[]>(
+          `SELECT c.id, c.workspace_id, w.tenant_id 
+           FROM collections c 
+           JOIN workspaces w ON w.id = c.workspace_id 
+           WHERE c.id = ? AND w.tenant_id = ? AND c.workspace_id = ?`,
+          [destCollectionId, tenantId, destWorkspaceId],
+        );
+
+        if (!colRows || colRows.length === 0) {
+          res.status(400).json({
+            status: 400,
+            error: 'Bad Request',
+            message:
+              'La colección de destino no existe, no pertenece al workspace indicado o es de otro tenant.',
+          });
+          return;
+        }
+
+        const destColEval = await evaluateAclPermission(
+          actor,
+          'COLLECTION',
+          destCollectionId,
+          'EDIT',
+          {
+            tenantId: colRows[0].tenant_id,
+            workspaceId: colRows[0].workspace_id,
+            collectionId: destCollectionId,
+          },
+        );
+        if (!destColEval.allowed) {
+          res.status(403).json({
+            status: 403,
+            error: 'Forbidden',
+            message:
+              'Acceso denegado por política de control de acceso (ACL) en la colección de destino.',
+          });
+          return;
+        }
+      } else {
+        // Root workspace placement: evaluate ACL on destination workspace
+        const destWsEval = await evaluateAclPermission(
+          actor,
+          'WORKSPACE',
+          destWorkspaceId,
+          'EDIT',
+          {
+            tenantId: wsRows[0].tenant_id,
+            workspaceId: destWorkspaceId,
+          },
+        );
+        if (!destWsEval.allowed) {
+          res.status(403).json({
+            status: 403,
+            error: 'Forbidden',
+            message:
+              'Acceso denegado por política de control de acceso (ACL) en el espacio de trabajo de destino.',
+          });
+          return;
+        }
+      }
+
+      // 5. Update asset location
+      await query(
+        'UPDATE assets SET workspace_id = ?, collection_id = ? WHERE id = ? AND tenant_id = ?',
+        [destWorkspaceId, destCollectionId, assetId, tenantId],
+      );
+
+      await logSecurityEvent(req, {
+        eventType: 'ASSET_RELOCATED',
+        userId: Number(req.user?.userId),
+        status: 'SUCCESS',
+        details: `Relocated asset ID ${assetId} from ws:${asset.workspace_id}/col:${asset.collection_id} to ws:${destWorkspaceId}/col:${destCollectionId}`,
+      });
+
+      res.status(200).json({
+        status: 200,
+        message: 'Activo reubicado exitosamente.',
+        data: {
+          assetId,
+          previousWorkspaceId: asset.workspace_id,
+          previousCollectionId: asset.collection_id,
+          newWorkspaceId: destWorkspaceId,
+          newCollectionId: destCollectionId,
+        },
+      });
+    } catch (err: any) {
+      console.error('Relocate asset error:', err);
+      res.status(500).json({
+        status: 500,
+        error: 'Internal Server Error',
+        message: 'Error al reubicar el activo digital.',
       });
     }
   },

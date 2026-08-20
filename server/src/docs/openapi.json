@@ -282,6 +282,227 @@
           "200": { "description": "Resultado de la evaluación jerárquica de permisos." }
         }
       }
+    },
+    "/workspaces": {
+      "get": {
+        "summary": "Listar espacios de trabajo del tenant",
+        "tags": ["Workspaces"],
+        "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
+        "responses": {
+          "200": {
+            "description": "Lista de espacios de trabajo con estadísticas de colecciones y activos."
+          }
+        }
+      },
+      "post": {
+        "summary": "Crear un nuevo espacio de trabajo en el tenant",
+        "tags": ["Workspaces"],
+        "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["name"],
+                "properties": {
+                  "name": { "type": "string", "maxLength": 100 }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": { "description": "Espacio de trabajo creado exitosamente." },
+          "403": { "description": "Se requiere rol ADMIN o ser propietario del tenant." }
+        }
+      }
+    },
+    "/workspaces/{id}": {
+      "get": {
+        "summary": "Obtener detalle y estadísticas de un espacio de trabajo",
+        "tags": ["Workspaces"],
+        "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "integer" } }
+        ],
+        "responses": {
+          "200": { "description": "Detalle del espacio de trabajo." },
+          "403": { "description": "Acceso denegado por ACL." },
+          "404": { "description": "Espacio de trabajo no encontrado." }
+        }
+      },
+      "put": {
+        "summary": "Actualizar nombre de un espacio de trabajo",
+        "tags": ["Workspaces"],
+        "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "integer" } }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["name"],
+                "properties": {
+                  "name": { "type": "string", "maxLength": 100 }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Espacio de trabajo actualizado exitosamente." },
+          "403": { "description": "Acceso denegado por ACL." },
+          "404": { "description": "Espacio de trabajo no encontrado." }
+        }
+      },
+      "delete": {
+        "summary": "Eliminar espacio de trabajo vacío",
+        "tags": ["Workspaces"],
+        "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "integer" } }
+        ],
+        "responses": {
+          "200": { "description": "Espacio de trabajo eliminado exitosamente." },
+          "403": { "description": "Acceso denegado por ACL." },
+          "404": { "description": "Espacio de trabajo no encontrado." },
+          "409": { "description": "El espacio de trabajo contiene colecciones o activos activos." }
+        }
+      }
+    },
+    "/collections": {
+      "get": {
+        "summary": "Listar colecciones del tenant",
+        "tags": ["Collections"],
+        "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
+        "parameters": [
+          {
+            "name": "workspace_id",
+            "in": "query",
+            "required": false,
+            "schema": { "type": "integer" }
+          }
+        ],
+        "responses": {
+          "200": { "description": "Lista de colecciones con estadísticas de activos." }
+        }
+      },
+      "post": {
+        "summary": "Crear una nueva colección en un espacio de trabajo",
+        "tags": ["Collections"],
+        "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["workspace_id", "name"],
+                "properties": {
+                  "workspace_id": { "type": "integer" },
+                  "name": { "type": "string", "maxLength": 100 }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": { "description": "Colección creada exitosamente." },
+          "403": { "description": "Acceso denegado por ACL en el workspace." },
+          "404": { "description": "Espacio de trabajo no encontrado." }
+        }
+      }
+    },
+    "/collections/{id}": {
+      "get": {
+        "summary": "Obtener detalle y estadísticas de una colección",
+        "tags": ["Collections"],
+        "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "integer" } }
+        ],
+        "responses": {
+          "200": { "description": "Detalle de la colección." },
+          "403": { "description": "Acceso denegado por ACL." },
+          "404": { "description": "Colección no encontrada." }
+        }
+      },
+      "put": {
+        "summary": "Actualizar nombre de una colección",
+        "tags": ["Collections"],
+        "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "integer" } }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["name"],
+                "properties": {
+                  "name": { "type": "string", "maxLength": 100 }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Colección actualizada exitosamente." },
+          "403": { "description": "Acceso denegado por ACL." },
+          "404": { "description": "Colección no encontrada." }
+        }
+      },
+      "delete": {
+        "summary": "Eliminar colección vacía",
+        "tags": ["Collections"],
+        "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "integer" } }
+        ],
+        "responses": {
+          "200": { "description": "Colección eliminada exitosamente." },
+          "403": { "description": "Acceso denegado por ACL." },
+          "404": { "description": "Colección no encontrada." },
+          "409": { "description": "La colección contiene activos activos." }
+        }
+      }
+    },
+    "/assets/{id}/location": {
+      "patch": {
+        "summary": "Reubicar activo digital en otra colección y/o espacio de trabajo",
+        "tags": ["Assets"],
+        "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "integer" } }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["workspace_id"],
+                "properties": {
+                  "workspace_id": { "type": "integer" },
+                  "collection_id": { "type": ["integer", "null"] }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Activo reubicado exitosamente." },
+          "400": { "description": "Espacio de trabajo o colección de destino inválidos." },
+          "403": { "description": "Acceso denegado por ACL en origen o destino." },
+          "404": { "description": "Activo no encontrado." }
+        }
+      }
     }
   }
 }

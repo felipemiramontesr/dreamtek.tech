@@ -10,6 +10,8 @@ import {
   globalRateLimiter,
   sensitiveEndpointLimiter,
   aclRateLimiter,
+  workspacesRateLimiter,
+  collectionsRateLimiter,
 } from './middleware/rateLimiter.js';
 import { metricsMiddleware } from './middleware/metrics.js';
 import { metricsRouter } from './routes/metrics.js';
@@ -25,6 +27,8 @@ import assetsRouter from './routes/assets.js';
 import { sharesRouter } from './routes/shares.js';
 import { tagsRouter } from './routes/tags.js';
 import aclRouter from './routes/acl.js';
+import { workspacesRouter } from './routes/workspaces.js';
+import { collectionsRouter } from './routes/collections.js';
 import { pool } from './db.js';
 import { getCache, setCache } from './utils/cache.js';
 
@@ -156,6 +160,8 @@ app.use('/api/v1/assets', assetsRouter);
 app.use('/api/v1/shares', sharesRouter);
 app.use('/api/v1/tags', tagsRouter);
 app.use('/api/v1/acl', aclRateLimiter, aclRouter);
+app.use('/api/v1/workspaces', workspacesRateLimiter, workspacesRouter);
+app.use('/api/v1/collections', collectionsRateLimiter, collectionsRouter);
 app.use('/api/v1', eventsRouter);
 
 // Start HTTP Server
