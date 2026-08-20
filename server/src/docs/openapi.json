@@ -173,6 +173,115 @@
           "200": { "description": "Estado de disponibilidad del dominio." }
         }
       }
+    },
+    "/acl/entries": {
+      "get": {
+        "summary": "Consultar entradas de ACL de un recurso",
+        "tags": ["Access Control"],
+        "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
+        "parameters": [
+          {
+            "name": "resource_type",
+            "in": "query",
+            "required": true,
+            "schema": { "type": "string", "enum": ["WORKSPACE", "COLLECTION", "ASSET"] }
+          },
+          {
+            "name": "resource_id",
+            "in": "query",
+            "required": true,
+            "schema": { "type": "integer" }
+          }
+        ],
+        "responses": {
+          "200": { "description": "Lista de entradas de ACL del recurso." },
+          "403": { "description": "Acceso denegado por política de ACL." }
+        }
+      },
+      "post": {
+        "summary": "Otorgar o actualizar permiso granular en ACL",
+        "tags": ["Access Control"],
+        "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "resource_type",
+                  "resource_id",
+                  "principal_type",
+                  "principal_id",
+                  "permission"
+                ],
+                "properties": {
+                  "resource_type": {
+                    "type": "string",
+                    "enum": ["WORKSPACE", "COLLECTION", "ASSET"]
+                  },
+                  "resource_id": { "type": "integer" },
+                  "principal_type": { "type": "string", "enum": ["USER", "ROLE"] },
+                  "principal_id": { "type": "string" },
+                  "permission": {
+                    "type": "string",
+                    "enum": ["VIEW", "DOWNLOAD", "EDIT", "MANAGE", "DELETE"]
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": { "description": "Permiso de ACL registrado exitosamente." },
+          "403": { "description": "Se requiere permiso MANAGE para otorgar permisos." }
+        }
+      }
+    },
+    "/acl/entries/{id}": {
+      "delete": {
+        "summary": "Revocar entrada de ACL",
+        "tags": ["Access Control"],
+        "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "integer" } }
+        ],
+        "responses": {
+          "200": { "description": "Entrada de ACL revocada exitosamente." },
+          "403": { "description": "Se requiere permiso MANAGE." },
+          "404": { "description": "Entrada de ACL no encontrada." }
+        }
+      }
+    },
+    "/acl/check": {
+      "get": {
+        "summary": "Evaluar permiso efectivo de un actor sobre un recurso",
+        "tags": ["Access Control"],
+        "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
+        "parameters": [
+          {
+            "name": "resource_type",
+            "in": "query",
+            "required": true,
+            "schema": { "type": "string", "enum": ["WORKSPACE", "COLLECTION", "ASSET"] }
+          },
+          {
+            "name": "resource_id",
+            "in": "query",
+            "required": true,
+            "schema": { "type": "integer" }
+          },
+          {
+            "name": "permission",
+            "in": "query",
+            "required": true,
+            "schema": { "type": "string", "enum": ["VIEW", "DOWNLOAD", "EDIT", "MANAGE", "DELETE"] }
+          }
+        ],
+        "responses": {
+          "200": { "description": "Resultado de la evaluación jerárquica de permisos." }
+        }
+      }
     }
   }
 }

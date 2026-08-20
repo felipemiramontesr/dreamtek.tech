@@ -6,7 +6,11 @@ import dotenv from 'dotenv';
 import path from 'path';
 import fs from 'fs';
 
-import { globalRateLimiter, sensitiveEndpointLimiter } from './middleware/rateLimiter.js';
+import {
+  globalRateLimiter,
+  sensitiveEndpointLimiter,
+  aclRateLimiter,
+} from './middleware/rateLimiter.js';
 import { metricsMiddleware } from './middleware/metrics.js';
 import { metricsRouter } from './routes/metrics.js';
 import { healthRouter, setShuttingDownState } from './routes/health.js';
@@ -20,6 +24,7 @@ import { eventsRouter } from './routes/events.js';
 import assetsRouter from './routes/assets.js';
 import { sharesRouter } from './routes/shares.js';
 import { tagsRouter } from './routes/tags.js';
+import aclRouter from './routes/acl.js';
 import { pool } from './db.js';
 import { getCache, setCache } from './utils/cache.js';
 
@@ -150,6 +155,7 @@ app.use('/api/v1/contact', sensitiveEndpointLimiter, contactRouter);
 app.use('/api/v1/assets', assetsRouter);
 app.use('/api/v1/shares', sharesRouter);
 app.use('/api/v1/tags', tagsRouter);
+app.use('/api/v1/acl', aclRateLimiter, aclRouter);
 app.use('/api/v1', eventsRouter);
 
 // Start HTTP Server

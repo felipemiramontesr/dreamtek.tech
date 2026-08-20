@@ -9,7 +9,7 @@ import { query } from '../db';
 export const tagsRouter = Router();
 
 export function getActorTenantId(req: AuthenticatedRequest): number {
-  const userId = Number(req.user?.userId);
+  const userId = Number((req.user as any)?.tenantId || req.user?.userId);
   if (!userId || isNaN(userId)) {
     throw new Error('Invalid authenticated user context.');
   }

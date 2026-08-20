@@ -12,6 +12,7 @@ import { attachTagsSchema, assetMetadataSchema } from '../schemas/tag.schema';
 import { logSecurityEvent } from '../middleware/auditLogger';
 import { query } from '../db';
 import { validateMagicBytes } from '../utils/magicBytes';
+import { evaluateAclPermission } from '../utils/acl';
 import {
   STORAGE_ROOT,
   assertPathContained,
@@ -35,7 +36,7 @@ const upload = multer({
  * In AS-IS bridge, userId corresponds to the actor's primary tenant.
  */
 export function getActorTenantId(req: AuthenticatedRequest): number {
-  const userId = Number(req.user?.userId);
+  const userId = Number((req.user as any)?.tenantId || req.user?.userId);
   if (!userId || isNaN(userId)) {
     throw new Error('Invalid authenticated user context.');
   }
@@ -404,6 +405,27 @@ router.get('/:id', requireAuth, async (req: AuthenticatedRequest, res: Response)
     }
 
     const asset = assets[0];
+
+    const actor = {
+      id: req.user!.userId,
+      role: req.user!.role,
+      tenantId,
+    };
+    const evalResult = await evaluateAclPermission(actor, 'ASSET', assetId, 'VIEW', {
+      tenantId: asset.tenant_id,
+      workspaceId: asset.workspace_id,
+      collectionId: asset.collection_id,
+      status: asset.status,
+      deletedAt: asset.deleted_at,
+    });
+    if (!evalResult.allowed) {
+      res.status(403).json({
+        status: 403,
+        error: 'Forbidden',
+        message: 'Acceso denegado por política de control de acceso (ACL).',
+      });
+      return;
+    }
     const versions = await query<any[]>(
       `SELECT id, version_number, byte_size, sha256_hash, created_at FROM asset_versions WHERE asset_id = ? ORDER BY version_number DESC`,
       [assetId],
@@ -446,7 +468,7 @@ router.get(
       }
 
       const rows = await query<any[]>(
-        `SELECT a.mime_type, a.title, v.file_path, v.byte_size
+        `SELECT a.mime_type, a.title, a.workspace_id, a.collection_id, a.status, a.deleted_at, v.file_path, v.byte_size
          FROM assets a
          JOIN asset_versions v ON v.asset_id = a.id
          WHERE a.id = ? AND a.tenant_id = ? AND a.deleted_at IS NULL
@@ -463,7 +485,37 @@ router.get(
         return;
       }
 
-      const { mime_type, title, file_path, byte_size } = rows[0];
+      const {
+        mime_type,
+        title,
+        file_path,
+        byte_size,
+        workspace_id,
+        collection_id,
+        status,
+        deleted_at,
+      } = rows[0];
+
+      const actor = {
+        id: req.user!.userId,
+        role: req.user!.role,
+        tenantId,
+      };
+      const evalResult = await evaluateAclPermission(actor, 'ASSET', assetId, 'DOWNLOAD', {
+        tenantId,
+        workspaceId: workspace_id,
+        collectionId: collection_id,
+        status,
+        deletedAt: deleted_at,
+      });
+      if (!evalResult.allowed) {
+        res.status(403).json({
+          status: 403,
+          error: 'Forbidden',
+          message: 'Acceso denegado por política de control de acceso (ACL).',
+        });
+        return;
+      }
       assertPathContained(file_path);
 
       if (!fs.existsSync(file_path)) {
@@ -513,7 +565,7 @@ router.get(
       }
 
       const rows = await query<any[]>(
-        `SELECT d.file_path, d.byte_size
+        `SELECT d.file_path, d.byte_size, a.workspace_id, a.collection_id, a.status, a.deleted_at
          FROM assets a
          JOIN asset_versions v ON v.asset_id = a.id
          JOIN asset_derivatives d ON d.version_id = v.id
@@ -523,7 +575,29 @@ router.get(
       );
 
       if (rows && rows.length > 0) {
-        const { file_path, byte_size } = rows[0];
+        const { file_path, byte_size, workspace_id, collection_id, status, deleted_at } = rows[0];
+
+        const actor = {
+          id: req.user!.userId,
+          role: req.user!.role,
+          tenantId,
+        };
+        const evalResult = await evaluateAclPermission(actor, 'ASSET', assetId, 'VIEW', {
+          tenantId,
+          workspaceId: workspace_id,
+          collectionId: collection_id,
+          status,
+          deletedAt: deleted_at,
+        });
+        if (!evalResult.allowed) {
+          res.status(403).json({
+            status: 403,
+            error: 'Forbidden',
+            message: 'Acceso denegado por política de control de acceso (ACL).',
+          });
+          return;
+        }
+
         assertPathContained(file_path);
         if (fs.existsSync(file_path)) {
           res.setHeader('Content-Type', 'image/webp');
@@ -536,7 +610,7 @@ router.get(
 
       // Fallback to original stream if image without derivative
       const fallbackRows = await query<any[]>(
-        `SELECT a.mime_type, v.file_path, v.byte_size
+        `SELECT a.mime_type, a.workspace_id, a.collection_id, a.status, a.deleted_at, v.file_path, v.byte_size
          FROM assets a
          JOIN asset_versions v ON v.asset_id = a.id
          WHERE a.id = ? AND a.tenant_id = ? AND a.deleted_at IS NULL
@@ -551,7 +625,29 @@ router.get(
         return;
       }
 
-      const { mime_type, file_path, byte_size } = fallbackRows[0];
+      const { mime_type, file_path, byte_size, workspace_id, collection_id, status, deleted_at } =
+        fallbackRows[0];
+
+      const actor = {
+        id: req.user!.userId,
+        role: req.user!.role,
+        tenantId,
+      };
+      const evalResult = await evaluateAclPermission(actor, 'ASSET', assetId, 'VIEW', {
+        tenantId,
+        workspaceId: workspace_id,
+        collectionId: collection_id,
+        status,
+        deletedAt: deleted_at,
+      });
+      if (!evalResult.allowed) {
+        res.status(403).json({
+          status: 403,
+          error: 'Forbidden',
+          message: 'Acceso denegado por política de control de acceso (ACL).',
+        });
+        return;
+      }
       assertPathContained(file_path);
       res.setHeader('Content-Type', mime_type);
       res.setHeader('Content-Length', byte_size);
@@ -585,6 +681,25 @@ router.delete(
           .status(400)
           .json({ status: 400, error: 'Bad Request', message: 'ID de activo inválido.' });
         return;
+      }
+
+      const actor = {
+        id: req.user!.userId,
+        role: req.user!.role,
+        tenantId,
+      };
+
+      // Check ACL for non-owner/non-admin
+      if (actor.role !== 'ADMIN' && Number(actor.id) !== Number(tenantId)) {
+        const evalResult = await evaluateAclPermission(actor, 'ASSET', assetId, 'DELETE');
+        if (!evalResult.allowed) {
+          res.status(403).json({
+            status: 403,
+            error: 'Forbidden',
+            message: 'Acceso denegado por política de control de acceso (ACL).',
+          });
+          return;
+        }
       }
 
       const result = await query<any>(
@@ -773,7 +888,7 @@ router.post(
 
       // Anti-IDOR: Check asset exists and belongs to active tenant
       const assetRows = await query<any[]>(
-        'SELECT id FROM assets WHERE id = ? AND tenant_id = ? AND status = "ACTIVE" AND deleted_at IS NULL',
+        'SELECT id, tenant_id, workspace_id, collection_id, status, deleted_at FROM assets WHERE id = ? AND tenant_id = ? AND status = "ACTIVE" AND deleted_at IS NULL',
         [assetId, tenantId],
       );
 
@@ -781,6 +896,28 @@ router.post(
         res
           .status(404)
           .json({ status: 404, error: 'Not Found', message: 'Activo digital no encontrado.' });
+        return;
+      }
+
+      const asset = assetRows[0];
+      const actor = {
+        id: req.user!.userId,
+        role: req.user!.role,
+        tenantId,
+      };
+      const evalResult = await evaluateAclPermission(actor, 'ASSET', assetId, 'EDIT', {
+        tenantId: asset.tenant_id,
+        workspaceId: asset.workspace_id,
+        collectionId: asset.collection_id,
+        status: asset.status,
+        deletedAt: asset.deleted_at,
+      });
+      if (!evalResult.allowed) {
+        res.status(403).json({
+          status: 403,
+          error: 'Forbidden',
+          message: 'Acceso denegado por política de control de acceso (ACL).',
+        });
         return;
       }
 
@@ -854,7 +991,7 @@ router.delete(
 
       // Anti-IDOR: Check asset ownership
       const assetRows = await query<any[]>(
-        'SELECT id FROM assets WHERE id = ? AND tenant_id = ? AND status = "ACTIVE" AND deleted_at IS NULL',
+        'SELECT id, tenant_id, workspace_id, collection_id, status, deleted_at FROM assets WHERE id = ? AND tenant_id = ? AND status = "ACTIVE" AND deleted_at IS NULL',
         [assetId, tenantId],
       );
 
@@ -862,6 +999,28 @@ router.delete(
         res
           .status(404)
           .json({ status: 404, error: 'Not Found', message: 'Activo digital no encontrado.' });
+        return;
+      }
+
+      const asset = assetRows[0];
+      const actor = {
+        id: req.user!.userId,
+        role: req.user!.role,
+        tenantId,
+      };
+      const evalResult = await evaluateAclPermission(actor, 'ASSET', assetId, 'EDIT', {
+        tenantId: asset.tenant_id,
+        workspaceId: asset.workspace_id,
+        collectionId: asset.collection_id,
+        status: asset.status,
+        deletedAt: asset.deleted_at,
+      });
+      if (!evalResult.allowed) {
+        res.status(403).json({
+          status: 403,
+          error: 'Forbidden',
+          message: 'Acceso denegado por política de control de acceso (ACL).',
+        });
         return;
       }
 
@@ -917,7 +1076,7 @@ router.get(
 
       // Anti-IDOR
       const assetRows = await query<any[]>(
-        'SELECT id FROM assets WHERE id = ? AND tenant_id = ? AND status = "ACTIVE" AND deleted_at IS NULL',
+        'SELECT id, tenant_id, workspace_id, collection_id, status, deleted_at FROM assets WHERE id = ? AND tenant_id = ? AND status = "ACTIVE" AND deleted_at IS NULL',
         [assetId, tenantId],
       );
 
@@ -925,6 +1084,28 @@ router.get(
         res
           .status(404)
           .json({ status: 404, error: 'Not Found', message: 'Activo digital no encontrado.' });
+        return;
+      }
+
+      const asset = assetRows[0];
+      const actor = {
+        id: req.user!.userId,
+        role: req.user!.role,
+        tenantId,
+      };
+      const evalResult = await evaluateAclPermission(actor, 'ASSET', assetId, 'VIEW', {
+        tenantId: asset.tenant_id,
+        workspaceId: asset.workspace_id,
+        collectionId: asset.collection_id,
+        status: asset.status,
+        deletedAt: asset.deleted_at,
+      });
+      if (!evalResult.allowed) {
+        res.status(403).json({
+          status: 403,
+          error: 'Forbidden',
+          message: 'Acceso denegado por política de control de acceso (ACL).',
+        });
         return;
       }
 
@@ -979,7 +1160,7 @@ router.put(
 
       // Anti-IDOR
       const assetRows = await query<any[]>(
-        'SELECT id FROM assets WHERE id = ? AND tenant_id = ? AND status = "ACTIVE" AND deleted_at IS NULL',
+        'SELECT id, tenant_id, workspace_id, collection_id, status, deleted_at FROM assets WHERE id = ? AND tenant_id = ? AND status = "ACTIVE" AND deleted_at IS NULL',
         [assetId, tenantId],
       );
 
@@ -987,6 +1168,28 @@ router.put(
         res
           .status(404)
           .json({ status: 404, error: 'Not Found', message: 'Activo digital no encontrado.' });
+        return;
+      }
+
+      const asset = assetRows[0];
+      const actor = {
+        id: req.user!.userId,
+        role: req.user!.role,
+        tenantId,
+      };
+      const evalResult = await evaluateAclPermission(actor, 'ASSET', assetId, 'EDIT', {
+        tenantId: asset.tenant_id,
+        workspaceId: asset.workspace_id,
+        collectionId: asset.collection_id,
+        status: asset.status,
+        deletedAt: asset.deleted_at,
+      });
+      if (!evalResult.allowed) {
+        res.status(403).json({
+          status: 403,
+          error: 'Forbidden',
+          message: 'Acceso denegado por política de control de acceso (ACL).',
+        });
         return;
       }
 
@@ -1062,7 +1265,7 @@ router.delete(
 
       // Anti-IDOR
       const assetRows = await query<any[]>(
-        'SELECT id FROM assets WHERE id = ? AND tenant_id = ? AND status = "ACTIVE" AND deleted_at IS NULL',
+        'SELECT id, tenant_id, workspace_id, collection_id, status, deleted_at FROM assets WHERE id = ? AND tenant_id = ? AND status = "ACTIVE" AND deleted_at IS NULL',
         [assetId, tenantId],
       );
 
@@ -1070,6 +1273,28 @@ router.delete(
         res
           .status(404)
           .json({ status: 404, error: 'Not Found', message: 'Activo digital no encontrado.' });
+        return;
+      }
+
+      const asset = assetRows[0];
+      const actor = {
+        id: req.user!.userId,
+        role: req.user!.role,
+        tenantId,
+      };
+      const evalResult = await evaluateAclPermission(actor, 'ASSET', assetId, 'EDIT', {
+        tenantId: asset.tenant_id,
+        workspaceId: asset.workspace_id,
+        collectionId: asset.collection_id,
+        status: asset.status,
+        deletedAt: asset.deleted_at,
+      });
+      if (!evalResult.allowed) {
+        res.status(403).json({
+          status: 403,
+          error: 'Forbidden',
+          message: 'Acceso denegado por política de control de acceso (ACL).',
+        });
         return;
       }
 

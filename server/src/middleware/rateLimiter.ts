@@ -116,3 +116,22 @@ export const tagsRateLimiter = rateLimit({
     });
   },
 });
+
+/**
+ * DAM ACL & Permissions Rate Limiter (OWASP A04)
+ * 100 requests per 1 minute window per IP
+ */
+export const aclRateLimiter = rateLimit({
+  windowMs: 1 * 60 * 1000,
+  max: 100,
+  standardHeaders: true,
+  legacyHeaders: false,
+  handler: (_req: Request, res: Response) => {
+    res.status(429).json({
+      status: 429,
+      error: 'Too Many Requests',
+      message:
+        'Límite de operaciones de control de acceso (ACL) alcanzado. Intente nuevamente en un minuto.',
+    });
+  },
+});

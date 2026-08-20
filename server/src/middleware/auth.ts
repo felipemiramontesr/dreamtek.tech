@@ -5,6 +5,7 @@ export interface AuthenticatedUser {
   userId: number | string;
   email: string;
   role: 'ADMIN' | 'CLIENT' | string;
+  tenantId?: number;
 }
 
 export interface AuthenticatedRequest extends Request {
@@ -15,6 +16,7 @@ interface JwtTokenPayload {
   userId?: number | string;
   uid?: number | string;
   id?: number | string;
+  tenantId?: number | string;
   email: string;
   role?: string;
 }
@@ -62,6 +64,7 @@ export function requireAuth(req: AuthenticatedRequest, res: Response, next: Next
       userId: decoded.userId || decoded.uid || decoded.id || 0,
       email: decoded.email,
       role: (decoded.role || 'CLIENT').toUpperCase(),
+      tenantId: decoded.tenantId ? Number(decoded.tenantId) : undefined,
     };
 
     next();
