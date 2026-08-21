@@ -503,6 +503,111 @@
           "404": { "description": "Activo no encontrado." }
         }
       }
+    },
+    "/assets/{id}/versions": {
+      "post": {
+        "summary": "Subir una nueva versión de un activo digital existente",
+        "tags": ["Asset Versions"],
+        "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "integer" } }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "file": { "type": "string", "format": "binary" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": { "description": "Nueva versión creada exitosamente." },
+          "400": { "description": "Archivo faltante o Magic Bytes no permitidos." },
+          "403": { "description": "Acceso denegado por ACL (requiere EDIT)." },
+          "404": { "description": "Activo digital no encontrado." }
+        }
+      },
+      "get": {
+        "summary": "Listar historial de versiones de un activo digital",
+        "tags": ["Asset Versions"],
+        "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "integer" } }
+        ],
+        "responses": {
+          "200": { "description": "Historial de versiones recuperado exitosamente." },
+          "403": { "description": "Acceso denegado por ACL (requiere VIEW)." },
+          "404": { "description": "Activo digital no encontrado." }
+        }
+      }
+    },
+    "/assets/{id}/versions/{versionNumber}/stream": {
+      "get": {
+        "summary": "Descargar o reproducir streaming de una versión histórica específica",
+        "tags": ["Asset Versions"],
+        "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "integer" } },
+          {
+            "name": "versionNumber",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "integer" }
+          }
+        ],
+        "responses": {
+          "200": { "description": "Streaming binario de la versión." },
+          "403": { "description": "Acceso denegado por ACL (requiere DOWNLOAD)." },
+          "404": { "description": "Activo o versión no encontrada." }
+        }
+      }
+    },
+    "/assets/{id}/versions/{versionNumber}/thumbnail": {
+      "get": {
+        "summary": "Obtener miniatura WebP de una versión histórica específica",
+        "tags": ["Asset Versions"],
+        "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "integer" } },
+          {
+            "name": "versionNumber",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "integer" }
+          }
+        ],
+        "responses": {
+          "200": { "description": "Miniatura WebP servida exitosamente." },
+          "403": { "description": "Acceso denegado por ACL (requiere VIEW)." },
+          "404": { "description": "Miniatura o versión no disponible." }
+        }
+      }
+    },
+    "/assets/{id}/versions/{versionNumber}/promote": {
+      "post": {
+        "summary": "Promover una versión histórica como nueva versión cabecera activa (HEAD)",
+        "tags": ["Asset Versions"],
+        "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "integer" } },
+          {
+            "name": "versionNumber",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "integer" }
+          }
+        ],
+        "responses": {
+          "200": { "description": "Versión promovida exitosamente." },
+          "403": { "description": "Acceso denegado por ACL (requiere EDIT)." },
+          "404": { "description": "Activo o versión a promover no encontrada." }
+        }
+      }
     }
   }
 }

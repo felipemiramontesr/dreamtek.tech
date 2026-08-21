@@ -4,16 +4,22 @@ import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
 import { requireAuth, AuthenticatedRequest } from '../middleware/auth';
-import { uploadRateLimiter, searchRateLimiter, tagsRateLimiter } from '../middleware/rateLimiter';
+import {
+  uploadRateLimiter,
+  searchRateLimiter,
+  tagsRateLimiter,
+  versionsRateLimiter,
+} from '../middleware/rateLimiter';
 import { validate } from '../middleware/validate';
 import { createShareSchema } from '../schemas/share.schema';
 import { assetSearchQuerySchema } from '../schemas/assetSearch.schema';
 import { attachTagsSchema, assetMetadataSchema } from '../schemas/tag.schema';
 import { moveAssetLocationSchema } from '../schemas/workspace.schema';
+import { assetIdParamSchema, assetVersionParamsSchema } from '../schemas/assetVersion.schema';
 import { logSecurityEvent } from '../middleware/auditLogger';
 import { query } from '../db';
 import { validateMagicBytes } from '../utils/magicBytes';
-import { evaluateAclPermission } from '../utils/acl';
+import { evaluateAclPermission, AclActor } from '../utils/acl';
 import {
   STORAGE_ROOT,
   assertPathContained,
@@ -42,6 +48,17 @@ export function getActorTenantId(req: AuthenticatedRequest): number {
     throw new Error('Invalid authenticated user context.');
   }
   return userId;
+}
+
+/**
+ * Helper to construct strongly-typed AclActor from AuthenticatedRequest.
+ */
+export function getAssetActor(req: AuthenticatedRequest): AclActor {
+  return {
+    id: req.user!.userId,
+    role: req.user!.role,
+    tenantId: getActorTenantId(req),
+  };
 }
 
 /**
@@ -1502,6 +1519,674 @@ router.patch(
         status: 500,
         error: 'Internal Server Error',
         message: 'Error al reubicar el activo digital.',
+      });
+    }
+  },
+);
+
+/**
+ * POST /api/v1/assets/:id/versions
+ * Upload a new version for an existing asset.
+ */
+router.post(
+  '/:id/versions',
+  versionsRateLimiter,
+  requireAuth,
+  validate(assetIdParamSchema, 'params'),
+  upload.single('file'),
+  async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+    try {
+      const assetId = Number(req.params.id);
+      const tenantId = getActorTenantId(req);
+      const actor = getAssetActor(req);
+      const actorId = Number(actor.id);
+
+      if (!req.file || !req.file.buffer) {
+        res.status(400).json({
+          status: 400,
+          error: 'Bad Request',
+          message: 'No se proporcionó ningún archivo para la nueva versión.',
+        });
+        return;
+      }
+
+      // 1. Magic bytes validation
+      const validatedMime = validateMagicBytes(req.file.buffer);
+      if (!validatedMime) {
+        await logSecurityEvent(req, {
+          eventType: 'ASSET_VERSION_UPLOAD_BLOCKED',
+          userId: actorId,
+          status: 'BLOCKED',
+          details: `Rejected disallowed magic bytes for asset ID ${assetId} version upload: ${req.file.originalname}`,
+        });
+
+        res.status(400).json({
+          status: 400,
+          error: 'Bad Request',
+          message: 'Tipo de archivo no permitido o contenido malicioso detectado.',
+        });
+        return;
+      }
+
+      // 2. Fetch parent asset & assert tenant isolation & not deleted
+      const assetRows = await query<
+        Array<{
+          id: number;
+          tenant_id: number;
+          workspace_id: number;
+          collection_id: number;
+          title: string;
+          status: string;
+          deleted_at: string | null;
+        }>
+      >(
+        'SELECT id, tenant_id, workspace_id, collection_id, title, status, deleted_at FROM assets WHERE id = ? AND tenant_id = ?',
+        [assetId, tenantId],
+      );
+
+      if (
+        !assetRows ||
+        assetRows.length === 0 ||
+        assetRows[0].deleted_at !== null ||
+        assetRows[0].status === 'DELETED'
+      ) {
+        res.status(404).json({
+          status: 404,
+          error: 'Not Found',
+          message: 'Activo digital no encontrado.',
+        });
+        return;
+      }
+
+      const asset = assetRows[0];
+
+      // 3. ACL permission evaluation (requires EDIT on the asset)
+      const evalResult = await evaluateAclPermission(actor, 'ASSET', assetId, 'EDIT', {
+        tenantId: asset.tenant_id,
+        workspaceId: asset.workspace_id,
+        collectionId: asset.collection_id,
+        assetId,
+      });
+
+      if (!evalResult.allowed) {
+        res.status(403).json({
+          status: 403,
+          error: 'Forbidden',
+          message: 'Acceso denegado por política de control de acceso (ACL).',
+        });
+        return;
+      }
+
+      // 4. Calculate SHA-256 and determine atomic next version number
+      const sha256Hash = computeBufferSha256(req.file.buffer);
+
+      const maxVerRows = await query<Array<{ max_version: number | null }>>(
+        'SELECT MAX(version_number) AS max_version FROM asset_versions WHERE asset_id = ?',
+        [assetId],
+      );
+      const nextVersion = Number(maxVerRows?.[0]?.max_version || 0) + 1;
+
+      // 5. Store file on NVMe storage
+      const assetDir = path.join(
+        STORAGE_ROOT,
+        'tenants',
+        String(tenantId),
+        'assets',
+        String(assetId),
+      );
+      fs.mkdirSync(assetDir, { recursive: true });
+
+      const fileName = `v${nextVersion}_${sha256Hash}.${validatedMime.ext}`;
+      const filePath = path.join(assetDir, fileName);
+      assertPathContained(filePath);
+
+      fs.writeFileSync(filePath, req.file.buffer);
+
+      // 6. Insert new asset version record
+      const versionInsertRes = await query<any>(
+        `INSERT INTO asset_versions (asset_id, version_number, byte_size, sha256_hash, file_path, created_by)
+         VALUES (?, ?, ?, ?, ?, ?)`,
+        [assetId, nextVersion, req.file.buffer.length, sha256Hash, filePath, actorId],
+      );
+      const versionId = versionInsertRes.insertId;
+
+      // 7. Generate Derivatives for image files
+      const derivativesDir = path.join(assetDir, 'derivatives', `v${nextVersion}`);
+      const generatedDerivatives = await generateWebPDerivatives(
+        req.file.buffer,
+        validatedMime.mime,
+        derivativesDir,
+      );
+
+      for (const d of generatedDerivatives) {
+        await query<any>(
+          `INSERT INTO asset_derivatives (version_id, derivative_type, width, height, byte_size, file_path)
+           VALUES (?, ?, ?, ?, ?, ?)`,
+          [versionId, d.derivativeType, d.width, d.height, d.byteSize, d.filePath],
+        );
+      }
+
+      // 8. Audit log
+      await logSecurityEvent(req, {
+        eventType: 'ASSET_VERSION_UPLOAD',
+        userId: actorId,
+        status: 'SUCCESS',
+        details: `Uploaded new version v${nextVersion} for asset ID ${assetId} (${asset.title}) [${sha256Hash}]`,
+      });
+
+      res.status(201).json({
+        status: 201,
+        message: 'Nueva versión de activo cargada exitosamente.',
+        data: {
+          versionId,
+          versionNumber: nextVersion,
+          byteSize: req.file.buffer.length,
+          sha256Hash,
+          mimeType: validatedMime.mime,
+        },
+      });
+    } catch (err: any) {
+      console.error('Upload asset version error:', err);
+      res.status(500).json({
+        status: 500,
+        error: 'Internal Server Error',
+        message: 'Error al cargar la nueva versión del activo.',
+      });
+    }
+  },
+);
+
+/**
+ * GET /api/v1/assets/:id/versions
+ * List all versions of an asset ordered by version_number DESC.
+ */
+router.get(
+  '/:id/versions',
+  versionsRateLimiter,
+  requireAuth,
+  validate(assetIdParamSchema, 'params'),
+  async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+    try {
+      const assetId = Number(req.params.id);
+      const tenantId = getActorTenantId(req);
+      const actor = getAssetActor(req);
+
+      // 1. Fetch parent asset
+      const assetRows = await query<
+        Array<{
+          id: number;
+          tenant_id: number;
+          workspace_id: number;
+          collection_id: number;
+          status: string;
+          deleted_at: string | null;
+        }>
+      >(
+        'SELECT id, tenant_id, workspace_id, collection_id, status, deleted_at FROM assets WHERE id = ? AND tenant_id = ?',
+        [assetId, tenantId],
+      );
+
+      if (
+        !assetRows ||
+        assetRows.length === 0 ||
+        assetRows[0].deleted_at !== null ||
+        assetRows[0].status === 'DELETED'
+      ) {
+        res.status(404).json({
+          status: 404,
+          error: 'Not Found',
+          message: 'Activo digital no encontrado.',
+        });
+        return;
+      }
+
+      const asset = assetRows[0];
+
+      // 2. ACL check (VIEW)
+      const evalResult = await evaluateAclPermission(actor, 'ASSET', assetId, 'VIEW', {
+        tenantId: asset.tenant_id,
+        workspaceId: asset.workspace_id,
+        collectionId: asset.collection_id,
+        assetId,
+      });
+
+      if (!evalResult.allowed) {
+        res.status(403).json({
+          status: 403,
+          error: 'Forbidden',
+          message: 'Acceso denegado por política de control de acceso (ACL).',
+        });
+        return;
+      }
+
+      // 3. Query versions
+      const versions = await query<
+        Array<{
+          id: number;
+          version_number: number;
+          byte_size: number | string;
+          sha256_hash: string;
+          created_by: number;
+          created_at: string;
+        }>
+      >(
+        'SELECT id, version_number, byte_size, sha256_hash, created_by, created_at FROM asset_versions WHERE asset_id = ? ORDER BY version_number DESC',
+        [assetId],
+      );
+
+      res.status(200).json({
+        status: 200,
+        data: (versions || []).map((v) => ({
+          id: v.id,
+          versionNumber: v.version_number,
+          byteSize: Number(v.byte_size || 0),
+          sha256Hash: v.sha256_hash,
+          createdBy: v.created_by,
+          createdAt: v.created_at,
+        })),
+      });
+    } catch (err: any) {
+      console.error('List asset versions error:', err);
+      res.status(500).json({
+        status: 500,
+        error: 'Internal Server Error',
+        message: 'Error al consultar el historial de versiones del activo.',
+      });
+    }
+  },
+);
+
+/**
+ * GET /api/v1/assets/:id/versions/:versionNumber/stream
+ * Stream or download a specific historical version binary.
+ */
+router.get(
+  '/:id/versions/:versionNumber/stream',
+  versionsRateLimiter,
+  requireAuth,
+  validate(assetVersionParamsSchema, 'params'),
+  async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+    try {
+      const assetId = Number(req.params.id);
+      const versionNumber = Number(req.params.versionNumber);
+      const tenantId = getActorTenantId(req);
+      const actor = getAssetActor(req);
+
+      // 1. Fetch parent asset
+      const assetRows = await query<
+        Array<{
+          id: number;
+          tenant_id: number;
+          workspace_id: number;
+          collection_id: number;
+          title: string;
+          mime_type: string;
+          status: string;
+          deleted_at: string | null;
+        }>
+      >(
+        'SELECT id, tenant_id, workspace_id, collection_id, title, mime_type, status, deleted_at FROM assets WHERE id = ? AND tenant_id = ?',
+        [assetId, tenantId],
+      );
+
+      if (
+        !assetRows ||
+        assetRows.length === 0 ||
+        assetRows[0].deleted_at !== null ||
+        assetRows[0].status === 'DELETED'
+      ) {
+        res.status(404).json({
+          status: 404,
+          error: 'Not Found',
+          message: 'Activo digital no encontrado.',
+        });
+        return;
+      }
+
+      const asset = assetRows[0];
+
+      // 2. ACL check (DOWNLOAD)
+      const evalResult = await evaluateAclPermission(actor, 'ASSET', assetId, 'DOWNLOAD', {
+        tenantId: asset.tenant_id,
+        workspaceId: asset.workspace_id,
+        collectionId: asset.collection_id,
+        assetId,
+      });
+
+      if (!evalResult.allowed) {
+        res.status(403).json({
+          status: 403,
+          error: 'Forbidden',
+          message: 'Acceso denegado por política de control de acceso (ACL).',
+        });
+        return;
+      }
+
+      // 3. Fetch version record
+      const versionRows = await query<
+        Array<{
+          id: number;
+          version_number: number;
+          byte_size: number | string;
+          sha256_hash: string;
+          file_path: string;
+        }>
+      >(
+        'SELECT id, version_number, byte_size, sha256_hash, file_path FROM asset_versions WHERE asset_id = ? AND version_number = ?',
+        [assetId, versionNumber],
+      );
+
+      if (!versionRows || versionRows.length === 0) {
+        res.status(404).json({
+          status: 404,
+          error: 'Not Found',
+          message: 'Versión de activo no encontrada.',
+        });
+        return;
+      }
+
+      const version = versionRows[0];
+
+      // 4. Assert path containment & file existence
+      assertPathContained(version.file_path);
+
+      if (!fs.existsSync(version.file_path)) {
+        res.status(404).json({
+          status: 404,
+          error: 'Not Found',
+          message: 'Archivo físico de versión no encontrado.',
+        });
+        return;
+      }
+
+      // 5. Audit log
+      await logSecurityEvent(req, {
+        eventType: 'ASSET_VERSION_STREAM',
+        userId: Number(actor.id),
+        status: 'SUCCESS',
+        details: `Streamed version v${versionNumber} for asset ID ${assetId} (${asset.title}) [${version.sha256_hash}]`,
+      });
+
+      // 6. Set response headers & stream
+      res.setHeader('Content-Type', asset.mime_type);
+      res.setHeader('Content-Disposition', `inline; filename="${encodeURIComponent(asset.title)}"`);
+      res.setHeader('Content-Length', version.byte_size);
+      res.setHeader('ETag', `"${version.sha256_hash}"`);
+      res.setHeader('Cache-Control', 'private, max-age=3600');
+
+      fs.createReadStream(version.file_path).pipe(res);
+    } catch (err: any) {
+      console.error('Stream asset version error:', err);
+      res.status(500).json({
+        status: 500,
+        error: 'Internal Server Error',
+        message: 'Error al transmitir la versión del activo.',
+      });
+    }
+  },
+);
+
+/**
+ * GET /api/v1/assets/:id/versions/:versionNumber/thumbnail
+ * Stream thumbnail for a specific historical version.
+ */
+router.get(
+  '/:id/versions/:versionNumber/thumbnail',
+  versionsRateLimiter,
+  requireAuth,
+  validate(assetVersionParamsSchema, 'params'),
+  async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+    try {
+      const assetId = Number(req.params.id);
+      const versionNumber = Number(req.params.versionNumber);
+      const tenantId = getActorTenantId(req);
+      const actor = getAssetActor(req);
+
+      // 1. Fetch parent asset
+      const assetRows = await query<
+        Array<{
+          id: number;
+          tenant_id: number;
+          workspace_id: number;
+          collection_id: number;
+          status: string;
+          deleted_at: string | null;
+        }>
+      >(
+        'SELECT id, tenant_id, workspace_id, collection_id, status, deleted_at FROM assets WHERE id = ? AND tenant_id = ?',
+        [assetId, tenantId],
+      );
+
+      if (
+        !assetRows ||
+        assetRows.length === 0 ||
+        assetRows[0].deleted_at !== null ||
+        assetRows[0].status === 'DELETED'
+      ) {
+        res.status(404).json({
+          status: 404,
+          error: 'Not Found',
+          message: 'Activo digital no encontrado.',
+        });
+        return;
+      }
+
+      const asset = assetRows[0];
+
+      // 2. ACL check (VIEW)
+      const evalResult = await evaluateAclPermission(actor, 'ASSET', assetId, 'VIEW', {
+        tenantId: asset.tenant_id,
+        workspaceId: asset.workspace_id,
+        collectionId: asset.collection_id,
+        assetId,
+      });
+
+      if (!evalResult.allowed) {
+        res.status(403).json({
+          status: 403,
+          error: 'Forbidden',
+          message: 'Acceso denegado por política de control de acceso (ACL).',
+        });
+        return;
+      }
+
+      // 3. Fetch version derivative
+      const derivativeRows = await query<
+        Array<{
+          file_path: string;
+          byte_size: number | string;
+        }>
+      >(
+        `SELECT d.file_path, d.byte_size
+         FROM asset_versions v
+         JOIN asset_derivatives d ON d.version_id = v.id AND d.derivative_type = 'THUMBNAIL_200W'
+         WHERE v.asset_id = ? AND v.version_number = ?`,
+        [assetId, versionNumber],
+      );
+
+      if (!derivativeRows || derivativeRows.length === 0) {
+        res.status(404).json({
+          status: 404,
+          error: 'Not Found',
+          message: 'Miniatura no disponible para esta versión.',
+        });
+        return;
+      }
+
+      const derivative = derivativeRows[0];
+      assertPathContained(derivative.file_path);
+
+      if (!fs.existsSync(derivative.file_path)) {
+        res.status(404).json({
+          status: 404,
+          error: 'Not Found',
+          message: 'Archivo de miniatura no encontrado en almacenamiento.',
+        });
+        return;
+      }
+
+      res.setHeader('Content-Type', 'image/webp');
+      res.setHeader('Cache-Control', 'public, max-age=86400');
+      fs.createReadStream(derivative.file_path).pipe(res);
+    } catch (err: any) {
+      console.error('Stream asset version thumbnail error:', err);
+      res.status(500).json({
+        status: 500,
+        error: 'Internal Server Error',
+        message: 'Error al consultar la miniatura de la versión.',
+      });
+    }
+  },
+);
+
+/**
+ * POST /api/v1/assets/:id/versions/:versionNumber/promote
+ * Promote an existing historical version to a new HEAD version.
+ * (Preserves immutability: copies payload/hash to a new version record MAX + 1).
+ */
+router.post(
+  '/:id/versions/:versionNumber/promote',
+  versionsRateLimiter,
+  requireAuth,
+  validate(assetVersionParamsSchema, 'params'),
+  async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+    try {
+      const assetId = Number(req.params.id);
+      const versionNumber = Number(req.params.versionNumber);
+      const tenantId = getActorTenantId(req);
+      const actor = getAssetActor(req);
+      const actorId = Number(actor.id);
+
+      // 1. Fetch parent asset
+      const assetRows = await query<
+        Array<{
+          id: number;
+          tenant_id: number;
+          workspace_id: number;
+          collection_id: number;
+          title: string;
+          status: string;
+          deleted_at: string | null;
+        }>
+      >(
+        'SELECT id, tenant_id, workspace_id, collection_id, title, status, deleted_at FROM assets WHERE id = ? AND tenant_id = ?',
+        [assetId, tenantId],
+      );
+
+      if (
+        !assetRows ||
+        assetRows.length === 0 ||
+        assetRows[0].deleted_at !== null ||
+        assetRows[0].status === 'DELETED'
+      ) {
+        res.status(404).json({
+          status: 404,
+          error: 'Not Found',
+          message: 'Activo digital no encontrado.',
+        });
+        return;
+      }
+
+      const asset = assetRows[0];
+
+      // 2. ACL check (requires EDIT on asset)
+      const evalResult = await evaluateAclPermission(actor, 'ASSET', assetId, 'EDIT', {
+        tenantId: asset.tenant_id,
+        workspaceId: asset.workspace_id,
+        collectionId: asset.collection_id,
+        assetId,
+      });
+
+      if (!evalResult.allowed) {
+        res.status(403).json({
+          status: 403,
+          error: 'Forbidden',
+          message: 'Acceso denegado por política de control de acceso (ACL).',
+        });
+        return;
+      }
+
+      // 3. Fetch source version to promote
+      const sourceVerRows = await query<
+        Array<{
+          id: number;
+          version_number: number;
+          byte_size: number | string;
+          sha256_hash: string;
+          file_path: string;
+        }>
+      >(
+        'SELECT id, version_number, byte_size, sha256_hash, file_path FROM asset_versions WHERE asset_id = ? AND version_number = ?',
+        [assetId, versionNumber],
+      );
+
+      if (!sourceVerRows || sourceVerRows.length === 0) {
+        res.status(404).json({
+          status: 404,
+          error: 'Not Found',
+          message: 'Versión de activo a promover no encontrada.',
+        });
+        return;
+      }
+
+      const sourceVersion = sourceVerRows[0];
+
+      // 4. Determine new HEAD version number
+      const maxVerRows = await query<Array<{ max_version: number | null }>>(
+        'SELECT MAX(version_number) AS max_version FROM asset_versions WHERE asset_id = ?',
+        [assetId],
+      );
+      const nextVersion = Number(maxVerRows?.[0]?.max_version || 0) + 1;
+
+      // 5. Insert new version copying physical path and hash (Invariante 2: inmutabilidad)
+      const newVerInsertRes = await query<any>(
+        `INSERT INTO asset_versions (asset_id, version_number, byte_size, sha256_hash, file_path, created_by)
+         VALUES (?, ?, ?, ?, ?, ?)`,
+        [
+          assetId,
+          nextVersion,
+          sourceVersion.byte_size,
+          sourceVersion.sha256_hash,
+          sourceVersion.file_path,
+          actorId,
+        ],
+      );
+      const newVersionId = newVerInsertRes.insertId;
+
+      // 6. Copy any existing derivatives to link to new version
+      await query(
+        `INSERT INTO asset_derivatives (version_id, derivative_type, width, height, byte_size, file_path)
+         SELECT ?, derivative_type, width, height, byte_size, file_path
+         FROM asset_derivatives
+         WHERE version_id = ?`,
+        [newVersionId, sourceVersion.id],
+      );
+
+      // 7. Audit log
+      await logSecurityEvent(req, {
+        eventType: 'ASSET_VERSION_PROMOTE',
+        userId: actorId,
+        status: 'SUCCESS',
+        details: `Promoted version v${versionNumber} to new HEAD v${nextVersion} for asset ID ${assetId} (${asset.title})`,
+      });
+
+      res.status(200).json({
+        status: 200,
+        message: 'Versión promovida exitosamente como nueva versión activa.',
+        data: {
+          promotedFromVersion: versionNumber,
+          newHeadVersionNumber: nextVersion,
+          versionId: newVersionId,
+          sha256Hash: sourceVersion.sha256_hash,
+          byteSize: Number(sourceVersion.byte_size),
+        },
+      });
+    } catch (err: any) {
+      console.error('Promote asset version error:', err);
+      res.status(500).json({
+        status: 500,
+        error: 'Internal Server Error',
+        message: 'Error al promover la versión del activo.',
       });
     }
   },
