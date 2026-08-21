@@ -608,6 +608,175 @@
           "404": { "description": "Activo o versión a promover no encontrada." }
         }
       }
+    },
+    "/assets/batch/download": {
+      "post": {
+        "summary": "Descarga masiva de múltiples activos en un archivo ZIP al vuelo",
+        "tags": ["Asset Batch Operations"],
+        "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["asset_ids"],
+                "properties": {
+                  "asset_ids": {
+                    "type": "array",
+                    "items": { "type": "integer" },
+                    "minItems": 1,
+                    "maxItems": 50
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Archivo ZIP generado y transmitido exitosamente." },
+          "400": { "description": "Payload inválido o cardinalidad fuera de rango." },
+          "403": { "description": "Acceso denegado por ACL (requiere DOWNLOAD)." },
+          "404": { "description": "Ningún activo elegible encontrado." }
+        }
+      }
+    },
+    "/assets/batch/relocate": {
+      "post": {
+        "summary": "Reubicación masiva de activos entre espacios de trabajo y colecciones",
+        "tags": ["Asset Batch Operations"],
+        "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["asset_ids", "workspace_id"],
+                "properties": {
+                  "asset_ids": {
+                    "type": "array",
+                    "items": { "type": "integer" },
+                    "minItems": 1,
+                    "maxItems": 50
+                  },
+                  "workspace_id": { "type": "integer" },
+                  "collection_id": { "type": "integer", "nullable": true }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Reubicación completada exitosamente." },
+          "400": { "description": "Colección no pertenece al espacio de trabajo." },
+          "403": { "description": "Acceso denegado por ACL (requiere EDIT en origen y destino)." },
+          "404": { "description": "Espacio de trabajo de destino no encontrado." }
+        }
+      }
+    },
+    "/assets/batch/tags/assign": {
+      "post": {
+        "summary": "Asignación masiva de etiquetas a múltiples activos",
+        "tags": ["Asset Batch Operations"],
+        "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["asset_ids", "tag_ids"],
+                "properties": {
+                  "asset_ids": {
+                    "type": "array",
+                    "items": { "type": "integer" },
+                    "minItems": 1,
+                    "maxItems": 50
+                  },
+                  "tag_ids": {
+                    "type": "array",
+                    "items": { "type": "integer" },
+                    "minItems": 1,
+                    "maxItems": 20
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Etiquetas asignadas exitosamente." },
+          "400": { "description": "Payload inválido." },
+          "404": { "description": "Etiquetas no encontradas." }
+        }
+      }
+    },
+    "/assets/batch/tags/remove": {
+      "post": {
+        "summary": "Desvinculación masiva de etiquetas de múltiples activos",
+        "tags": ["Asset Batch Operations"],
+        "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["asset_ids", "tag_ids"],
+                "properties": {
+                  "asset_ids": {
+                    "type": "array",
+                    "items": { "type": "integer" },
+                    "minItems": 1,
+                    "maxItems": 50
+                  },
+                  "tag_ids": {
+                    "type": "array",
+                    "items": { "type": "integer" },
+                    "minItems": 1,
+                    "maxItems": 20
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Etiquetas desvinculadas exitosamente." },
+          "400": { "description": "Payload inválido." }
+        }
+      }
+    },
+    "/assets/batch/delete": {
+      "post": {
+        "summary": "Eliminación masiva lógica (soft-delete) de múltiples activos",
+        "tags": ["Asset Batch Operations"],
+        "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["asset_ids"],
+                "properties": {
+                  "asset_ids": {
+                    "type": "array",
+                    "items": { "type": "integer" },
+                    "minItems": 1,
+                    "maxItems": 50
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Eliminación masiva completada." },
+          "400": { "description": "Payload inválido." }
+        }
+      }
     }
   }
 }

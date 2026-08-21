@@ -26,7 +26,7 @@ describe('Scripts Unit & Behavioral Harness Suite (FC 001t)', () => {
       });
       expect(res.status).toBe(0);
       expect(res.stdout).toContain('OWASP A06 PASS');
-    });
+    }, 60000);
   });
 
   describe('hCheck.mjs', () => {

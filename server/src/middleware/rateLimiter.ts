@@ -191,3 +191,24 @@ export const versionsRateLimiter = rateLimit({
     });
   },
 });
+
+/**
+ * DAM Batch & Bulk Operations Rate Limiter (OWASP A04)
+ * 100 requests per 1 minute window per IP
+ */
+export const batchRateLimiter = rateLimit({
+  windowMs: 1 * 60 * 1000,
+  max: 100,
+  standardHeaders: true,
+  legacyHeaders: false,
+  handler: (_req: Request, res: Response) => {
+    res.status(429).json({
+      status: 429,
+      error: 'Too Many Requests',
+      message:
+        'Límite de operaciones por lotes (Batch) alcanzado. Intente nuevamente en un minuto.',
+    });
+  },
+});
+
+

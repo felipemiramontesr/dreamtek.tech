@@ -3,12 +3,14 @@ import crypto from 'node:crypto';
 import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
+import * as archiver from 'archiver';
 import { requireAuth, AuthenticatedRequest } from '../middleware/auth';
 import {
   uploadRateLimiter,
   searchRateLimiter,
   tagsRateLimiter,
   versionsRateLimiter,
+  batchRateLimiter,
 } from '../middleware/rateLimiter';
 import { validate } from '../middleware/validate';
 import { createShareSchema } from '../schemas/share.schema';
@@ -16,6 +18,14 @@ import { assetSearchQuerySchema } from '../schemas/assetSearch.schema';
 import { attachTagsSchema, assetMetadataSchema } from '../schemas/tag.schema';
 import { moveAssetLocationSchema } from '../schemas/workspace.schema';
 import { assetIdParamSchema, assetVersionParamsSchema } from '../schemas/assetVersion.schema';
+import {
+  batchAssetIdsSchema,
+  batchRelocateSchema,
+  batchTagsSchema,
+  BatchAssetIdsInput,
+  BatchRelocateInput,
+  BatchTagsInput,
+} from '../schemas/assetBatch.schema';
 import { logSecurityEvent } from '../middleware/auditLogger';
 import { query } from '../db';
 import { validateMagicBytes } from '../utils/magicBytes';
@@ -2192,4 +2202,597 @@ router.post(
   },
 );
 
+/**
+ * POST /api/v1/assets/batch/download
+ * Download multiple selected assets in an on-the-fly compressed ZIP archive.
+ */
+router.post(
+  '/batch/download',
+  batchRateLimiter,
+  requireAuth,
+  validate(batchAssetIdsSchema, 'body'),
+  async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+    try {
+      const { asset_ids } = req.body as BatchAssetIdsInput;
+      const tenantId = getActorTenantId(req);
+      const actor = getAssetActor(req);
+
+      // 1. Fetch active assets for this tenant
+      const placeholders = asset_ids.map(() => '?').join(',');
+      const rows = await query<
+        Array<{
+          id: number;
+          tenant_id: number;
+          workspace_id: number;
+          collection_id: number;
+          title: string;
+          mime_type: string;
+          status: string;
+          deleted_at: string | null;
+          file_path: string;
+          sha256_hash: string;
+          byte_size: number | string;
+        }>
+      >(
+        `SELECT a.id, a.tenant_id, a.workspace_id, a.collection_id, a.title, a.mime_type, a.status, a.deleted_at,
+                v.file_path, v.sha256_hash, v.byte_size
+         FROM assets a
+         JOIN asset_versions v ON v.asset_id = a.id AND v.version_number = (
+           SELECT MAX(v2.version_number) FROM asset_versions v2 WHERE v2.asset_id = a.id
+         )
+         WHERE a.id IN (${placeholders}) AND a.tenant_id = ? AND a.deleted_at IS NULL AND a.status = 'ACTIVE'`,
+        [...asset_ids, tenantId],
+      );
+
+      if (!rows || rows.length === 0) {
+        res.status(404).json({
+          status: 404,
+          error: 'Not Found',
+          message: 'Ningún activo válido encontrado para descargar.',
+        });
+        return;
+      }
+
+      // 2. Evaluate ACL DOWNLOAD permission for each asset
+      const authorizedAssets: typeof rows = [];
+      for (const asset of rows) {
+        const evalResult = await evaluateAclPermission(actor, 'ASSET', asset.id, 'DOWNLOAD', {
+          tenantId: asset.tenant_id,
+          workspaceId: asset.workspace_id,
+          collectionId: asset.collection_id,
+          assetId: asset.id,
+        });
+        if (evalResult.allowed && fs.existsSync(asset.file_path)) {
+          assertPathContained(asset.file_path);
+          authorizedAssets.push(asset);
+        }
+      }
+
+      if (authorizedAssets.length === 0) {
+        res.status(403).json({
+          status: 403,
+          error: 'Forbidden',
+          message:
+            'Acceso denegado por política de control de acceso (ACL) para todos los activos solicitados.',
+        });
+        return;
+      }
+
+      // 3. Create ZIP archive and append files with deduplication
+      const archive = new archiver.ZipArchive({
+        zlib: { level: 6 },
+      });
+
+      const usedNames = new Set<string>();
+      for (const asset of authorizedAssets) {
+        let sanitizedName = path.basename(asset.title).replace(/[/\\?%*:|"<>]/g, '_');
+        if (!sanitizedName) sanitizedName = `asset_${asset.id}`;
+
+        let finalName = sanitizedName;
+        let counter = 1;
+        const ext = path.extname(sanitizedName);
+        const nameWithoutExt = ext ? sanitizedName.slice(0, -ext.length) : sanitizedName;
+
+        while (usedNames.has(finalName)) {
+          finalName = `${nameWithoutExt} (${counter})${ext}`;
+          counter++;
+        }
+        usedNames.add(finalName);
+
+        archive.append(fs.readFileSync(asset.file_path), { name: finalName });
+      }
+
+      await logSecurityEvent(req, {
+        eventType: 'ASSET_BATCH_DOWNLOAD',
+        userId: Number(actor.id),
+        status: 'SUCCESS',
+        details: `Batch downloaded ${authorizedAssets.length} assets in ZIP: [${authorizedAssets.map((a) => a.id).join(', ')}]`,
+      });
+
+      // 4. Set headers, pipe to response, and finalize
+      const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+      res.setHeader('Content-Type', 'application/zip');
+      res.setHeader(
+        'Content-Disposition',
+        `attachment; filename="assets_export_${timestamp}.zip"`,
+      );
+
+      archive.pipe(res);
+      await archive.finalize();
+    } catch (err: any) {
+      console.error('Batch download error:', err);
+      res.status(500).json({
+        status: 500,
+        error: 'Internal Server Error',
+        message: 'Error al procesar la descarga masiva de activos.',
+      });
+    }
+  },
+);
+
+/**
+ * POST /api/v1/assets/batch/relocate
+ * Relocate multiple assets to a destination workspace/collection.
+ */
+router.post(
+  '/batch/relocate',
+  batchRateLimiter,
+  requireAuth,
+  validate(batchRelocateSchema, 'body'),
+  async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+    try {
+      const { asset_ids, workspace_id, collection_id } = req.body as BatchRelocateInput;
+      const tenantId = getActorTenantId(req);
+      const actor = getAssetActor(req);
+
+      const destWorkspaceId = Number(workspace_id);
+      const destCollectionId =
+        collection_id !== undefined && collection_id !== null ? Number(collection_id) : null;
+
+      // 1. Validate destination workspace
+      const wsRows = await query<Array<{ id: number; tenant_id: number }>>(
+        'SELECT id, tenant_id FROM workspaces WHERE id = ? AND tenant_id = ?',
+        [destWorkspaceId, tenantId],
+      );
+
+      if (!wsRows || wsRows.length === 0) {
+        res.status(404).json({
+          status: 404,
+          error: 'Not Found',
+          message: 'Espacio de trabajo de destino no encontrado.',
+        });
+        return;
+      }
+
+      // 2. Validate destination collection if provided
+      if (destCollectionId !== null) {
+        const colRows = await query<Array<{ id: number; workspace_id: number }>>(
+          'SELECT id, workspace_id FROM collections WHERE id = ? AND workspace_id = ?',
+          [destCollectionId, destWorkspaceId],
+        );
+        if (!colRows || colRows.length === 0) {
+          res.status(400).json({
+            status: 400,
+            error: 'Bad Request',
+            message: 'La colección de destino no pertenece al espacio de trabajo especificado.',
+          });
+          return;
+        }
+
+        const destColEval = await evaluateAclPermission(
+          actor,
+          'COLLECTION',
+          destCollectionId,
+          'EDIT',
+          {
+            tenantId,
+            workspaceId: destWorkspaceId,
+            collectionId: destCollectionId,
+          },
+        );
+        if (!destColEval.allowed) {
+          res.status(403).json({
+            status: 403,
+            error: 'Forbidden',
+            message:
+              'Acceso denegado por política de control de acceso (ACL) en la colección de destino.',
+          });
+          return;
+        }
+      } else {
+        const destWsEval = await evaluateAclPermission(
+          actor,
+          'WORKSPACE',
+          destWorkspaceId,
+          'EDIT',
+          {
+            tenantId,
+            workspaceId: destWorkspaceId,
+          },
+        );
+        if (!destWsEval.allowed) {
+          res.status(403).json({
+            status: 403,
+            error: 'Forbidden',
+            message:
+              'Acceso denegado por política de control de acceso (ACL) en el espacio de trabajo de destino.',
+          });
+          return;
+        }
+      }
+
+      // 3. Fetch candidate assets within tenant
+      const placeholders = asset_ids.map(() => '?').join(',');
+      const candidateAssets = await query<
+        Array<{
+          id: number;
+          tenant_id: number;
+          workspace_id: number;
+          collection_id: number | null;
+          status: string;
+          deleted_at: string | null;
+        }>
+      >(
+        `SELECT id, tenant_id, workspace_id, collection_id, status, deleted_at
+         FROM assets
+         WHERE id IN (${placeholders}) AND tenant_id = ? AND deleted_at IS NULL AND status = 'ACTIVE'`,
+        [...asset_ids, tenantId],
+      );
+
+      const relocatedAssetIds: number[] = [];
+      const failedAssetIds: number[] = [];
+
+      for (const asset of candidateAssets) {
+        const evalResult = await evaluateAclPermission(actor, 'ASSET', asset.id, 'EDIT', {
+          tenantId: asset.tenant_id,
+          workspaceId: asset.workspace_id,
+          collectionId: asset.collection_id,
+          assetId: asset.id,
+        });
+        if (evalResult.allowed) {
+          relocatedAssetIds.push(asset.id);
+        } else {
+          failedAssetIds.push(asset.id);
+        }
+      }
+
+      for (const reqId of asset_ids) {
+        if (!relocatedAssetIds.includes(reqId) && !failedAssetIds.includes(reqId)) {
+          failedAssetIds.push(reqId);
+        }
+      }
+
+      if (relocatedAssetIds.length > 0) {
+        const updatePlaceholders = relocatedAssetIds.map(() => '?').join(',');
+        await query(
+          `UPDATE assets SET workspace_id = ?, collection_id = ? WHERE id IN (${updatePlaceholders}) AND tenant_id = ?`,
+          [destWorkspaceId, destCollectionId, ...relocatedAssetIds, tenantId],
+        );
+      }
+
+      await logSecurityEvent(req, {
+        eventType: 'ASSET_BATCH_RELOCATE',
+        userId: Number(actor.id),
+        status: 'SUCCESS',
+        details: `Batch relocated ${relocatedAssetIds.length} assets to ws:${destWorkspaceId}/col:${destCollectionId}`,
+      });
+
+      res.status(200).json({
+        status: 200,
+        message: 'Operación de reubicación masiva completada.',
+        data: {
+          relocated_count: relocatedAssetIds.length,
+          relocated_asset_ids: relocatedAssetIds,
+          failed_asset_ids: failedAssetIds,
+          destination_workspace_id: destWorkspaceId,
+          destination_collection_id: destCollectionId,
+        },
+      });
+    } catch (err: any) {
+      console.error('Batch relocate error:', err);
+      res.status(500).json({
+        status: 500,
+        error: 'Internal Server Error',
+        message: 'Error al procesar la reubicación masiva de activos.',
+      });
+    }
+  },
+);
+
+/**
+ * POST /api/v1/assets/batch/tags/assign
+ * Bulk assign tags to multiple assets.
+ */
+router.post(
+  '/batch/tags/assign',
+  batchRateLimiter,
+  requireAuth,
+  validate(batchTagsSchema, 'body'),
+  async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+    try {
+      const { asset_ids, tag_ids } = req.body as BatchTagsInput;
+      const tenantId = getActorTenantId(req);
+      const actor = getAssetActor(req);
+
+      // 1. Verify tag ownership
+      const tagPlaceholders = tag_ids.map(() => '?').join(',');
+      const validTags = await query<Array<{ id: number }>>(
+        `SELECT id FROM tags WHERE id IN (${tagPlaceholders}) AND tenant_id = ?`,
+        [...tag_ids, tenantId],
+      );
+      const validTagIds = validTags.map((t) => t.id);
+
+      if (validTagIds.length === 0) {
+        res.status(404).json({
+          status: 404,
+          error: 'Not Found',
+          message: 'Ninguna de las etiquetas especificadas fue encontrada.',
+        });
+        return;
+      }
+
+      // 2. Fetch candidate assets
+      const assetPlaceholders = asset_ids.map(() => '?').join(',');
+      const candidateAssets = await query<
+        Array<{
+          id: number;
+          tenant_id: number;
+          workspace_id: number;
+          collection_id: number;
+        }>
+      >(
+        `SELECT id, tenant_id, workspace_id, collection_id
+         FROM assets
+         WHERE id IN (${assetPlaceholders}) AND tenant_id = ? AND deleted_at IS NULL AND status = 'ACTIVE'`,
+        [...asset_ids, tenantId],
+      );
+
+      const processedAssetIds: number[] = [];
+      const failedAssetIds: number[] = [];
+
+      for (const asset of candidateAssets) {
+        const evalResult = await evaluateAclPermission(actor, 'ASSET', asset.id, 'EDIT', {
+          tenantId: asset.tenant_id,
+          workspaceId: asset.workspace_id,
+          collectionId: asset.collection_id,
+          assetId: asset.id,
+        });
+        if (evalResult.allowed) {
+          processedAssetIds.push(asset.id);
+        } else {
+          failedAssetIds.push(asset.id);
+        }
+      }
+
+      for (const reqId of asset_ids) {
+        if (!processedAssetIds.includes(reqId) && !failedAssetIds.includes(reqId)) {
+          failedAssetIds.push(reqId);
+        }
+      }
+
+      // 3. Batch insert ignore into asset_tags
+      if (processedAssetIds.length > 0) {
+        const insertValues: string[] = [];
+        const insertParams: any[] = [];
+        for (const aId of processedAssetIds) {
+          for (const tId of validTagIds) {
+            insertValues.push('(?, ?)');
+            insertParams.push(aId, tId);
+          }
+        }
+        await query(
+          `INSERT IGNORE INTO asset_tags (asset_id, tag_id) VALUES ${insertValues.join(', ')}`,
+          insertParams,
+        );
+      }
+
+      await logSecurityEvent(req, {
+        eventType: 'ASSET_BATCH_TAGS_ASSIGN',
+        userId: Number(actor.id),
+        status: 'SUCCESS',
+        details: `Batch assigned ${validTagIds.length} tags to ${processedAssetIds.length} assets`,
+      });
+
+      res.status(200).json({
+        status: 200,
+        message: 'Asignación masiva de etiquetas completada.',
+        data: {
+          assigned_count: processedAssetIds.length,
+          processed_asset_ids: processedAssetIds,
+          failed_asset_ids: failedAssetIds,
+          tag_ids: validTagIds,
+        },
+      });
+    } catch (err: any) {
+      console.error('Batch tags assign error:', err);
+      res.status(500).json({
+        status: 500,
+        error: 'Internal Server Error',
+        message: 'Error al procesar la asignación masiva de etiquetas.',
+      });
+    }
+  },
+);
+
+/**
+ * POST /api/v1/assets/batch/tags/remove
+ * Bulk remove tags from multiple assets.
+ */
+router.post(
+  '/batch/tags/remove',
+  batchRateLimiter,
+  requireAuth,
+  validate(batchTagsSchema, 'body'),
+  async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+    try {
+      const { asset_ids, tag_ids } = req.body as BatchTagsInput;
+      const tenantId = getActorTenantId(req);
+      const actor = getAssetActor(req);
+
+      // 1. Fetch candidate assets
+      const assetPlaceholders = asset_ids.map(() => '?').join(',');
+      const candidateAssets = await query<
+        Array<{
+          id: number;
+          tenant_id: number;
+          workspace_id: number;
+          collection_id: number;
+        }>
+      >(
+        `SELECT id, tenant_id, workspace_id, collection_id
+         FROM assets
+         WHERE id IN (${assetPlaceholders}) AND tenant_id = ? AND deleted_at IS NULL AND status = 'ACTIVE'`,
+        [...asset_ids, tenantId],
+      );
+
+      const processedAssetIds: number[] = [];
+      const failedAssetIds: number[] = [];
+
+      for (const asset of candidateAssets) {
+        const evalResult = await evaluateAclPermission(actor, 'ASSET', asset.id, 'EDIT', {
+          tenantId: asset.tenant_id,
+          workspaceId: asset.workspace_id,
+          collectionId: asset.collection_id,
+          assetId: asset.id,
+        });
+        if (evalResult.allowed) {
+          processedAssetIds.push(asset.id);
+        } else {
+          failedAssetIds.push(asset.id);
+        }
+      }
+
+      for (const reqId of asset_ids) {
+        if (!processedAssetIds.includes(reqId) && !failedAssetIds.includes(reqId)) {
+          failedAssetIds.push(reqId);
+        }
+      }
+
+      if (processedAssetIds.length > 0 && tag_ids.length > 0) {
+        const delAssetPlaceholders = processedAssetIds.map(() => '?').join(',');
+        const delTagPlaceholders = tag_ids.map(() => '?').join(',');
+        await query(
+          `DELETE FROM asset_tags WHERE asset_id IN (${delAssetPlaceholders}) AND tag_id IN (${delTagPlaceholders})`,
+          [...processedAssetIds, ...tag_ids],
+        );
+      }
+
+      await logSecurityEvent(req, {
+        eventType: 'ASSET_BATCH_TAGS_REMOVE',
+        userId: Number(actor.id),
+        status: 'SUCCESS',
+        details: `Batch removed ${tag_ids.length} tags from ${processedAssetIds.length} assets`,
+      });
+
+      res.status(200).json({
+        status: 200,
+        message: 'Desvinculación masiva de etiquetas completada.',
+        data: {
+          removed_count: processedAssetIds.length,
+          processed_asset_ids: processedAssetIds,
+          failed_asset_ids: failedAssetIds,
+          tag_ids,
+        },
+      });
+    } catch (err: any) {
+      console.error('Batch tags remove error:', err);
+      res.status(500).json({
+        status: 500,
+        error: 'Internal Server Error',
+        message: 'Error al procesar la desvinculación masiva de etiquetas.',
+      });
+    }
+  },
+);
+
+/**
+ * POST /api/v1/assets/batch/delete
+ * Bulk soft-delete multiple assets.
+ */
+router.post(
+  '/batch/delete',
+  batchRateLimiter,
+  requireAuth,
+  validate(batchAssetIdsSchema, 'body'),
+  async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+    try {
+      const { asset_ids } = req.body as BatchAssetIdsInput;
+      const tenantId = getActorTenantId(req);
+      const actor = getAssetActor(req);
+
+      // 1. Fetch candidate assets
+      const assetPlaceholders = asset_ids.map(() => '?').join(',');
+      const candidateAssets = await query<
+        Array<{
+          id: number;
+          tenant_id: number;
+          workspace_id: number;
+          collection_id: number;
+        }>
+      >(
+        `SELECT id, tenant_id, workspace_id, collection_id
+         FROM assets
+         WHERE id IN (${assetPlaceholders}) AND tenant_id = ? AND deleted_at IS NULL AND status = 'ACTIVE'`,
+        [...asset_ids, tenantId],
+      );
+
+      const deletedAssetIds: number[] = [];
+      const failedAssetIds: number[] = [];
+
+      for (const asset of candidateAssets) {
+        const evalResult = await evaluateAclPermission(actor, 'ASSET', asset.id, 'DELETE', {
+          tenantId: asset.tenant_id,
+          workspaceId: asset.workspace_id,
+          collectionId: asset.collection_id,
+          assetId: asset.id,
+        });
+        if (evalResult.allowed) {
+          deletedAssetIds.push(asset.id);
+        } else {
+          failedAssetIds.push(asset.id);
+        }
+      }
+
+      for (const reqId of asset_ids) {
+        if (!deletedAssetIds.includes(reqId) && !failedAssetIds.includes(reqId)) {
+          failedAssetIds.push(reqId);
+        }
+      }
+
+      if (deletedAssetIds.length > 0) {
+        const delPlaceholders = deletedAssetIds.map(() => '?').join(',');
+        await query(
+          `UPDATE assets SET status = 'DELETED', deleted_at = NOW() WHERE id IN (${delPlaceholders}) AND tenant_id = ?`,
+          [...deletedAssetIds, tenantId],
+        );
+      }
+
+      await logSecurityEvent(req, {
+        eventType: 'ASSET_BATCH_DELETE',
+        userId: Number(actor.id),
+        status: 'SUCCESS',
+        details: `Batch soft-deleted ${deletedAssetIds.length} assets: [${deletedAssetIds.join(', ')}]`,
+      });
+
+      res.status(200).json({
+        status: 200,
+        message: 'Eliminación masiva completada.',
+        data: {
+          deleted_count: deletedAssetIds.length,
+          deleted_asset_ids: deletedAssetIds,
+          failed_asset_ids: failedAssetIds,
+        },
+      });
+    } catch (err: any) {
+      console.error('Batch delete error:', err);
+      res.status(500).json({
+        status: 500,
+        error: 'Internal Server Error',
+        message: 'Error al procesar la eliminación masiva de activos.',
+      });
+    }
+  },
+);
+
 export default router;
+

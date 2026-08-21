@@ -19,7 +19,12 @@ export function assertPathContained(targetPath: string): string {
   const resolved = path.resolve(targetPath);
   const normalizedRoot = path.resolve(STORAGE_ROOT);
 
-  if (!resolved.startsWith(normalizedRoot)) {
+  const isContained =
+    process.platform === 'win32'
+      ? resolved.toLowerCase().startsWith(normalizedRoot.toLowerCase())
+      : resolved.startsWith(normalizedRoot);
+
+  if (!isContained) {
     throw new Error('Security Error: Path traversal attempt detected.');
   }
   return resolved;
