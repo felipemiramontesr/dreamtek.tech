@@ -846,6 +846,88 @@
           "404": { "description": "Activo no encontrado." }
         }
       }
+    },
+    "/assets/{id}/jobs": {
+      "get": {
+        "summary": "Listar trabajos de procesamiento multimedia y su estado técnico",
+        "tags": ["Asset Media Processing"],
+        "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "integer" },
+            "description": "ID del activo digital"
+          }
+        ],
+        "responses": {
+          "200": { "description": "Lista de trabajos de procesamiento del activo." },
+          "400": { "description": "ID de activo inválido." },
+          "403": { "description": "Acceso denegado por ACL." },
+          "404": { "description": "Activo digital no encontrado." }
+        }
+      }
+    },
+    "/assets/{id}/jobs/retry": {
+      "post": {
+        "summary": "Reintentar manualmente trabajos de procesamiento multimedia fallidos",
+        "tags": ["Asset Media Processing"],
+        "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "integer" },
+            "description": "ID del activo digital"
+          }
+        ],
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "job_ids": {
+                    "type": "array",
+                    "items": { "type": "integer" }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Trabajos fallidos reencolados exitosamente." },
+          "400": { "description": "ID de activo o payload inválido." },
+          "403": { "description": "Acceso denegado por ACL (requiere EDIT)." },
+          "404": { "description": "Activo digital no encontrado." }
+        }
+      }
+    },
+    "/assets/{id}/derivatives": {
+      "get": {
+        "summary": "Listar todas las derivadas generadas para un activo",
+        "tags": ["Asset Media Processing"],
+        "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "integer" },
+            "description": "ID del activo digital"
+          }
+        ],
+        "responses": {
+          "200": { "description": "Lista de derivadas generadas para el activo." },
+          "400": { "description": "ID de activo inválido." },
+          "403": { "description": "Acceso denegado por ACL." },
+          "404": { "description": "Activo digital no encontrado." }
+        }
+      }
     }
   }
 }

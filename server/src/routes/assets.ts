@@ -12,6 +12,7 @@ import {
   versionsRateLimiter,
   batchRateLimiter,
   rightsRateLimiter,
+  jobsRateLimiter,
 } from '../middleware/rateLimiter';
 import { validate } from '../middleware/validate';
 import { createShareSchema } from '../schemas/share.schema';
@@ -28,10 +29,12 @@ import {
   BatchTagsInput,
 } from '../schemas/assetBatch.schema';
 import { updateAssetRightsSchema, UpdateAssetRightsInput } from '../schemas/assetRights.schema';
+import { retryJobsSchema, RetryJobsInput } from '../schemas/mediaJob.schema';
 import { logSecurityEvent } from '../middleware/auditLogger';
 import { query } from '../db';
 import { validateMagicBytes } from '../utils/magicBytes';
 import { evaluateAclPermission, AclActor } from '../utils/acl';
+import { enqueueMediaJob, retryFailedJobsForAsset } from '../utils/mediaWorker';
 import {
   STORAGE_ROOT,
   assertPathContained,
@@ -205,7 +208,10 @@ router.post(
         );
       }
 
-      // 8. Audit Log Event (OWASP A09)
+      // 8. Enqueue Media Processing Job (FC 011)
+      await enqueueMediaJob(tenantId, assetId, versionId, validatedMime.mime);
+
+      // 9. Audit Log Event (OWASP A09)
       await logSecurityEvent(req, {
         eventType: 'ASSET_UPLOAD',
         userId: actorId,
@@ -1780,7 +1786,10 @@ router.post(
         );
       }
 
-      // 8. Audit log
+      // 8. Enqueue Media Processing Job (FC 011)
+      await enqueueMediaJob(tenantId, assetId, versionId, validatedMime.mime);
+
+      // 9. Audit log
       await logSecurityEvent(req, {
         eventType: 'ASSET_VERSION_UPLOAD',
         userId: actorId,
@@ -3205,6 +3214,285 @@ router.put(
   },
 );
 
+/**
+ * GET /api/v1/assets/:id/jobs
+ * List processing jobs and their technical status for an asset (FC 011).
+ */
+router.get(
+  '/:id/jobs',
+  jobsRateLimiter,
+  requireAuth,
+  validate(assetIdParamSchema, 'params'),
+  async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+    try {
+      const assetId = Number(req.params.id);
+      const tenantId = getActorTenantId(req);
+      const actor = getAssetActor(req);
+
+      // 1. Fetch parent asset & anti-IDOR check
+      const assetRows = await query<any[]>(
+        'SELECT id, tenant_id, workspace_id, collection_id, status, deleted_at FROM assets WHERE id = ? AND tenant_id = ?',
+        [assetId, tenantId],
+      );
+
+      if (
+        !assetRows ||
+        assetRows.length === 0 ||
+        assetRows[0].deleted_at !== null ||
+        assetRows[0].status === 'DELETED'
+      ) {
+        res.status(404).json({
+          status: 404,
+          error: 'Not Found',
+          message: 'Activo digital no encontrado.',
+        });
+        return;
+      }
+
+      const asset = assetRows[0];
+
+      // 2. ACL check (VIEW)
+      const evalResult = await evaluateAclPermission(actor, 'ASSET', assetId, 'VIEW', {
+        tenantId: asset.tenant_id,
+        workspaceId: asset.workspace_id,
+        collectionId: asset.collection_id,
+        assetId,
+      });
+
+      if (!evalResult.allowed) {
+        res.status(403).json({
+          status: 403,
+          error: 'Forbidden',
+          message: 'Acceso denegado por política de control de acceso (ACL).',
+        });
+        return;
+      }
+
+      // 3. Query processing jobs
+      const jobRows = await query<any[]>(
+        `SELECT id, asset_id, version_id, job_type, status, attempts, max_attempts, error_message, metadata_payload, created_at, updated_at
+         FROM processing_jobs
+         WHERE tenant_id = ? AND asset_id = ?
+         ORDER BY id DESC`,
+        [tenantId, assetId],
+      );
+
+      const data = jobRows.map((j) => {
+        let meta = j.metadata_payload;
+        if (typeof meta === 'string') {
+          try {
+            meta = JSON.parse(meta);
+          } catch {
+            // Keep raw if parse fails
+          }
+        }
+        return {
+          id: j.id,
+          asset_id: j.asset_id,
+          version_id: j.version_id,
+          job_type: j.job_type,
+          status: j.status,
+          attempts: j.attempts,
+          max_attempts: j.max_attempts,
+          error_message: j.error_message,
+          metadata_payload: meta ?? null,
+          created_at: j.created_at,
+          updated_at: j.updated_at,
+        };
+      });
+
+      res.status(200).json({
+        status: 200,
+        data,
+      });
+    } catch (err: any) {
+      console.error('Get asset processing jobs error:', err);
+      res.status(500).json({
+        status: 500,
+        error: 'Internal Server Error',
+        message: 'Error al obtener los trabajos de procesamiento del activo.',
+      });
+    }
+  },
+);
+
+/**
+ * POST /api/v1/assets/:id/jobs/retry
+ * Manually retry failed processing jobs for an asset (FC 011).
+ */
+router.post(
+  '/:id/jobs/retry',
+  jobsRateLimiter,
+  requireAuth,
+  validate(assetIdParamSchema, 'params'),
+  validate(retryJobsSchema, 'body'),
+  async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+    try {
+      const assetId = Number(req.params.id);
+      const tenantId = getActorTenantId(req);
+      const actor = getAssetActor(req);
+
+      // 1. Fetch parent asset & anti-IDOR check
+      const assetRows = await query<any[]>(
+        'SELECT id, tenant_id, workspace_id, collection_id, status, deleted_at FROM assets WHERE id = ? AND tenant_id = ?',
+        [assetId, tenantId],
+      );
+
+      if (
+        !assetRows ||
+        assetRows.length === 0 ||
+        assetRows[0].deleted_at !== null ||
+        assetRows[0].status === 'DELETED'
+      ) {
+        res.status(404).json({
+          status: 404,
+          error: 'Not Found',
+          message: 'Activo digital no encontrado.',
+        });
+        return;
+      }
+
+      const asset = assetRows[0];
+
+      // 2. ACL check (EDIT)
+      const evalResult = await evaluateAclPermission(actor, 'ASSET', assetId, 'EDIT', {
+        tenantId: asset.tenant_id,
+        workspaceId: asset.workspace_id,
+        collectionId: asset.collection_id,
+        assetId,
+      });
+
+      if (!evalResult.allowed) {
+        res.status(403).json({
+          status: 403,
+          error: 'Forbidden',
+          message: 'Acceso denegado por política de control de acceso (ACL).',
+        });
+        return;
+      }
+
+      const { job_ids } = req.body as RetryJobsInput;
+
+      // 3. Retry failed jobs
+      const result = await retryFailedJobsForAsset(tenantId, assetId, job_ids);
+
+      // 4. Audit Log Event (OWASP A09)
+      await logSecurityEvent(req, {
+        eventType: 'ASSET_JOB_RETRY',
+        userId: Number(actor.id),
+        status: 'SUCCESS',
+        details: `Retried ${result.retriedCount} failed jobs for asset ID ${assetId} (job IDs: [${result.jobIds.join(', ')}])`,
+      });
+
+      res.status(200).json({
+        status: 200,
+        message: 'Trabajos fallidos reencolados exitosamente.',
+        data: {
+          retried_count: result.retriedCount,
+          job_ids: result.jobIds,
+        },
+      });
+    } catch (err: any) {
+      console.error('Retry asset processing jobs error:', err);
+      res.status(500).json({
+        status: 500,
+        error: 'Internal Server Error',
+        message: 'Error al reintentar los trabajos de procesamiento.',
+      });
+    }
+  },
+);
+
+/**
+ * GET /api/v1/assets/:id/derivatives
+ * List all generated derivatives across versions for an asset (FC 011).
+ */
+router.get(
+  '/:id/derivatives',
+  jobsRateLimiter,
+  requireAuth,
+  validate(assetIdParamSchema, 'params'),
+  async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+    try {
+      const assetId = Number(req.params.id);
+      const tenantId = getActorTenantId(req);
+      const actor = getAssetActor(req);
+
+      // 1. Fetch parent asset & anti-IDOR check
+      const assetRows = await query<any[]>(
+        'SELECT id, tenant_id, workspace_id, collection_id, status, deleted_at FROM assets WHERE id = ? AND tenant_id = ?',
+        [assetId, tenantId],
+      );
+
+      if (
+        !assetRows ||
+        assetRows.length === 0 ||
+        assetRows[0].deleted_at !== null ||
+        assetRows[0].status === 'DELETED'
+      ) {
+        res.status(404).json({
+          status: 404,
+          error: 'Not Found',
+          message: 'Activo digital no encontrado.',
+        });
+        return;
+      }
+
+      const asset = assetRows[0];
+
+      // 2. ACL check (VIEW)
+      const evalResult = await evaluateAclPermission(actor, 'ASSET', assetId, 'VIEW', {
+        tenantId: asset.tenant_id,
+        workspaceId: asset.workspace_id,
+        collectionId: asset.collection_id,
+        assetId,
+      });
+
+      if (!evalResult.allowed) {
+        res.status(403).json({
+          status: 403,
+          error: 'Forbidden',
+          message: 'Acceso denegado por política de control de acceso (ACL).',
+        });
+        return;
+      }
+
+      // 3. Query derivatives
+      const derivativeRows = await query<any[]>(
+        `SELECT d.id, d.version_id, d.derivative_type, d.width, d.height, d.byte_size, d.created_at
+         FROM asset_derivatives d
+         JOIN asset_versions v ON v.id = d.version_id
+         WHERE v.asset_id = ?
+         ORDER BY d.id ASC`,
+        [assetId],
+      );
+
+      const data = derivativeRows.map((d) => ({
+        id: d.id,
+        version_id: d.version_id,
+        derivative_type: d.derivative_type,
+        width: d.width,
+        height: d.height,
+        byte_size: Number(d.byte_size),
+        created_at: d.created_at,
+      }));
+
+      res.status(200).json({
+        status: 200,
+        data,
+      });
+    } catch (err: any) {
+      console.error('Get asset derivatives error:', err);
+      res.status(500).json({
+        status: 500,
+        error: 'Internal Server Error',
+        message: 'Error al obtener las derivadas del activo.',
+      });
+    }
+  },
+);
+
 export default router;
+
 
 
