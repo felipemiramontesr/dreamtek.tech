@@ -211,4 +211,25 @@ export const batchRateLimiter = rateLimit({
   },
 });
 
+/**
+ * DAM Rights, Licenses & Embargo Rate Limiter (OWASP A04)
+ * 100 requests per 1 minute window per IP
+ */
+export const rightsRateLimiter = rateLimit({
+  windowMs: 1 * 60 * 1000,
+  max: 100,
+  standardHeaders: true,
+  legacyHeaders: false,
+  handler: (_req: Request, res: Response) => {
+    res.status(429).json({
+      status: 429,
+      error: 'Too Many Requests',
+      message:
+        'Límite de operaciones de derechos y licencias alcanzado. Intente nuevamente en un minuto.',
+    });
+  },
+});
+
+
+
 

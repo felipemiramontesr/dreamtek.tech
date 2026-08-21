@@ -11,6 +11,7 @@ import {
   tagsRateLimiter,
   versionsRateLimiter,
   batchRateLimiter,
+  rightsRateLimiter,
 } from '../middleware/rateLimiter';
 import { validate } from '../middleware/validate';
 import { createShareSchema } from '../schemas/share.schema';
@@ -26,6 +27,7 @@ import {
   BatchRelocateInput,
   BatchTagsInput,
 } from '../schemas/assetBatch.schema';
+import { updateAssetRightsSchema, UpdateAssetRightsInput } from '../schemas/assetRights.schema';
 import { logSecurityEvent } from '../middleware/auditLogger';
 import { query } from '../db';
 import { validateMagicBytes } from '../utils/magicBytes';
@@ -69,6 +71,41 @@ export function getAssetActor(req: AuthenticatedRequest): AclActor {
     role: req.user!.role,
     tenantId: getActorTenantId(req),
   };
+}
+
+export interface AssetRightsContext {
+  embargo_until?: string | Date | null;
+  expires_at?: string | Date | null;
+}
+
+/**
+ * Helper to enforce embargo and license expiration on content delivery (FC 010).
+ * ADMIN users bypass embargo & expiration restrictions.
+ */
+export function checkAssetEmbargoAndExpiration(
+  rights: AssetRightsContext | null | undefined,
+  actorRole: string,
+): { allowed: boolean; reason?: string } {
+  if (actorRole === 'ADMIN') {
+    return { allowed: true };
+  }
+  if (!rights) {
+    return { allowed: true };
+  }
+  const now = new Date();
+  if (rights.embargo_until && new Date(rights.embargo_until) > now) {
+    return {
+      allowed: false,
+      reason: `Activo bajo embargo hasta ${new Date(rights.embargo_until).toISOString()}.`,
+    };
+  }
+  if (rights.expires_at && new Date(rights.expires_at) < now) {
+    return {
+      allowed: false,
+      reason: 'La licencia del activo ha expirado.',
+    };
+  }
+  return { allowed: true };
 }
 
 /**
@@ -496,9 +533,11 @@ router.get(
       }
 
       const rows = await query<any[]>(
-        `SELECT a.mime_type, a.title, a.workspace_id, a.collection_id, a.status, a.deleted_at, v.file_path, v.byte_size
+        `SELECT a.mime_type, a.title, a.workspace_id, a.collection_id, a.status, a.deleted_at, v.file_path, v.byte_size,
+                r.embargo_until, r.expires_at
          FROM assets a
          JOIN asset_versions v ON v.asset_id = a.id
+         LEFT JOIN asset_rights r ON r.asset_id = a.id
          WHERE a.id = ? AND a.tenant_id = ? AND a.deleted_at IS NULL
          ORDER BY v.version_number DESC LIMIT 1`,
         [assetId, tenantId],
@@ -522,6 +561,8 @@ router.get(
         collection_id,
         status,
         deleted_at,
+        embargo_until,
+        expires_at,
       } = rows[0];
 
       const actor = {
@@ -544,6 +585,20 @@ router.get(
         });
         return;
       }
+
+      const embargoCheck = checkAssetEmbargoAndExpiration(
+        { embargo_until, expires_at },
+        actor.role,
+      );
+      if (!embargoCheck.allowed) {
+        res.status(403).json({
+          status: 403,
+          error: 'Forbidden',
+          message: embargoCheck.reason,
+        });
+        return;
+      }
+
       assertPathContained(file_path);
 
       if (!fs.existsSync(file_path)) {
@@ -593,17 +648,28 @@ router.get(
       }
 
       const rows = await query<any[]>(
-        `SELECT d.file_path, d.byte_size, a.workspace_id, a.collection_id, a.status, a.deleted_at
+        `SELECT d.file_path, d.byte_size, a.workspace_id, a.collection_id, a.status, a.deleted_at,
+                r.embargo_until, r.expires_at
          FROM assets a
          JOIN asset_versions v ON v.asset_id = a.id
          JOIN asset_derivatives d ON d.version_id = v.id
+         LEFT JOIN asset_rights r ON r.asset_id = a.id
          WHERE a.id = ? AND a.tenant_id = ? AND a.deleted_at IS NULL AND d.derivative_type = 'THUMBNAIL_200W'
          LIMIT 1`,
         [assetId, tenantId],
       );
 
       if (rows && rows.length > 0) {
-        const { file_path, byte_size, workspace_id, collection_id, status, deleted_at } = rows[0];
+        const {
+          file_path,
+          byte_size,
+          workspace_id,
+          collection_id,
+          status,
+          deleted_at,
+          embargo_until,
+          expires_at,
+        } = rows[0];
 
         const actor = {
           id: req.user!.userId,
@@ -626,6 +692,19 @@ router.get(
           return;
         }
 
+        const embargoCheck = checkAssetEmbargoAndExpiration(
+          { embargo_until, expires_at },
+          actor.role,
+        );
+        if (!embargoCheck.allowed) {
+          res.status(403).json({
+            status: 403,
+            error: 'Forbidden',
+            message: embargoCheck.reason,
+          });
+          return;
+        }
+
         assertPathContained(file_path);
         if (fs.existsSync(file_path)) {
           res.setHeader('Content-Type', 'image/webp');
@@ -638,9 +717,11 @@ router.get(
 
       // Fallback to original stream if image without derivative
       const fallbackRows = await query<any[]>(
-        `SELECT a.mime_type, a.workspace_id, a.collection_id, a.status, a.deleted_at, v.file_path, v.byte_size
+        `SELECT a.mime_type, a.workspace_id, a.collection_id, a.status, a.deleted_at, v.file_path, v.byte_size,
+                r.embargo_until, r.expires_at
          FROM assets a
          JOIN asset_versions v ON v.asset_id = a.id
+         LEFT JOIN asset_rights r ON r.asset_id = a.id
          WHERE a.id = ? AND a.tenant_id = ? AND a.deleted_at IS NULL
          ORDER BY v.version_number DESC LIMIT 1`,
         [assetId, tenantId],
@@ -653,8 +734,17 @@ router.get(
         return;
       }
 
-      const { mime_type, file_path, byte_size, workspace_id, collection_id, status, deleted_at } =
-        fallbackRows[0];
+      const {
+        mime_type,
+        file_path,
+        byte_size,
+        workspace_id,
+        collection_id,
+        status,
+        deleted_at,
+        embargo_until,
+        expires_at,
+      } = fallbackRows[0];
 
       const actor = {
         id: req.user!.userId,
@@ -676,6 +766,20 @@ router.get(
         });
         return;
       }
+
+      const embargoCheck = checkAssetEmbargoAndExpiration(
+        { embargo_until, expires_at },
+        actor.role,
+      );
+      if (!embargoCheck.allowed) {
+        res.status(403).json({
+          status: 403,
+          error: 'Forbidden',
+          message: embargoCheck.reason,
+        });
+        return;
+      }
+
       assertPathContained(file_path);
       res.setHeader('Content-Type', mime_type);
       res.setHeader('Content-Length', byte_size);
@@ -1833,9 +1937,11 @@ router.get(
           mime_type: string;
           status: string;
           deleted_at: string | null;
+          embargo_until: string | Date | null;
+          expires_at: string | Date | null;
         }>
       >(
-        'SELECT id, tenant_id, workspace_id, collection_id, title, mime_type, status, deleted_at FROM assets WHERE id = ? AND tenant_id = ?',
+        'SELECT a.id, a.tenant_id, a.workspace_id, a.collection_id, a.title, a.mime_type, a.status, a.deleted_at, r.embargo_until, r.expires_at FROM assets a LEFT JOIN asset_rights r ON r.asset_id = a.id WHERE a.id = ? AND a.tenant_id = ?',
         [assetId, tenantId],
       );
 
@@ -1868,6 +1974,19 @@ router.get(
           status: 403,
           error: 'Forbidden',
           message: 'Acceso denegado por política de control de acceso (ACL).',
+        });
+        return;
+      }
+
+      const embargoCheck = checkAssetEmbargoAndExpiration(
+        { embargo_until: asset.embargo_until, expires_at: asset.expires_at },
+        actor.role,
+      );
+      if (!embargoCheck.allowed) {
+        res.status(403).json({
+          status: 403,
+          error: 'Forbidden',
+          message: embargoCheck.reason,
         });
         return;
       }
@@ -1961,9 +2080,11 @@ router.get(
           collection_id: number;
           status: string;
           deleted_at: string | null;
+          embargo_until: string | Date | null;
+          expires_at: string | Date | null;
         }>
       >(
-        'SELECT id, tenant_id, workspace_id, collection_id, status, deleted_at FROM assets WHERE id = ? AND tenant_id = ?',
+        'SELECT a.id, a.tenant_id, a.workspace_id, a.collection_id, a.status, a.deleted_at, r.embargo_until, r.expires_at FROM assets a LEFT JOIN asset_rights r ON r.asset_id = a.id WHERE a.id = ? AND a.tenant_id = ?',
         [assetId, tenantId],
       );
 
@@ -1996,6 +2117,19 @@ router.get(
           status: 403,
           error: 'Forbidden',
           message: 'Acceso denegado por política de control de acceso (ACL).',
+        });
+        return;
+      }
+
+      const embargoCheck = checkAssetEmbargoAndExpiration(
+        { embargo_until: asset.embargo_until, expires_at: asset.expires_at },
+        actor.role,
+      );
+      if (!embargoCheck.allowed) {
+        res.status(403).json({
+          status: 403,
+          error: 'Forbidden',
+          message: embargoCheck.reason,
         });
         return;
       }
@@ -2232,14 +2366,18 @@ router.post(
           file_path: string;
           sha256_hash: string;
           byte_size: number | string;
+          embargo_until: string | Date | null;
+          expires_at: string | Date | null;
         }>
       >(
         `SELECT a.id, a.tenant_id, a.workspace_id, a.collection_id, a.title, a.mime_type, a.status, a.deleted_at,
-                v.file_path, v.sha256_hash, v.byte_size
+                v.file_path, v.sha256_hash, v.byte_size,
+                r.embargo_until, r.expires_at
          FROM assets a
          JOIN asset_versions v ON v.asset_id = a.id AND v.version_number = (
            SELECT MAX(v2.version_number) FROM asset_versions v2 WHERE v2.asset_id = a.id
          )
+         LEFT JOIN asset_rights r ON r.asset_id = a.id
          WHERE a.id IN (${placeholders}) AND a.tenant_id = ? AND a.deleted_at IS NULL AND a.status = 'ACTIVE'`,
         [...asset_ids, tenantId],
       );
@@ -2253,7 +2391,7 @@ router.post(
         return;
       }
 
-      // 2. Evaluate ACL DOWNLOAD permission for each asset
+      // 2. Evaluate ACL DOWNLOAD permission and embargo/expiration for each asset
       const authorizedAssets: typeof rows = [];
       for (const asset of rows) {
         const evalResult = await evaluateAclPermission(actor, 'ASSET', asset.id, 'DOWNLOAD', {
@@ -2262,7 +2400,13 @@ router.post(
           collectionId: asset.collection_id,
           assetId: asset.id,
         });
-        if (evalResult.allowed && fs.existsSync(asset.file_path)) {
+
+        const rightsCheck = checkAssetEmbargoAndExpiration(
+          { embargo_until: asset.embargo_until, expires_at: asset.expires_at },
+          actor.role,
+        );
+
+        if (evalResult.allowed && rightsCheck.allowed && fs.existsSync(asset.file_path)) {
           assertPathContained(asset.file_path);
           authorizedAssets.push(asset);
         }
@@ -2794,5 +2938,273 @@ router.post(
   },
 );
 
+/**
+ * GET /api/v1/assets/:id/rights
+ * Consult asset rights, license and embargo information (FC 010).
+ */
+router.get(
+  '/:id/rights',
+  rightsRateLimiter,
+  requireAuth,
+  async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+    try {
+      const tenantId = getActorTenantId(req);
+      const assetId = parseInt(String(req.params.id), 10);
+
+      if (isNaN(assetId)) {
+        res
+          .status(400)
+          .json({ status: 400, error: 'Bad Request', message: 'ID de activo inválido.' });
+        return;
+      }
+
+      const assetRows = await query<
+        Array<{
+          id: number;
+          tenant_id: number;
+          workspace_id: number;
+          collection_id: number;
+          status: string;
+          deleted_at: string | null;
+        }>
+      >(
+        'SELECT id, tenant_id, workspace_id, collection_id, status, deleted_at FROM assets WHERE id = ? AND tenant_id = ?',
+        [assetId, tenantId],
+      );
+
+      if (
+        !assetRows ||
+        assetRows.length === 0 ||
+        assetRows[0].deleted_at !== null ||
+        assetRows[0].status === 'DELETED'
+      ) {
+        res.status(404).json({
+          status: 404,
+          error: 'Not Found',
+          message: 'Activo no encontrado o acceso denegado.',
+        });
+        return;
+      }
+
+      const asset = assetRows[0];
+      const actor = getAssetActor(req);
+
+      // ACL check (VIEW)
+      const evalResult = await evaluateAclPermission(actor, 'ASSET', assetId, 'VIEW', {
+        tenantId: asset.tenant_id,
+        workspaceId: asset.workspace_id,
+        collectionId: asset.collection_id,
+        assetId,
+      });
+
+      if (!evalResult.allowed) {
+        res.status(403).json({
+          status: 403,
+          error: 'Forbidden',
+          message: 'Acceso denegado por política de control de acceso (ACL).',
+        });
+        return;
+      }
+
+      const rightsRows = await query<
+        Array<{
+          id: number;
+          tenant_id: number;
+          asset_id: number;
+          copyright_notice: string | null;
+          license_type: string;
+          terms_of_use: string | null;
+          expires_at: string | Date | null;
+          embargo_until: string | Date | null;
+        }>
+      >(
+        'SELECT id, tenant_id, asset_id, copyright_notice, license_type, terms_of_use, expires_at, embargo_until FROM asset_rights WHERE asset_id = ? AND tenant_id = ?',
+        [assetId, tenantId],
+      );
+
+      const now = new Date();
+      if (!rightsRows || rightsRows.length === 0) {
+        res.status(200).json({
+          status: 200,
+          data: {
+            asset_id: assetId,
+            copyright_notice: null,
+            license_type: 'PROPRIETARY',
+            terms_of_use: null,
+            expires_at: null,
+            embargo_until: null,
+            is_embargoed: false,
+            is_expired: false,
+          },
+        });
+        return;
+      }
+
+      const row = rightsRows[0];
+      const isEmbargoed = Boolean(row.embargo_until && new Date(row.embargo_until) > now);
+      const isExpired = Boolean(row.expires_at && new Date(row.expires_at) < now);
+
+      res.status(200).json({
+        status: 200,
+        data: {
+          asset_id: assetId,
+          copyright_notice: row.copyright_notice ?? null,
+          license_type: row.license_type,
+          terms_of_use: row.terms_of_use ?? null,
+          expires_at: row.expires_at ? new Date(row.expires_at).toISOString() : null,
+          embargo_until: row.embargo_until ? new Date(row.embargo_until).toISOString() : null,
+          is_embargoed: isEmbargoed,
+          is_expired: isExpired,
+        },
+      });
+    } catch (err: any) {
+      console.error('Get asset rights error:', err);
+      res.status(500).json({
+        status: 500,
+        error: 'Internal Server Error',
+        message: 'Error al obtener los derechos y licencias del activo.',
+      });
+    }
+  },
+);
+
+/**
+ * PUT /api/v1/assets/:id/rights
+ * Update or assign asset rights, license and embargo information (FC 010).
+ */
+router.put(
+  '/:id/rights',
+  rightsRateLimiter,
+  requireAuth,
+  validate(updateAssetRightsSchema, 'body'),
+  async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+    try {
+      const tenantId = getActorTenantId(req);
+      const assetId = parseInt(String(req.params.id), 10);
+
+      if (isNaN(assetId)) {
+        res
+          .status(400)
+          .json({ status: 400, error: 'Bad Request', message: 'ID de activo inválido.' });
+        return;
+      }
+
+      const assetRows = await query<
+        Array<{
+          id: number;
+          tenant_id: number;
+          workspace_id: number;
+          collection_id: number;
+          status: string;
+          deleted_at: string | null;
+        }>
+      >(
+        'SELECT id, tenant_id, workspace_id, collection_id, status, deleted_at FROM assets WHERE id = ? AND tenant_id = ?',
+        [assetId, tenantId],
+      );
+
+      if (
+        !assetRows ||
+        assetRows.length === 0 ||
+        assetRows[0].deleted_at !== null ||
+        assetRows[0].status === 'DELETED'
+      ) {
+        res.status(404).json({
+          status: 404,
+          error: 'Not Found',
+          message: 'Activo no encontrado o acceso denegado.',
+        });
+        return;
+      }
+
+      const asset = assetRows[0];
+      const actor = getAssetActor(req);
+
+      // ACL check (EDIT)
+      const evalResult = await evaluateAclPermission(actor, 'ASSET', assetId, 'EDIT', {
+        tenantId: asset.tenant_id,
+        workspaceId: asset.workspace_id,
+        collectionId: asset.collection_id,
+        assetId,
+      });
+
+      if (!evalResult.allowed) {
+        res.status(403).json({
+          status: 403,
+          error: 'Forbidden',
+          message: 'Acceso denegado por política de control de acceso (ACL).',
+        });
+        return;
+      }
+
+      const {
+        copyright_notice,
+        license_type = 'PROPRIETARY',
+        terms_of_use,
+        expires_at,
+        embargo_until,
+      } = req.body as UpdateAssetRightsInput;
+
+      const formattedExpiresAt = expires_at ? new Date(expires_at) : null;
+      const formattedEmbargoUntil = embargo_until ? new Date(embargo_until) : null;
+
+      await query(
+        `INSERT INTO asset_rights (tenant_id, asset_id, copyright_notice, license_type, terms_of_use, expires_at, embargo_until)
+         VALUES (?, ?, ?, ?, ?, ?, ?)
+         ON DUPLICATE KEY UPDATE
+           copyright_notice = VALUES(copyright_notice),
+           license_type = VALUES(license_type),
+           terms_of_use = VALUES(terms_of_use),
+           expires_at = VALUES(expires_at),
+           embargo_until = VALUES(embargo_until),
+           updated_at = CURRENT_TIMESTAMP`,
+        [
+          tenantId,
+          assetId,
+          copyright_notice ?? null,
+          license_type,
+          terms_of_use ?? null,
+          formattedExpiresAt,
+          formattedEmbargoUntil,
+        ],
+      );
+
+      await logSecurityEvent(req, {
+        eventType: 'ASSET_RIGHTS_UPDATE',
+        userId: Number(actor.id),
+        status: 'SUCCESS',
+        details: `Updated rights for asset ID ${assetId}: license=${license_type}, embargo=${embargo_until || 'none'}, expires=${expires_at || 'none'}`,
+      });
+
+      const now = new Date();
+      const isEmbargoed = Boolean(formattedEmbargoUntil && formattedEmbargoUntil > now);
+      const isExpired = Boolean(formattedExpiresAt && formattedExpiresAt < now);
+
+      res.status(200).json({
+        status: 200,
+        message: 'Derechos y licencias del activo actualizados exitosamente.',
+        data: {
+          asset_id: assetId,
+          copyright_notice: copyright_notice ?? null,
+          license_type,
+          terms_of_use: terms_of_use ?? null,
+          expires_at: formattedExpiresAt ? formattedExpiresAt.toISOString() : null,
+          embargo_until: formattedEmbargoUntil ? formattedEmbargoUntil.toISOString() : null,
+          is_embargoed: isEmbargoed,
+          is_expired: isExpired,
+        },
+      });
+    } catch (err: any) {
+      console.error('Update asset rights error:', err);
+      res.status(500).json({
+        status: 500,
+        error: 'Internal Server Error',
+        message: 'Error al actualizar los derechos y licencias del activo.',
+      });
+    }
+  },
+);
+
 export default router;
+
 
