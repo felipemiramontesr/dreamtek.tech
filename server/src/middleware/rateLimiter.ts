@@ -249,6 +249,26 @@ export const jobsRateLimiter = rateLimit({
   },
 });
 
+/**
+ * DAM Webhooks & Outbound Event Notifications Rate Limiter (OWASP A04)
+ * 60 requests per 1 minute window per IP
+ */
+export const webhooksRateLimiter = rateLimit({
+  windowMs: 1 * 60 * 1000,
+  max: 60,
+  standardHeaders: true,
+  legacyHeaders: false,
+  handler: (_req: Request, res: Response) => {
+    res.status(429).json({
+      status: 429,
+      error: 'Too Many Requests',
+      message:
+        'Límite de operaciones de webhooks alcanzado. Intente nuevamente en un minuto.',
+    });
+  },
+});
+
+
 
 
 

@@ -7,6 +7,7 @@ import { promisify } from 'util';
 import { query } from '../db';
 import { assertPathContained, STORAGE_ROOT } from './storage';
 import type { JobType } from '../schemas/mediaJob.schema';
+import { dispatchWebhookEvent } from './webhookDispatcher';
 
 const execFileAsync = promisify(execFile);
 
@@ -319,6 +320,14 @@ export async function processMediaJob(
        WHERE id = ?`,
       [JSON.stringify(payload), jobId],
     );
+
+    // 5. Dispatch Webhook Event (FC 012 - fire-and-forget)
+    void dispatchWebhookEvent(job.tenant_id, 'job.completed', {
+      job_id: jobId,
+      asset_id: job.asset_id,
+      version_id: job.version_id,
+      job_type: job.job_type,
+    });
 
     return { success: true };
   } catch (err: any) {

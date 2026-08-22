@@ -35,6 +35,7 @@ import { query } from '../db';
 import { validateMagicBytes } from '../utils/magicBytes';
 import { evaluateAclPermission, AclActor } from '../utils/acl';
 import { enqueueMediaJob, retryFailedJobsForAsset } from '../utils/mediaWorker';
+import { dispatchWebhookEvent } from '../utils/webhookDispatcher';
 import {
   STORAGE_ROOT,
   assertPathContained,
@@ -217,6 +218,14 @@ router.post(
         userId: actorId,
         status: 'SUCCESS',
         details: `Uploaded asset ID ${assetId} (${originalTitle}) [${sha256Hash}]`,
+      });
+
+      // 10. Dispatch Webhook Event (FC 012 - fire-and-forget)
+      void dispatchWebhookEvent(tenantId, 'asset.created', {
+        asset_id: assetId,
+        title: originalTitle,
+        mime_type: validatedMime.mime,
+        byte_size: req.file.buffer.length,
       });
 
       res.status(201).json({
@@ -1797,6 +1806,15 @@ router.post(
         details: `Uploaded new version v${nextVersion} for asset ID ${assetId} (${asset.title}) [${sha256Hash}]`,
       });
 
+      // 10. Dispatch Webhook Event (FC 012 - fire-and-forget)
+      void dispatchWebhookEvent(tenantId, 'version.created', {
+        asset_id: assetId,
+        version_id: versionId,
+        version_number: nextVersion,
+        mime_type: validatedMime.mime,
+        byte_size: req.file.buffer.length,
+      });
+
       res.status(201).json({
         status: 201,
         message: 'Nueva versión de activo cargada exitosamente.',
@@ -2918,6 +2936,11 @@ router.post(
           `UPDATE assets SET status = 'DELETED', deleted_at = NOW() WHERE id IN (${delPlaceholders}) AND tenant_id = ?`,
           [...deletedAssetIds, tenantId],
         );
+
+        // Dispatch Webhook Events (FC 012 - fire-and-forget)
+        for (const dId of deletedAssetIds) {
+          void dispatchWebhookEvent(tenantId, 'asset.deleted', { asset_id: dId });
+        }
       }
 
       await logSecurityEvent(req, {
@@ -3183,6 +3206,11 @@ router.put(
         userId: Number(actor.id),
         status: 'SUCCESS',
         details: `Updated rights for asset ID ${assetId}: license=${license_type}, embargo=${embargo_until || 'none'}, expires=${expires_at || 'none'}`,
+      });
+
+      // Dispatch Webhook Event (FC 012 - fire-and-forget)
+      void dispatchWebhookEvent(tenantId, 'rights.updated', {
+        asset_id: assetId,
       });
 
       const now = new Date();
