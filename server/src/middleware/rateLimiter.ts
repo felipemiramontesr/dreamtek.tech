@@ -268,6 +268,25 @@ export const webhooksRateLimiter = rateLimit({
   },
 });
 
+/**
+ * DAM Asset Duplication & Deduplication Rate Limiter (OWASP A04)
+ * 30 requests per 1 minute window per IP
+ */
+export const dedupRateLimiter = rateLimit({
+  windowMs: 1 * 60 * 1000,
+  max: 30,
+  standardHeaders: true,
+  legacyHeaders: false,
+  handler: (_req: Request, res: Response) => {
+    res.status(429).json({
+      status: 429,
+      error: 'Too Many Requests',
+      message:
+        'Límite de operaciones de detección y deduplicación alcanzado. Intente nuevamente en un minuto.',
+    });
+  },
+});
+
 
 
 

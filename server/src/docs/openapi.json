@@ -1133,6 +1133,83 @@
           "404": { "description": "Endpoint no encontrado." }
         }
       }
+    },
+    "/api/v1/assets/duplicates": {
+      "get": {
+        "summary": "Listar grupos de activos duplicados por hash SHA-256 (FC 013)",
+        "tags": ["DAM Assets"],
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "schema": { "type": "integer", "default": 1 }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": { "type": "integer", "default": 20 }
+          },
+          {
+            "name": "workspace_id",
+            "in": "query",
+            "required": false,
+            "schema": { "type": "integer" }
+          },
+          {
+            "name": "collection_id",
+            "in": "query",
+            "required": false,
+            "schema": { "type": "integer" }
+          },
+          {
+            "name": "mime_category",
+            "in": "query",
+            "required": false,
+            "schema": { "type": "string", "enum": ["image", "video", "audio", "document"] }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Grupos de activos duplicados y métricas de espacio redundante."
+          },
+          "401": { "description": "No autorizado." }
+        }
+      }
+    },
+    "/api/v1/assets/deduplicate": {
+      "post": {
+        "summary": "Consolidar activos duplicados hacia un activo canónico (FC 013)",
+        "tags": ["DAM Assets"],
+        "security": [{ "bearerAuth": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["canonical_asset_id", "duplicate_asset_ids"],
+                "properties": {
+                  "canonical_asset_id": { "type": "integer", "example": 1 },
+                  "duplicate_asset_ids": {
+                    "type": "array",
+                    "items": { "type": "integer" },
+                    "example": [2, 3]
+                  },
+                  "reason": { "type": "string", "example": "Limpieza de almacenamiento" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Activos duplicados consolidados exitosamente." },
+          "400": { "description": "Petición inválida o hashes incompatibles." },
+          "403": { "description": "Permisos ACL insuficientes." }
+        }
+      }
     }
   }
 }

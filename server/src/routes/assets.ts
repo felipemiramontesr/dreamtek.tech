@@ -13,6 +13,7 @@ import {
   batchRateLimiter,
   rightsRateLimiter,
   jobsRateLimiter,
+  dedupRateLimiter,
 } from '../middleware/rateLimiter';
 import { validate } from '../middleware/validate';
 import { createShareSchema } from '../schemas/share.schema';
@@ -30,12 +31,18 @@ import {
 } from '../schemas/assetBatch.schema';
 import { updateAssetRightsSchema, UpdateAssetRightsInput } from '../schemas/assetRights.schema';
 import { retryJobsSchema, RetryJobsInput } from '../schemas/mediaJob.schema';
+import { dedupQuerySchema, deduplicateBodySchema } from '../schemas/assetDedup.schema';
 import { logSecurityEvent } from '../middleware/auditLogger';
 import { query } from '../db';
 import { validateMagicBytes } from '../utils/magicBytes';
 import { evaluateAclPermission, AclActor } from '../utils/acl';
 import { enqueueMediaJob, retryFailedJobsForAsset } from '../utils/mediaWorker';
 import { dispatchWebhookEvent } from '../utils/webhookDispatcher';
+import {
+  findDuplicateClusters,
+  checkExistingDuplicate,
+  consolidateDuplicates,
+} from '../utils/dedupEngine';
 import {
   STORAGE_ROOT,
   assertPathContained,
@@ -153,14 +160,70 @@ router.post(
       const tenantId = getActorTenantId(req);
       const actorId = Number(req.user?.userId);
 
-      // 2. Auto-bootstrap Workspace and Collection
-      const { workspaceId, collectionId } = await getOrCreateDefaultWorkspace(tenantId);
-
-      // 3. Compute SHA-256 Checksum (OWASP A02)
+      // 2. Compute SHA-256 Checksum (OWASP A02)
       const sha256Hash = computeBufferSha256(req.file.buffer);
       const originalTitle = path.basename(req.file.originalname);
 
-      // 4. Insert Asset Record
+      // 3. Deduplication Policy Check (FC 013)
+      const dedupPolicy = (
+        (req.headers['x-deduplication-policy'] as string) ||
+        (req.query.dedup_policy as string) ||
+        req.body?.dedup_policy ||
+        'ALLOW_DUPLICATE'
+      ).toUpperCase();
+
+      if (dedupPolicy === 'REJECT_DUPLICATE' || dedupPolicy === 'LINK_EXISTING') {
+        const existingDuplicate = await checkExistingDuplicate(tenantId, sha256Hash);
+
+        if (existingDuplicate) {
+          if (dedupPolicy === 'REJECT_DUPLICATE') {
+            res.status(409).json({
+              status: 409,
+              error: 'Conflict',
+              message: 'Ya existe un activo idéntico con el mismo contenido (hash SHA-256).',
+              data: {
+                duplicate_asset_id: existingDuplicate.id,
+                sha256_hash: sha256Hash,
+                title: existingDuplicate.title,
+                workspace_id: existingDuplicate.workspace_id,
+                collection_id: existingDuplicate.collection_id,
+                created_at: existingDuplicate.created_at,
+              },
+            });
+            return;
+          }
+
+          // LINK_EXISTING
+          await logSecurityEvent(req, {
+            eventType: 'ASSET_UPLOAD_DEDUPLICATED',
+            userId: actorId,
+            status: 'SUCCESS',
+            details: `Linked existing duplicate asset ID ${existingDuplicate.id} for upload ${originalTitle} [${sha256Hash}]`,
+          });
+
+          res.status(200).json({
+            status: 200,
+            message: 'Activo existente vinculado (deduplicado exitosamente).',
+            data: {
+              assetId: existingDuplicate.id,
+              versionId: existingDuplicate.version_id,
+              title: existingDuplicate.title,
+              mimeType: existingDuplicate.mime_type,
+              byteSize: existingDuplicate.byte_size,
+              sha256: sha256Hash,
+              workspaceId: existingDuplicate.workspace_id,
+              collectionId: existingDuplicate.collection_id,
+              linked: true,
+            },
+          });
+          return;
+        }
+      }
+
+      // 4. Auto-bootstrap Workspace and Collection
+      const { workspaceId, collectionId } = await getOrCreateDefaultWorkspace(tenantId);
+
+      // 5. Insert Asset Record
       const assetInsertRes = await query<any>(
         `INSERT INTO assets (tenant_id, workspace_id, collection_id, title, mime_type, status)
          VALUES (?, ?, ?, ?, ?, 'ACTIVE')`,
@@ -451,6 +514,155 @@ router.get(
         status: 500,
         error: 'Internal Server Error',
         message: 'Error al consultar y filtrar los activos digitales.',
+      });
+    }
+  },
+);
+
+/**
+ * GET /api/v1/assets/duplicates
+ * Lists clusters of duplicate assets sharing identical SHA-256 hashes for the tenant (FC 013).
+ */
+router.get(
+  '/duplicates',
+  dedupRateLimiter,
+  requireAuth,
+  validate(dedupQuerySchema, 'query'),
+  async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+    try {
+      const tenantId = getActorTenantId(req);
+      const queryOptions = req.query as unknown as DedupQueryInput;
+
+      const result = await findDuplicateClusters(tenantId, queryOptions);
+
+      res.status(200).json({
+        status: 200,
+        summary: result.summary,
+        data: result.clusters,
+        pagination: result.pagination,
+      });
+    } catch (err: any) {
+      console.error('Find duplicate clusters error:', err);
+      res.status(500).json({
+        status: 500,
+        error: 'Internal Server Error',
+        message: 'Error al escanear y obtener los activos duplicados.',
+      });
+    }
+  },
+);
+
+/**
+ * POST /api/v1/assets/deduplicate
+ * Consolidates redundant duplicate assets into a designated canonical asset (FC 013, OWASP A01/A09).
+ */
+router.post(
+  '/deduplicate',
+  dedupRateLimiter,
+  requireAuth,
+  validate(deduplicateBodySchema, 'body'),
+  async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+    try {
+      const tenantId = getActorTenantId(req);
+      const actor = getAssetActor(req);
+      const actorId = Number(req.user?.userId);
+      const { canonical_asset_id, duplicate_asset_ids, reason } = req.body;
+
+      // 1. Validation: canonical cannot be in duplicate list
+      if (duplicate_asset_ids.includes(canonical_asset_id)) {
+        res.status(400).json({
+          status: 400,
+          error: 'Bad Request',
+          message: 'El activo canónico no puede estar incluido en la lista de activos a consolidar.',
+        });
+        return;
+      }
+
+      // 2. ACL Verification on Canonical Asset (VIEW permission required)
+      const canonicalAllowed = await evaluateAclPermission(
+        actor,
+        { resourceType: 'ASSET', resourceId: canonical_asset_id },
+        'VIEW',
+      );
+
+      if (!canonicalAllowed) {
+        res.status(403).json({
+          status: 403,
+          error: 'Forbidden',
+          message: 'Acceso denegado por ACL sobre el activo canónico especificado.',
+        });
+        return;
+      }
+
+      // 3. ACL Verification on Duplicate Assets (DELETE permission required for each)
+      for (const dupId of duplicate_asset_ids) {
+        const dupAllowed = await evaluateAclPermission(
+          actor,
+          { resourceType: 'ASSET', resourceId: dupId },
+          'DELETE',
+        );
+
+        if (!dupAllowed) {
+          res.status(403).json({
+            status: 403,
+            error: 'Forbidden',
+            message: `Permisos insuficientes para consolidar y eliminar el activo duplicado ID ${dupId}.`,
+          });
+          return;
+        }
+      }
+
+      // 4. Consolidate Duplicates via Engine
+      const consolidateResult = await consolidateDuplicates(
+        tenantId,
+        canonical_asset_id,
+        duplicate_asset_ids,
+        actorId,
+        reason,
+      );
+
+      if (!consolidateResult.success) {
+        res.status(400).json({
+          status: 400,
+          error: 'Bad Request',
+          message: consolidateResult.error,
+        });
+        return;
+      }
+
+      // 5. Security Audit Log (OWASP A09)
+      await logSecurityEvent(req, {
+        eventType: 'ASSET_DEDUPLICATE',
+        userId: actorId,
+        status: 'SUCCESS',
+        details: `Consolidated ${duplicate_asset_ids.length} duplicates into canonical ID ${canonical_asset_id} (Reclaimed: ${consolidateResult.reclaimed_bytes} bytes)`,
+      });
+
+      // 6. Dispatch Webhooks for Soft-Deleted Duplicates (FC 012)
+      for (const dupId of duplicate_asset_ids) {
+        void dispatchWebhookEvent(tenantId, 'asset.deleted', {
+          asset_id: dupId,
+          reason: 'DEDUPLICATED',
+          canonical_asset_id,
+        });
+      }
+
+      res.status(200).json({
+        status: 200,
+        message: 'Activos duplicados consolidados con éxito.',
+        data: {
+          canonical_asset_id,
+          consolidated_count: consolidateResult.consolidated_count,
+          reclaimed_bytes: consolidateResult.reclaimed_bytes,
+          consolidated_asset_ids: consolidateResult.consolidated_asset_ids,
+        },
+      });
+    } catch (err: any) {
+      console.error('Deduplicate assets error:', err);
+      res.status(500).json({
+        status: 500,
+        error: 'Internal Server Error',
+        message: 'Error interno al consolidar los activos duplicados.',
       });
     }
   },
