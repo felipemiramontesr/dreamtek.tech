@@ -1310,6 +1310,107 @@
           "404": { "description": "Activo digital no encontrado." }
         }
       }
+    },
+    "/api/v1/assets/{id}/ai-analyze": {
+      "post": {
+        "summary": "Ejecutar análisis de inteligencia visual y auto-etiquetado (FC 015)",
+        "tags": ["DAM AI Vision"],
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "integer" },
+            "description": "ID del activo digital"
+          }
+        ],
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "auto_tag": { "type": "boolean", "default": false },
+                  "min_confidence": {
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 1,
+                    "default": 0.75
+                  },
+                  "force_refresh": { "type": "boolean", "default": false }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Análisis de inteligencia visual completado exitosamente." },
+          "400": { "description": "Activo no encontrado o fallo al analizar." },
+          "403": { "description": "Permisos ACL insuficientes (requiere EDIT)." }
+        }
+      }
+    },
+    "/api/v1/assets/{id}/ai-metadata": {
+      "get": {
+        "summary": "Consultar metadatos de visión por computadora y etiquetas de IA (FC 015)",
+        "tags": ["DAM AI Vision"],
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "integer" },
+            "description": "ID del activo digital"
+          }
+        ],
+        "responses": {
+          "200": { "description": "Metadatos de inteligencia artificial recuperados." },
+          "403": { "description": "Permisos ACL insuficientes (requiere VIEW)." },
+          "404": { "description": "Metadatos no encontrados." }
+        }
+      }
+    },
+    "/api/v1/assets/{id}/ai-tags/apply": {
+      "post": {
+        "summary": "Aplicar etiquetas visuales sugeridas por IA como tags formales del activo (FC 015)",
+        "tags": ["DAM AI Vision"],
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "integer" },
+            "description": "ID del activo digital"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["labels"],
+                "properties": {
+                  "labels": {
+                    "type": "array",
+                    "items": { "type": "string" },
+                    "example": ["Landscape", "Mountain"]
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Etiquetas de IA aplicadas exitosamente." },
+          "400": { "description": "Petición inválida o fallo al aplicar." },
+          "403": { "description": "Permisos ACL insuficientes (requiere EDIT)." }
+        }
+      }
     }
   }
 }

@@ -15,6 +15,7 @@ import {
   jobsRateLimiter,
   dedupRateLimiter,
   archivalRateLimiter,
+  aiRateLimiter,
 } from '../middleware/rateLimiter';
 import { validate } from '../middleware/validate';
 import { createShareSchema } from '../schemas/share.schema';
@@ -34,6 +35,7 @@ import { updateAssetRightsSchema, UpdateAssetRightsInput } from '../schemas/asse
 import { retryJobsSchema, RetryJobsInput } from '../schemas/mediaJob.schema';
 import { dedupQuerySchema, deduplicateBodySchema } from '../schemas/assetDedup.schema';
 import { archiveAssetBodySchema, restoreAssetBodySchema } from '../schemas/assetArchival.schema';
+import { analyzeAssetBodySchema, applyAiTagsBodySchema } from '../schemas/assetAiMetadata.schema';
 import { logSecurityEvent } from '../middleware/auditLogger';
 import { query } from '../db';
 import { validateMagicBytes } from '../utils/magicBytes';
@@ -50,6 +52,11 @@ import {
   requestAssetRestoration,
   getArchivalStatus,
 } from '../utils/archivalEngine';
+import {
+  analyzeAssetVisuals,
+  getAssetAiMetadata,
+  applyAiLabelsAsTags,
+} from '../utils/aiVisionEngine';
 import {
   STORAGE_ROOT,
   assertPathContained,
@@ -879,6 +886,215 @@ router.get(
         status: 500,
         error: 'Internal Server Error',
         message: 'Error al obtener el estado de archivo del activo.',
+      });
+    }
+  },
+);
+
+/**
+ * POST /api/v1/assets/:id/ai-analyze
+ * Triggers computer vision analysis, color extraction, and smart auto-tagging (FC 015, OWASP A01/A04/A09).
+ */
+router.post(
+  '/:id/ai-analyze',
+  aiRateLimiter,
+  requireAuth,
+  validate(analyzeAssetBodySchema, 'body'),
+  async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+    try {
+      const tenantId = getActorTenantId(req);
+      const actor = getAssetActor(req);
+      const actorId = Number(req.user?.userId);
+      const assetId = parseInt(String(req.params.id), 10);
+
+      if (isNaN(assetId)) {
+        res
+          .status(400)
+          .json({ status: 400, error: 'Bad Request', message: 'ID de activo inválido.' });
+        return;
+      }
+
+      // ACL check: EDIT permission
+      const evalResult = await evaluateAclPermission(actor, 'ASSET', assetId, 'EDIT');
+      if (!evalResult.allowed) {
+        res.status(403).json({
+          status: 403,
+          error: 'Forbidden',
+          message:
+            'Acceso denegado por política de control de acceso (ACL) para analizar el activo.',
+        });
+        return;
+      }
+
+      const result = await analyzeAssetVisuals(tenantId, assetId, req.body);
+
+      if (!result.success || !result.data) {
+        res.status(400).json({
+          status: 400,
+          error: 'Bad Request',
+          message: result.error || 'Error al analizar el activo digital.',
+        });
+        return;
+      }
+
+      await logSecurityEvent(req, {
+        eventType: 'ASSET_AI_ANALYZED',
+        userId: actorId,
+        status: 'SUCCESS',
+        details: `AI vision analysis executed on asset ID ${assetId} (Auto-tagged: ${result.data.auto_tagged}, Tags: ${result.data.tags_applied_count})`,
+      });
+
+      void dispatchWebhookEvent(tenantId, 'asset.ai_analyzed', {
+        asset_id: assetId,
+        labels_count: result.data.labels.length,
+        auto_tagged: result.data.auto_tagged,
+        dominant_colors: result.data.dominant_colors,
+      });
+
+      res.status(200).json({
+        status: 200,
+        message: 'Análisis de inteligencia visual completado exitosamente.',
+        data: result.data,
+      });
+    } catch (err: any) {
+      console.error('Analyze asset visual error:', err);
+      res.status(500).json({
+        status: 500,
+        error: 'Internal Server Error',
+        message: 'Error interno al analizar el activo digital.',
+      });
+    }
+  },
+);
+
+/**
+ * GET /api/v1/assets/:id/ai-metadata
+ * Retrieves AI vision labels, colors, and detection metadata (FC 015, OWASP A01).
+ */
+router.get(
+  '/:id/ai-metadata',
+  aiRateLimiter,
+  requireAuth,
+  async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+    try {
+      const tenantId = getActorTenantId(req);
+      const actor = getAssetActor(req);
+      const assetId = parseInt(String(req.params.id), 10);
+
+      if (isNaN(assetId)) {
+        res
+          .status(400)
+          .json({ status: 400, error: 'Bad Request', message: 'ID de activo inválido.' });
+        return;
+      }
+
+      // ACL check: VIEW permission
+      const evalResult = await evaluateAclPermission(actor, 'ASSET', assetId, 'VIEW');
+      if (!evalResult.allowed) {
+        res.status(403).json({
+          status: 403,
+          error: 'Forbidden',
+          message: 'Acceso denegado por política de control de acceso (ACL).',
+        });
+        return;
+      }
+
+      const metadata = await getAssetAiMetadata(tenantId, assetId);
+
+      if (!metadata) {
+        res.status(404).json({
+          status: 404,
+          error: 'Not Found',
+          message: 'Metadatos de inteligencia artificial no encontrados para este activo.',
+        });
+        return;
+      }
+
+      res.status(200).json({
+        status: 200,
+        data: metadata,
+      });
+    } catch (err: any) {
+      console.error('Get asset AI metadata error:', err);
+      res.status(500).json({
+        status: 500,
+        error: 'Internal Server Error',
+        message: 'Error al consultar los metadatos de inteligencia artificial.',
+      });
+    }
+  },
+);
+
+/**
+ * POST /api/v1/assets/:id/ai-tags/apply
+ * Applies selected AI inferred labels directly as formal asset tags (FC 015, OWASP A01/A09).
+ */
+router.post(
+  '/:id/ai-tags/apply',
+  aiRateLimiter,
+  requireAuth,
+  validate(applyAiTagsBodySchema, 'body'),
+  async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+    try {
+      const tenantId = getActorTenantId(req);
+      const actor = getAssetActor(req);
+      const actorId = Number(req.user?.userId);
+      const assetId = parseInt(String(req.params.id), 10);
+
+      if (isNaN(assetId)) {
+        res
+          .status(400)
+          .json({ status: 400, error: 'Bad Request', message: 'ID de activo inválido.' });
+        return;
+      }
+
+      // ACL check: EDIT permission
+      const evalResult = await evaluateAclPermission(actor, 'ASSET', assetId, 'EDIT');
+      if (!evalResult.allowed) {
+        res.status(403).json({
+          status: 403,
+          error: 'Forbidden',
+          message:
+            'Acceso denegado por política de control de acceso (ACL) para aplicar etiquetas.',
+        });
+        return;
+      }
+
+      const result = await applyAiLabelsAsTags(tenantId, assetId, req.body.labels);
+
+      if (!result.success) {
+        res.status(400).json({
+          status: 400,
+          error: 'Bad Request',
+          message: result.error || 'Error al aplicar las etiquetas de IA.',
+        });
+        return;
+      }
+
+      await logSecurityEvent(req, {
+        eventType: 'ASSET_AI_TAGS_APPLIED',
+        userId: actorId,
+        status: 'SUCCESS',
+        details: `Applied AI tags [${result.tags_applied.join(', ')}] to asset ID ${assetId}`,
+      });
+
+      void dispatchWebhookEvent(tenantId, 'asset.tags_updated', {
+        asset_id: assetId,
+        tags: result.tags_applied,
+        source: 'AI_AUTO_TAGGING',
+      });
+
+      res.status(200).json({
+        status: 200,
+        message: 'Etiquetas visuales aplicadas exitosamente al activo.',
+        data: result,
+      });
+    } catch (err: any) {
+      console.error('Apply AI tags error:', err);
+      res.status(500).json({
+        status: 500,
+        error: 'Internal Server Error',
+        message: 'Error al aplicar las etiquetas de inteligencia artificial.',
       });
     }
   },
