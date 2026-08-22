@@ -1210,6 +1210,106 @@
           "403": { "description": "Permisos ACL insuficientes." }
         }
       }
+    },
+    "/api/v1/assets/{id}/archive": {
+      "post": {
+        "summary": "Archivar un activo digital en almacenamiento frío / S3 Glacier (FC 014)",
+        "tags": ["DAM Storage Tiering"],
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "integer" },
+            "description": "ID del activo digital"
+          }
+        ],
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "archive_provider": { "type": "string", "default": "AWS_GLACIER" },
+                  "reason": {
+                    "type": "string",
+                    "example": "Archivado de preservación a largo plazo"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Activo digital archivado exitosamente en almacenamiento frío." },
+          "400": { "description": "Petición inválida o el activo ya se encuentra archivado." },
+          "403": { "description": "Permisos ACL insuficientes (requiere MANAGE)." },
+          "404": { "description": "Activo digital no encontrado." }
+        }
+      }
+    },
+    "/api/v1/assets/{id}/restore": {
+      "post": {
+        "summary": "Solicitar restauración asíncrona de un activo archivado a caché caliente (FC 014)",
+        "tags": ["DAM Storage Tiering"],
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "integer" },
+            "description": "ID del activo digital"
+          }
+        ],
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "restoration_tier": {
+                    "type": "string",
+                    "enum": ["EXPEDITED", "STANDARD", "BULK"],
+                    "default": "STANDARD"
+                  },
+                  "days_valid": { "type": "integer", "default": 7, "minimum": 1, "maximum": 30 }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Solicitud de restauración iniciada exitosamente." },
+          "400": { "description": "Petición inválida o el activo no está archivado." },
+          "403": { "description": "Permisos ACL insuficientes (requiere EDIT)." },
+          "404": { "description": "Activo digital no encontrado." }
+        }
+      }
+    },
+    "/api/v1/assets/{id}/archival-status": {
+      "get": {
+        "summary": "Consultar estado de almacenamiento jerárquico y restauración de un activo (FC 014)",
+        "tags": ["DAM Storage Tiering"],
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "integer" },
+            "description": "ID del activo digital"
+          }
+        ],
+        "responses": {
+          "200": { "description": "Estado de archivo y nivel de almacenamiento recuperado." },
+          "403": { "description": "Permisos ACL insuficientes (requiere VIEW)." },
+          "404": { "description": "Activo digital no encontrado." }
+        }
+      }
     }
   }
 }

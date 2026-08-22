@@ -14,6 +14,7 @@ import {
   rightsRateLimiter,
   jobsRateLimiter,
   dedupRateLimiter,
+  archivalRateLimiter,
 } from '../middleware/rateLimiter';
 import { validate } from '../middleware/validate';
 import { createShareSchema } from '../schemas/share.schema';
@@ -32,6 +33,7 @@ import {
 import { updateAssetRightsSchema, UpdateAssetRightsInput } from '../schemas/assetRights.schema';
 import { retryJobsSchema, RetryJobsInput } from '../schemas/mediaJob.schema';
 import { dedupQuerySchema, deduplicateBodySchema } from '../schemas/assetDedup.schema';
+import { archiveAssetBodySchema, restoreAssetBodySchema } from '../schemas/assetArchival.schema';
 import { logSecurityEvent } from '../middleware/auditLogger';
 import { query } from '../db';
 import { validateMagicBytes } from '../utils/magicBytes';
@@ -43,6 +45,11 @@ import {
   checkExistingDuplicate,
   consolidateDuplicates,
 } from '../utils/dedupEngine';
+import {
+  archiveAsset,
+  requestAssetRestoration,
+  getArchivalStatus,
+} from '../utils/archivalEngine';
 import {
   STORAGE_ROOT,
   assertPathContained,
@@ -669,6 +676,215 @@ router.post(
 );
 
 /**
+ * POST /api/v1/assets/:id/archive
+ * Transitions an active asset to cold cloud storage (S3 Glacier / Object Storage) (FC 014, OWASP A01/A04/A09).
+ */
+router.post(
+  '/:id/archive',
+  archivalRateLimiter,
+  requireAuth,
+  validate(archiveAssetBodySchema, 'body'),
+  async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+    try {
+      const tenantId = getActorTenantId(req);
+      const actor = getAssetActor(req);
+      const actorId = Number(req.user?.userId);
+      const assetId = parseInt(String(req.params.id), 10);
+
+      if (isNaN(assetId)) {
+        res
+          .status(400)
+          .json({ status: 400, error: 'Bad Request', message: 'ID de activo inválido.' });
+        return;
+      }
+
+      // ACL check: MANAGE permission on asset
+      const evalResult = await evaluateAclPermission(actor, 'ASSET', assetId, 'MANAGE');
+      if (!evalResult.allowed) {
+        res.status(403).json({
+          status: 403,
+          error: 'Forbidden',
+          message:
+            'Acceso denegado por política de control de acceso (ACL) para archivar el activo.',
+        });
+        return;
+      }
+
+      const archiveResult = await archiveAsset(tenantId, assetId, actorId, req.body);
+
+      if (!archiveResult.success) {
+        res.status(400).json({
+          status: 400,
+          error: 'Bad Request',
+          message: archiveResult.error,
+        });
+        return;
+      }
+
+      await logSecurityEvent(req, {
+        eventType: 'ASSET_ARCHIVED',
+        userId: actorId,
+        status: 'SUCCESS',
+        details: `Archived asset ID ${assetId} to ${archiveResult.archive_provider} (${archiveResult.archive_key})`,
+      });
+
+      void dispatchWebhookEvent(tenantId, 'asset.archived', {
+        asset_id: assetId,
+        archive_provider: archiveResult.archive_provider,
+        archive_key: archiveResult.archive_key,
+        storage_tier: 'ARCHIVED',
+      });
+
+      res.status(200).json({
+        status: 200,
+        message: 'Activo digital archivado exitosamente en almacenamiento frío.',
+        data: archiveResult,
+      });
+    } catch (err: any) {
+      console.error('Archive asset error:', err);
+      res.status(500).json({
+        status: 500,
+        error: 'Internal Server Error',
+        message: 'Error al archivar el activo digital.',
+      });
+    }
+  },
+);
+
+/**
+ * POST /api/v1/assets/:id/restore
+ * Requests asynchronous restoration of an archived asset back to local NVMe hot cache (FC 014, OWASP A01/A04/A09).
+ */
+router.post(
+  '/:id/restore',
+  archivalRateLimiter,
+  requireAuth,
+  validate(restoreAssetBodySchema, 'body'),
+  async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+    try {
+      const tenantId = getActorTenantId(req);
+      const actor = getAssetActor(req);
+      const actorId = Number(req.user?.userId);
+      const assetId = parseInt(String(req.params.id), 10);
+
+      if (isNaN(assetId)) {
+        res
+          .status(400)
+          .json({ status: 400, error: 'Bad Request', message: 'ID de activo inválido.' });
+        return;
+      }
+
+      // ACL check: EDIT permission on asset
+      const evalResult = await evaluateAclPermission(actor, 'ASSET', assetId, 'EDIT');
+      if (!evalResult.allowed) {
+        res.status(403).json({
+          status: 403,
+          error: 'Forbidden',
+          message:
+            'Acceso denegado por política de control de acceso (ACL) para restaurar el activo.',
+        });
+        return;
+      }
+
+      const restoreResult = await requestAssetRestoration(tenantId, assetId, actorId, req.body);
+
+      if (!restoreResult.success) {
+        res.status(400).json({
+          status: 400,
+          error: 'Bad Request',
+          message: restoreResult.error,
+        });
+        return;
+      }
+
+      await logSecurityEvent(req, {
+        eventType: 'ASSET_RESTORE_REQUESTED',
+        userId: actorId,
+        status: 'SUCCESS',
+        details: `Restoration requested for asset ID ${assetId} (Tier: ${req.body.restoration_tier})`,
+      });
+
+      void dispatchWebhookEvent(tenantId, 'asset.restored', {
+        asset_id: assetId,
+        restoration_status: restoreResult.restoration_status,
+        restoration_tier: restoreResult.restoration_tier,
+      });
+
+      res.status(200).json({
+        status: 200,
+        message: 'Solicitud de restauración de activo iniciada exitosamente.',
+        data: restoreResult,
+      });
+    } catch (err: any) {
+      console.error('Restore asset error:', err);
+      res.status(500).json({
+        status: 500,
+        error: 'Internal Server Error',
+        message: 'Error al solicitar la restauración del activo digital.',
+      });
+    }
+  },
+);
+
+/**
+ * GET /api/v1/assets/:id/archival-status
+ * Retrieves cold storage and restoration status for an asset (FC 014, OWASP A01).
+ */
+router.get(
+  '/:id/archival-status',
+  archivalRateLimiter,
+  requireAuth,
+  async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+    try {
+      const tenantId = getActorTenantId(req);
+      const actor = getAssetActor(req);
+      const assetId = parseInt(String(req.params.id), 10);
+
+      if (isNaN(assetId)) {
+        res
+          .status(400)
+          .json({ status: 400, error: 'Bad Request', message: 'ID de activo inválido.' });
+        return;
+      }
+
+      // ACL check: VIEW permission
+      const evalResult = await evaluateAclPermission(actor, 'ASSET', assetId, 'VIEW');
+      if (!evalResult.allowed) {
+        res.status(403).json({
+          status: 403,
+          error: 'Forbidden',
+          message: 'Acceso denegado por política de control de acceso (ACL).',
+        });
+        return;
+      }
+
+      const status = await getArchivalStatus(tenantId, assetId);
+
+      if (!status) {
+        res.status(404).json({
+          status: 404,
+          error: 'Not Found',
+          message: 'Activo digital no encontrado.',
+        });
+        return;
+      }
+
+      res.status(200).json({
+        status: 200,
+        data: status,
+      });
+    } catch (err: any) {
+      console.error('Get archival status error:', err);
+      res.status(500).json({
+        status: 500,
+        error: 'Internal Server Error',
+        message: 'Error al obtener el estado de archivo del activo.',
+      });
+    }
+  },
+);
+
+/**
  * GET /api/v1/assets/:id
  * Get asset metadata & versions with Anti-IDOR verification.
  */
@@ -760,7 +976,7 @@ router.get(
       }
 
       const rows = await query<any[]>(
-        `SELECT a.mime_type, a.title, a.workspace_id, a.collection_id, a.status, a.deleted_at, v.file_path, v.byte_size,
+        `SELECT a.mime_type, a.title, a.workspace_id, a.collection_id, a.status, a.deleted_at, a.storage_tier, v.file_path, v.byte_size,
                 r.embargo_until, r.expires_at
          FROM assets a
          JOIN asset_versions v ON v.asset_id = a.id
@@ -788,9 +1004,27 @@ router.get(
         collection_id,
         status,
         deleted_at,
+        storage_tier,
         embargo_until,
         expires_at,
       } = rows[0];
+
+      if (storage_tier === 'ARCHIVED') {
+        const archivalStatus = await getArchivalStatus(tenantId, assetId);
+        if (archivalStatus && !archivalStatus.is_restored) {
+          res.status(409).json({
+            status: 409,
+            error: 'Conflict',
+            message:
+              'El activo digital se encuentra archivado en almacenamiento frío (Glacier) y requiere ser restaurado previamente.',
+            data: {
+              storage_tier: 'ARCHIVED',
+              restoration_status: archivalStatus.restoration_status,
+            },
+          });
+          return;
+        }
+      }
 
       const actor = {
         id: req.user!.userId,
@@ -875,7 +1109,7 @@ router.get(
       }
 
       const rows = await query<any[]>(
-        `SELECT d.file_path, d.byte_size, a.workspace_id, a.collection_id, a.status, a.deleted_at,
+        `SELECT d.file_path, d.byte_size, a.workspace_id, a.collection_id, a.status, a.deleted_at, a.storage_tier,
                 r.embargo_until, r.expires_at
          FROM assets a
          JOIN asset_versions v ON v.asset_id = a.id
@@ -894,9 +1128,27 @@ router.get(
           collection_id,
           status,
           deleted_at,
+          storage_tier,
           embargo_until,
           expires_at,
         } = rows[0];
+
+        if (storage_tier === 'ARCHIVED') {
+          const archivalStatus = await getArchivalStatus(tenantId, assetId);
+          if (archivalStatus && !archivalStatus.is_restored) {
+            res.status(409).json({
+              status: 409,
+              error: 'Conflict',
+              message:
+                'El activo digital se encuentra archivado en almacenamiento frío (Glacier) y requiere ser restaurado previamente.',
+              data: {
+                storage_tier: 'ARCHIVED',
+                restoration_status: archivalStatus.restoration_status,
+              },
+            });
+            return;
+          }
+        }
 
         const actor = {
           id: req.user!.userId,
@@ -2176,11 +2428,12 @@ router.get(
           mime_type: string;
           status: string;
           deleted_at: string | null;
+          storage_tier: 'HOT' | 'ARCHIVED';
           embargo_until: string | Date | null;
           expires_at: string | Date | null;
         }>
       >(
-        'SELECT a.id, a.tenant_id, a.workspace_id, a.collection_id, a.title, a.mime_type, a.status, a.deleted_at, r.embargo_until, r.expires_at FROM assets a LEFT JOIN asset_rights r ON r.asset_id = a.id WHERE a.id = ? AND a.tenant_id = ?',
+        'SELECT a.id, a.tenant_id, a.workspace_id, a.collection_id, a.title, a.mime_type, a.status, a.deleted_at, a.storage_tier, r.embargo_until, r.expires_at FROM assets a LEFT JOIN asset_rights r ON r.asset_id = a.id WHERE a.id = ? AND a.tenant_id = ?',
         [assetId, tenantId],
       );
 
@@ -2199,6 +2452,23 @@ router.get(
       }
 
       const asset = assetRows[0];
+
+      if (asset.storage_tier === 'ARCHIVED') {
+        const archivalStatus = await getArchivalStatus(tenantId, assetId);
+        if (archivalStatus && !archivalStatus.is_restored) {
+          res.status(409).json({
+            status: 409,
+            error: 'Conflict',
+            message:
+              'El activo digital se encuentra archivado en almacenamiento frío (Glacier) y requiere ser restaurado previamente.',
+            data: {
+              storage_tier: 'ARCHIVED',
+              restoration_status: archivalStatus.restoration_status,
+            },
+          });
+          return;
+        }
+      }
 
       // 2. ACL check (DOWNLOAD)
       const evalResult = await evaluateAclPermission(actor, 'ASSET', assetId, 'DOWNLOAD', {
@@ -2319,11 +2589,12 @@ router.get(
           collection_id: number;
           status: string;
           deleted_at: string | null;
+          storage_tier: 'HOT' | 'ARCHIVED';
           embargo_until: string | Date | null;
           expires_at: string | Date | null;
         }>
       >(
-        'SELECT a.id, a.tenant_id, a.workspace_id, a.collection_id, a.status, a.deleted_at, r.embargo_until, r.expires_at FROM assets a LEFT JOIN asset_rights r ON r.asset_id = a.id WHERE a.id = ? AND a.tenant_id = ?',
+        'SELECT a.id, a.tenant_id, a.workspace_id, a.collection_id, a.status, a.deleted_at, a.storage_tier, r.embargo_until, r.expires_at FROM assets a LEFT JOIN asset_rights r ON r.asset_id = a.id WHERE a.id = ? AND a.tenant_id = ?',
         [assetId, tenantId],
       );
 
@@ -2342,6 +2613,23 @@ router.get(
       }
 
       const asset = assetRows[0];
+
+      if (asset.storage_tier === 'ARCHIVED') {
+        const archivalStatus = await getArchivalStatus(tenantId, assetId);
+        if (archivalStatus && !archivalStatus.is_restored) {
+          res.status(409).json({
+            status: 409,
+            error: 'Conflict',
+            message:
+              'El activo digital se encuentra archivado en almacenamiento frío (Glacier) y requiere ser restaurado previamente.',
+            data: {
+              storage_tier: 'ARCHIVED',
+              restoration_status: archivalStatus.restoration_status,
+            },
+          });
+          return;
+        }
+      }
 
       // 2. ACL check (VIEW)
       const evalResult = await evaluateAclPermission(actor, 'ASSET', assetId, 'VIEW', {
