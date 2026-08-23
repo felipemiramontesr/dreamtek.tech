@@ -1411,6 +1411,103 @@
           "403": { "description": "Permisos ACL insuficientes (requiere EDIT)." }
         }
       }
+    },
+    "/api/v1/assets/search/semantic": {
+      "post": {
+        "summary": "Búsqueda semántica en lenguaje natural mediante embeddings vectoriales (FC 016)",
+        "tags": ["DAM Semantic Search"],
+        "security": [{ "bearerAuth": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["query"],
+                "properties": {
+                  "query": { "type": "string", "example": "paisaje montañoso al atardecer" },
+                  "min_score": { "type": "number", "example": 0.55 },
+                  "limit": { "type": "integer", "example": 10 }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Resultados de búsqueda semántica clasificados por score." },
+          "400": { "description": "Consulta de búsqueda inválida." }
+        }
+      }
+    },
+    "/api/v1/assets/{id}/embedding": {
+      "post": {
+        "summary": "Generar o regenerar el vector de embedding del activo digital (FC 016)",
+        "tags": ["DAM Semantic Search"],
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "integer" },
+            "description": "ID del activo digital"
+          }
+        ],
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "model_name": { "type": "string", "example": "dreamtek-multimodal-v1" },
+                  "force_refresh": { "type": "boolean", "example": false }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Vector de embedding generado exitosamente." },
+          "400": { "description": "Activo no encontrado o inactivo." },
+          "403": { "description": "Permisos ACL insuficientes (requiere EDIT)." }
+        }
+      }
+    },
+    "/api/v1/assets/{id}/similar": {
+      "get": {
+        "summary": "Buscar activos similares mediante distancia coseno sobre embeddings (FC 016)",
+        "tags": ["DAM Semantic Search"],
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "integer" },
+            "description": "ID del activo digital"
+          },
+          {
+            "name": "min_score",
+            "in": "query",
+            "required": false,
+            "schema": { "type": "number", "default": 0.55 },
+            "description": "Umbral de similitud mínima"
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": { "type": "integer", "default": 10 },
+            "description": "Límite de resultados similares"
+          }
+        ],
+        "responses": {
+          "200": { "description": "Lista de activos similares recuperados." },
+          "400": { "description": "Activo no encontrado o parámetros inválidos." },
+          "403": { "description": "Permisos ACL insuficientes (requiere VIEW)." }
+        }
+      }
     }
   }
 }

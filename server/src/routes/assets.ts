@@ -16,6 +16,7 @@ import {
   dedupRateLimiter,
   archivalRateLimiter,
   aiRateLimiter,
+  semanticSearchRateLimiter,
 } from '../middleware/rateLimiter';
 import { validate } from '../middleware/validate';
 import { createShareSchema } from '../schemas/share.schema';
@@ -36,6 +37,11 @@ import { retryJobsSchema, RetryJobsInput } from '../schemas/mediaJob.schema';
 import { dedupQuerySchema, deduplicateBodySchema } from '../schemas/assetDedup.schema';
 import { archiveAssetBodySchema, restoreAssetBodySchema } from '../schemas/assetArchival.schema';
 import { analyzeAssetBodySchema, applyAiTagsBodySchema } from '../schemas/assetAiMetadata.schema';
+import {
+  generateEmbeddingBodySchema,
+  semanticSearchBodySchema,
+  similarAssetsQuerySchema,
+} from '../schemas/assetSemanticSearch.schema';
 import { logSecurityEvent } from '../middleware/auditLogger';
 import { query } from '../db';
 import { validateMagicBytes } from '../utils/magicBytes';
@@ -57,6 +63,11 @@ import {
   getAssetAiMetadata,
   applyAiLabelsAsTags,
 } from '../utils/aiVisionEngine';
+import {
+  generateAssetEmbedding,
+  searchSemantic,
+  findSimilarAssets,
+} from '../utils/vectorSearchEngine';
 import {
   STORAGE_ROOT,
   assertPathContained,
@@ -1095,6 +1106,189 @@ router.post(
         status: 500,
         error: 'Internal Server Error',
         message: 'Error al aplicar las etiquetas de inteligencia artificial.',
+      });
+    }
+  },
+);
+
+/**
+ * POST /api/v1/assets/search/semantic
+ * Executes natural language semantic & vector similarity search across tenant assets (FC 016, OWASP A01/A04/A09).
+ */
+router.post(
+  '/search/semantic',
+  semanticSearchRateLimiter,
+  requireAuth,
+  validate(semanticSearchBodySchema, 'body'),
+  async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+    try {
+      const tenantId = getActorTenantId(req);
+      const actorId = Number(req.user?.userId);
+      const { query: queryText, min_score, limit } = req.body;
+
+      const response = await searchSemantic(tenantId, queryText, {
+        min_score,
+        limit,
+      });
+
+      await logSecurityEvent(req, {
+        eventType: 'SEMANTIC_SEARCH_EXECUTED',
+        userId: actorId,
+        status: 'SUCCESS',
+        details: `Executed semantic search for query "${queryText}" with ${response.total_matches} matches`,
+      });
+
+      res.status(200).json({
+        status: 200,
+        message: 'Búsqueda semántica ejecutada exitosamente.',
+        data: response,
+      });
+    } catch (err: any) {
+      console.error('Semantic search error:', err);
+      res.status(500).json({
+        status: 500,
+        error: 'Internal Server Error',
+        message: 'Error al ejecutar la búsqueda semántica.',
+      });
+    }
+  },
+);
+
+/**
+ * POST /api/v1/assets/:id/embedding
+ * Generates or refreshes the multimodal semantic embedding vector for an asset (FC 016, OWASP A01/A04/A09).
+ */
+router.post(
+  '/:id/embedding',
+  semanticSearchRateLimiter,
+  requireAuth,
+  validate(generateEmbeddingBodySchema, 'body'),
+  async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+    try {
+      const tenantId = getActorTenantId(req);
+      const actor = getAssetActor(req);
+      const actorId = Number(req.user?.userId);
+      const assetId = parseInt(String(req.params.id), 10);
+
+      if (isNaN(assetId)) {
+        res
+          .status(400)
+          .json({ status: 400, error: 'Bad Request', message: 'ID de activo inválido.' });
+        return;
+      }
+
+      // ACL check: EDIT permission
+      const evalResult = await evaluateAclPermission(actor, 'ASSET', assetId, 'EDIT');
+      if (!evalResult.allowed) {
+        res.status(403).json({
+          status: 403,
+          error: 'Forbidden',
+          message:
+            'Acceso denegado por política de control de acceso (ACL) para generar embeddings.',
+        });
+        return;
+      }
+
+      const result = await generateAssetEmbedding(tenantId, assetId, req.body);
+
+      if (!result.success) {
+        res.status(400).json({
+          status: 400,
+          error: 'Bad Request',
+          message: result.error || 'Error al generar el vector de embedding.',
+        });
+        return;
+      }
+
+      await logSecurityEvent(req, {
+        eventType: 'ASSET_EMBEDDING_GENERATED',
+        userId: actorId,
+        status: 'SUCCESS',
+        details: `Generated embedding for asset ID ${assetId} using model ${result.data?.model_name}`,
+      });
+
+      res.status(200).json({
+        status: 200,
+        message: 'Vector de embedding generado exitosamente.',
+        data: result.data,
+      });
+    } catch (err: any) {
+      console.error('Generate asset embedding error:', err);
+      res.status(500).json({
+        status: 500,
+        error: 'Internal Server Error',
+        message: 'Error al generar el embedding del activo.',
+      });
+    }
+  },
+);
+
+/**
+ * GET /api/v1/assets/:id/similar
+ * Finds visually and conceptually similar assets by calculating cosine distance (FC 016, OWASP A01/A04/A09).
+ */
+router.get(
+  '/:id/similar',
+  semanticSearchRateLimiter,
+  requireAuth,
+  validate(similarAssetsQuerySchema, 'query'),
+  async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+    try {
+      const tenantId = getActorTenantId(req);
+      const actor = getAssetActor(req);
+      const actorId = Number(req.user?.userId);
+      const assetId = parseInt(String(req.params.id), 10);
+
+      if (isNaN(assetId)) {
+        res
+          .status(400)
+          .json({ status: 400, error: 'Bad Request', message: 'ID de activo inválido.' });
+        return;
+      }
+
+      // ACL check: VIEW permission
+      const evalResult = await evaluateAclPermission(actor, 'ASSET', assetId, 'VIEW');
+      if (!evalResult.allowed) {
+        res.status(403).json({
+          status: 403,
+          error: 'Forbidden',
+          message:
+            'Acceso denegado por política de control de acceso (ACL) para consultar similitud.',
+        });
+        return;
+      }
+
+      const { min_score, limit } = req.query as unknown as { min_score: number; limit: number };
+
+      const result = await findSimilarAssets(tenantId, assetId, { min_score, limit });
+
+      if (!result.success) {
+        res.status(400).json({
+          status: 400,
+          error: 'Bad Request',
+          message: result.error || 'Error al buscar activos similares.',
+        });
+        return;
+      }
+
+      await logSecurityEvent(req, {
+        eventType: 'ASSET_SIMILARITY_SEARCH_EXECUTED',
+        userId: actorId,
+        status: 'SUCCESS',
+        details: `Found ${result.total_matches} similar assets for asset ID ${assetId}`,
+      });
+
+      res.status(200).json({
+        status: 200,
+        message: 'Activos similares recuperados exitosamente.',
+        data: result,
+      });
+    } catch (err: any) {
+      console.error('Find similar assets error:', err);
+      res.status(500).json({
+        status: 500,
+        error: 'Internal Server Error',
+        message: 'Error al buscar activos similares.',
       });
     }
   },
