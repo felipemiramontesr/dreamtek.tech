@@ -344,6 +344,26 @@ export const semanticSearchRateLimiter = rateLimit({
   },
 });
 
+/**
+ * DAM Custom Dynamic Workflows & Automation Rate Limiter (OWASP A04)
+ * 30 requests per 1 minute window per IP
+ */
+export const workflowsRateLimiter = rateLimit({
+  windowMs: 1 * 60 * 1000,
+  max: 30,
+  standardHeaders: true,
+  legacyHeaders: false,
+  handler: (_req: Request, res: Response) => {
+    res.status(429).json({
+      status: 429,
+      error: 'Too Many Requests',
+      message:
+        'Límite de operaciones de flujos de trabajo y automatización alcanzado. Intente nuevamente en un minuto.',
+    });
+  },
+});
+
+
 
 
 

@@ -68,6 +68,7 @@ import {
   searchSemantic,
   findSimilarAssets,
 } from '../utils/vectorSearchEngine';
+import { dispatchWorkflowsForEvent } from '../utils/workflowEngine';
 import {
   STORAGE_ROOT,
   assertPathContained,
@@ -315,6 +316,9 @@ router.post(
         mime_type: validatedMime.mime,
         byte_size: req.file.buffer.length,
       });
+
+      // 11. Dispatch Workflows for ASSET_CREATED (FC 017 - fire-and-forget)
+      void dispatchWorkflowsForEvent(tenantId, assetId, 'ASSET_CREATED', actorId);
 
       res.status(201).json({
         status: 201,

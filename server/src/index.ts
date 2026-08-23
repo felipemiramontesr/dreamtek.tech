@@ -13,6 +13,7 @@ import {
   workspacesRateLimiter,
   collectionsRateLimiter,
   webhooksRateLimiter,
+  workflowsRateLimiter,
 } from './middleware/rateLimiter.js';
 import { metricsMiddleware } from './middleware/metrics.js';
 import { metricsRouter } from './routes/metrics.js';
@@ -31,6 +32,7 @@ import aclRouter from './routes/acl.js';
 import { workspacesRouter } from './routes/workspaces.js';
 import { collectionsRouter } from './routes/collections.js';
 import webhooksRouter from './routes/webhooks.js';
+import workflowsRouter from './routes/workflows.js';
 import { pool } from './db.js';
 import { getCache, setCache } from './utils/cache.js';
 
@@ -165,6 +167,7 @@ app.use('/api/v1/acl', aclRateLimiter, aclRouter);
 app.use('/api/v1/workspaces', workspacesRateLimiter, workspacesRouter);
 app.use('/api/v1/collections', collectionsRateLimiter, collectionsRouter);
 app.use('/api/v1/webhooks', webhooksRateLimiter, webhooksRouter);
+app.use('/api/v1/workflows', workflowsRateLimiter, workflowsRouter);
 app.use('/api/v1', eventsRouter);
 
 // Start HTTP Server
