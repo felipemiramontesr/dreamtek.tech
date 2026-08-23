@@ -69,6 +69,7 @@ import {
   findSimilarAssets,
 } from '../utils/vectorSearchEngine';
 import { dispatchWorkflowsForEvent } from '../utils/workflowEngine';
+import { recordAnalyticsEvent } from '../utils/analyticsEngine';
 import {
   STORAGE_ROOT,
   assertPathContained,
@@ -1489,6 +1490,18 @@ router.get(
       res.setHeader('Content-Length', byte_size);
       res.setHeader('Content-Disposition', `inline; filename="${encodeURIComponent(title)}"`);
       res.setHeader('Cache-Control', 'private, max-age=3600');
+
+      void recordAnalyticsEvent({
+        tenant_id: tenantId,
+        asset_id: assetId,
+        event_type: 'STREAM',
+        actor_id: Number(req.user?.userId),
+        actor_type: 'USER',
+        bytes_served: byte_size,
+        ip: req.ip,
+        user_agent: req.headers['user-agent'] as string,
+        referer: req.headers['referer'] as string,
+      });
 
       const stream = fs.createReadStream(file_path);
       stream.pipe(res);
@@ -2965,6 +2978,18 @@ router.get(
       res.setHeader('Content-Length', version.byte_size);
       res.setHeader('ETag', `"${version.sha256_hash}"`);
       res.setHeader('Cache-Control', 'private, max-age=3600');
+
+      void recordAnalyticsEvent({
+        tenant_id: asset.tenant_id,
+        asset_id: assetId,
+        event_type: 'STREAM',
+        actor_id: actor.id,
+        actor_type: 'USER',
+        bytes_served: version.byte_size,
+        ip: req.ip,
+        user_agent: req.headers['user-agent'],
+        referer: req.headers['referer'] as string | undefined,
+      });
 
       fs.createReadStream(version.file_path).pipe(res);
     } catch (err: any) {

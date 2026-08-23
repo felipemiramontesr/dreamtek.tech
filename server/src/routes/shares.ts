@@ -7,6 +7,7 @@ import { requireAuth, AuthenticatedRequest } from '../middleware/auth.js';
 import { logSecurityEvent } from '../middleware/auditLogger.js';
 import { assertPathContained } from '../utils/storage.js';
 import { getActorTenantId } from './assets.js';
+import { recordAnalyticsEvent } from '../utils/analyticsEngine.js';
 
 export const sharesRouter = Router();
 
@@ -157,6 +158,16 @@ sharesRouter.get('/:token/stream', async (req: Request, res: Response): Promise<
         'INSERT INTO share_access_logs (share_id, ip_address, user_agent) VALUES (?, ?, ?)',
         [share.id, ip, userAgent],
       );
+      void recordAnalyticsEvent({
+        tenant_id: share.tenant_id,
+        asset_id: share.asset_id,
+        event_type: share.permission === 'DOWNLOAD' ? 'DOWNLOAD' : 'SHARE_ACCESS',
+        actor_type: 'GUEST',
+        bytes_served: byte_size,
+        ip,
+        user_agent: userAgent,
+        referer: req.headers['referer'] as string,
+      });
     } catch {
       // Non-blocking access log update
     }

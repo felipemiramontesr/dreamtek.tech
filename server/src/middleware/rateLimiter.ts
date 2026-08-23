@@ -363,6 +363,45 @@ export const workflowsRateLimiter = rateLimit({
   },
 });
 
+/**
+ * DAM Analytics & ROI Reporting Rate Limiter (OWASP A04)
+ * 30 requests per 1 minute window per IP
+ */
+export const analyticsRateLimiter = rateLimit({
+  windowMs: 1 * 60 * 1000,
+  max: 30,
+  standardHeaders: true,
+  legacyHeaders: false,
+  handler: (_req: Request, res: Response) => {
+    res.status(429).json({
+      status: 429,
+      error: 'Too Many Requests',
+      message:
+        'Límite de consultas de analíticas y reportes de ROI alcanzado. Intente nuevamente en un minuto.',
+    });
+  },
+});
+
+/**
+ * DAM Analytics Events Ingestion Rate Limiter (OWASP A04)
+ * 60 requests per 1 minute window per IP
+ */
+export const analyticsEventsRateLimiter = rateLimit({
+  windowMs: 1 * 60 * 1000,
+  max: 60,
+  standardHeaders: true,
+  legacyHeaders: false,
+  handler: (_req: Request, res: Response) => {
+    res.status(429).json({
+      status: 429,
+      error: 'Too Many Requests',
+      message:
+        'Límite de registro de eventos de telemetría alcanzado. Intente nuevamente en un minuto.',
+    });
+  },
+});
+
+
 
 
 
