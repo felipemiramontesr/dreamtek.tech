@@ -15,35 +15,27 @@ exports.onboardingRouter.post('/lead', (0, validate_js_1.validate)(onboarding_sc
         const { email, phone, company, step_reached } = req.body;
         const full_name = req.body.full_name || req.body.name;
         if (!email || !full_name || !phone) {
-            res.status(400).json({ status: 'error', message: 'Nombre, email y teléfono son requeridos.' });
+            res
+                .status(400)
+                .json({ status: 'error', message: 'Nombre, email y teléfono son requeridos.' });
             return;
         }
         const existing = await (0, db_js_1.query)('SELECT id FROM leads WHERE email = ? LIMIT 1', [email]);
         // Condition C-L2: Invalidate lead cache on write operation
         await (0, cache_js_1.invalidateCache)('lead');
         if (existing.length > 0) {
-            await (0, db_js_1.query)('UPDATE leads SET full_name = ?, phone = ?, company = ?, step_reached = ? WHERE id = ?', [
-                full_name,
-                phone,
-                company || '',
-                step_reached || 1,
-                existing[0].id,
-            ]);
+            await (0, db_js_1.query)('UPDATE leads SET full_name = ?, phone = ?, company = ?, step_reached = ? WHERE id = ?', [full_name, phone, company || '', step_reached || 1, existing[0].id]);
             res.json({ status: 'success', lead_id: existing[0].id, message: 'Prospecto actualizado.' });
         }
         else {
-            const result = await (0, db_js_1.query)('INSERT INTO leads (full_name, email, phone, company, step_reached) VALUES (?, ?, ?, ?, ?)', [
-                full_name,
-                email,
-                phone,
-                company || '',
-                step_reached || 1,
-            ]);
+            const result = await (0, db_js_1.query)('INSERT INTO leads (full_name, email, phone, company, step_reached) VALUES (?, ?, ?, ?, ?)', [full_name, email, phone, company || '', step_reached || 1]);
             res.json({ status: 'success', lead_id: result.insertId, message: 'Prospecto registrado.' });
         }
     }
     catch (err) {
-        res.status(500).json({ status: 'error', message: err.message || 'Error al procesar el prospecto.' });
+        res
+            .status(500)
+            .json({ status: 'error', message: err.message || 'Error al procesar el prospecto.' });
     }
 });
 /**

@@ -7,6 +7,10 @@ export const WebhookEventEnum = z.enum([
   'version.created',
   'rights.updated',
   'job.completed',
+  'asset.archived',
+  'asset.restored',
+  'asset.ai_analyzed',
+  'asset.tags_updated',
   '*',
 ]);
 

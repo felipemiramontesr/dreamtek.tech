@@ -107,7 +107,7 @@ export async function processMediaJob(
   jobId: number,
   timeoutMs = 30000,
 ): Promise<{ success: boolean; error?: string }> {
-  let timer: NodeJS.Timeout | null = null;
+  let timer: NodeJS.Timeout | undefined = undefined;
 
   try {
     // 1. Fetch job and asset version information
@@ -311,7 +311,9 @@ export async function processMediaJob(
     };
 
     const payload = await Promise.race([executeJob(), timeoutPromise]);
-    clearTimeout(timer);
+    if (timer) {
+      clearTimeout(timer);
+    }
 
     // 4. Update status to COMPLETED
     await query(

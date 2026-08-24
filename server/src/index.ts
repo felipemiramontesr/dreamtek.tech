@@ -35,6 +35,7 @@ import { collectionsRouter } from './routes/collections.js';
 import webhooksRouter from './routes/webhooks.js';
 import workflowsRouter from './routes/workflows.js';
 import analyticsRouter from './routes/analytics.js';
+import { portalsRouter, publicPortalsRouter } from './routes/portals.js';
 import { pool } from './db.js';
 import { getCache, setCache } from './utils/cache.js';
 
@@ -171,6 +172,8 @@ app.use('/api/v1/collections', collectionsRateLimiter, collectionsRouter);
 app.use('/api/v1/webhooks', webhooksRateLimiter, webhooksRouter);
 app.use('/api/v1/workflows', workflowsRateLimiter, workflowsRouter);
 app.use('/api/v1/analytics', analyticsRateLimiter, analyticsRouter);
+app.use('/api/v1/portals', portalsRouter);
+app.use('/api/v1/public/portals', publicPortalsRouter);
 app.use('/api/v1', eventsRouter);
 
 // Start HTTP Server

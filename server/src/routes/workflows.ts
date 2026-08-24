@@ -65,7 +65,7 @@ router.post(
 
       await logSecurityEvent(req, {
         eventType: 'WORKFLOW_CREATED',
-        userId: actorId,
+        userId: Number(actorId) || null,
         status: 'SUCCESS',
         details: `Workflow ${workflowId} (${name}) created for event ${trigger_event}`,
       });
@@ -143,7 +143,7 @@ router.get(
   requireAuth,
   async (req: AuthenticatedRequest, res: Response): Promise<void> => {
     try {
-      const workflowId = parseInt(req.params.id, 10);
+      const workflowId = parseInt(String(req.params.id), 10);
       if (isNaN(workflowId)) {
         res.status(400).json({
           status: 400,
@@ -195,7 +195,7 @@ router.put(
   validate(updateWorkflowBodySchema, 'body'),
   async (req: AuthenticatedRequest, res: Response): Promise<void> => {
     try {
-      const workflowId = parseInt(req.params.id, 10);
+      const workflowId = parseInt(String(req.params.id), 10);
       if (isNaN(workflowId)) {
         res.status(400).json({
           status: 400,
@@ -246,7 +246,7 @@ router.put(
 
       await logSecurityEvent(req, {
         eventType: 'WORKFLOW_UPDATED',
-        userId: req.user!.userId,
+        userId: Number(req.user!.userId) || null,
         status: 'SUCCESS',
         details: `Workflow ${workflowId} updated`,
       });
@@ -286,7 +286,7 @@ router.delete(
   requireAuth,
   async (req: AuthenticatedRequest, res: Response): Promise<void> => {
     try {
-      const workflowId = parseInt(req.params.id, 10);
+      const workflowId = parseInt(String(req.params.id), 10);
       if (isNaN(workflowId)) {
         res.status(400).json({
           status: 400,
@@ -318,7 +318,7 @@ router.delete(
 
       await logSecurityEvent(req, {
         eventType: 'WORKFLOW_DELETED',
-        userId: req.user!.userId,
+        userId: Number(req.user!.userId) || null,
         status: 'SUCCESS',
         details: `Workflow ${workflowId} deleted`,
       });
@@ -349,8 +349,8 @@ router.post(
   requireAuth,
   async (req: AuthenticatedRequest, res: Response): Promise<void> => {
     try {
-      const workflowId = parseInt(req.params.id, 10);
-      const assetId = parseInt(req.params.assetId, 10);
+      const workflowId = parseInt(String(req.params.id), 10);
+      const assetId = parseInt(String(req.params.assetId), 10);
 
       if (isNaN(workflowId) || isNaN(assetId)) {
         res.status(400).json({
@@ -361,8 +361,8 @@ router.post(
         return;
       }
 
-      const tenantId = req.user!.tenantId;
-      const actorId = req.user!.userId;
+      const tenantId = Number(req.user!.tenantId);
+      const actorId = Number(req.user!.userId);
 
       const result = await executeWorkflow(tenantId, workflowId, assetId, 'MANUAL', actorId);
 
@@ -378,7 +378,7 @@ router.post(
 
       await logSecurityEvent(req, {
         eventType: 'WORKFLOW_EXECUTED',
-        userId: actorId,
+        userId: Number(actorId) || null,
         status: 'SUCCESS',
         details: `Workflow ${workflowId} executed for asset ${assetId} with status ${result.status}`,
       });
@@ -415,7 +415,7 @@ router.get(
   validate(workflowExecutionsQuerySchema, 'query'),
   async (req: AuthenticatedRequest, res: Response): Promise<void> => {
     try {
-      const workflowId = parseInt(req.params.id, 10);
+      const workflowId = parseInt(String(req.params.id), 10);
       if (isNaN(workflowId)) {
         res.status(400).json({
           status: 400,

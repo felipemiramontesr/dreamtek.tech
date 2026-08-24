@@ -272,7 +272,7 @@ export async function executeWorkflowAction(
 
       case 'TRIGGER_WEBHOOK': {
         const eventName = String(action.params?.event_name || 'asset.workflow_triggered');
-        await dispatchWebhookEvent(tenantId, eventName, {
+        await dispatchWebhookEvent(tenantId, eventName as any, {
           asset_id: assetId,
           triggered_by_workflow: true,
           timestamp: new Date().toISOString(),

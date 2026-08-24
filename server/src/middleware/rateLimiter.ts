@@ -401,12 +401,59 @@ export const analyticsEventsRateLimiter = rateLimit({
   },
 });
 
+/**
+ * DAM Brand Portals Management Rate Limiter (OWASP A04)
+ * 60 requests per 1 minute window per IP
+ */
+export const portalsRateLimiter = rateLimit({
+  windowMs: 1 * 60 * 1000,
+  max: 60,
+  standardHeaders: true,
+  legacyHeaders: false,
+  handler: (_req: Request, res: Response) => {
+    res.status(429).json({
+      status: 429,
+      error: 'Too Many Requests',
+      message:
+        'Límite de operaciones de portales de marca alcanzado. Intente nuevamente en un minuto.',
+    });
+  },
+});
 
+/**
+ * DAM Public Brand Portals Browsing Rate Limiter (OWASP A04)
+ * 60 requests per 1 minute window per IP
+ */
+export const publicPortalsRateLimiter = rateLimit({
+  windowMs: 1 * 60 * 1000,
+  max: 60,
+  standardHeaders: true,
+  legacyHeaders: false,
+  handler: (_req: Request, res: Response) => {
+    res.status(429).json({
+      status: 429,
+      error: 'Too Many Requests',
+      message:
+        'Límite de navegación pública de portales alcanzado. Intente nuevamente en un minuto.',
+    });
+  },
+});
 
-
-
-
-
-
-
-
+/**
+ * DAM Public Brand Portal Password Verification Rate Limiter (OWASP A04 / A07 Anti-Brute-Force)
+ * 10 requests per 1 minute window per IP
+ */
+export const portalVerifyRateLimiter = rateLimit({
+  windowMs: 1 * 60 * 1000,
+  max: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  handler: (_req: Request, res: Response) => {
+    res.status(429).json({
+      status: 429,
+      error: 'Too Many Requests',
+      message:
+        'Demasiados intentos de validación de contraseña. Intente nuevamente en un minuto.',
+    });
+  },
+});

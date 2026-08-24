@@ -16,7 +16,9 @@ exports.clientRouter.get('/dashboard', async (req, res) => {
         const userId = req.user?.userId;
         const users = await (0, db_js_1.query)('SELECT id, full_name, email, role, created_at FROM users WHERE id = ? LIMIT 1', [userId]);
         if (users.length === 0) {
-            res.status(404).json({ status: 404, error: 'Not Found', message: 'Perfil de cliente no encontrado.' });
+            res
+                .status(404)
+                .json({ status: 404, error: 'Not Found', message: 'Perfil de cliente no encontrado.' });
             return;
         }
         const user = users[0];
@@ -39,13 +41,20 @@ exports.clientRouter.get('/dashboard', async (req, res) => {
                 created_at: user.created_at,
             },
             services: [
-                { id: 'srv-1', name: 'Escolta WEB — Posicionamiento', status: 'active', billing_cycle: 'annual' },
+                {
+                    id: 'srv-1',
+                    name: 'Escolta WEB — Posicionamiento',
+                    status: 'active',
+                    billing_cycle: 'annual',
+                },
             ],
             sites,
         });
     }
     catch (err) {
-        res.status(500).json({ status: 'error', message: err.message || 'Error al obtener el panel de cliente.' });
+        res
+            .status(500)
+            .json({ status: 'error', message: err.message || 'Error al obtener el panel de cliente.' });
     }
 });
 /**
@@ -69,6 +78,9 @@ exports.clientRouter.get('/sites', async (req, res) => {
         });
     }
     catch (err) {
-        res.status(500).json({ status: 'error', message: err.message || 'Error al obtener sitios web del cliente.' });
+        res.status(500).json({
+            status: 'error',
+            message: err.message || 'Error al obtener sitios web del cliente.',
+        });
     }
 });

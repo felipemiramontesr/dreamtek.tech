@@ -33,12 +33,26 @@ exports.authRouter.post('/login', (0, validate_js_1.validate)(auth_schema_js_1.l
         const users = await (0, db_js_1.query)('SELECT id, email, password_hash, role, full_name FROM users WHERE email = ? LIMIT 1', [email]);
         const user = users[0];
         if (!user || !(await bcryptjs_1.default.compare(password, user.password_hash))) {
-            await (0, auditLogger_js_1.logSecurityEvent)(req, { eventType: 'LOGIN_FAILURE', status: 'FAILURE', details: `Failed login attempt for ${email}` });
+            await (0, auditLogger_js_1.logSecurityEvent)(req, {
+                eventType: 'LOGIN_FAILURE',
+                status: 'FAILURE',
+                details: `Failed login attempt for ${email}`,
+            });
             res.status(401).json({ status: 'error', message: 'Credenciales inválidas.' });
             return;
         }
-        await (0, auditLogger_js_1.logSecurityEvent)(req, { eventType: 'LOGIN_SUCCESS', userId: user.id, status: 'SUCCESS' });
-        const token = jsonwebtoken_1.default.sign({ userId: user.id, uid: user.id, email: user.email, role: (user.role || 'CLIENT').toUpperCase(), name: user.full_name }, getJwtSecret(), { algorithm: 'HS512', expiresIn: '24h' });
+        await (0, auditLogger_js_1.logSecurityEvent)(req, {
+            eventType: 'LOGIN_SUCCESS',
+            userId: user.id,
+            status: 'SUCCESS',
+        });
+        const token = jsonwebtoken_1.default.sign({
+            userId: user.id,
+            uid: user.id,
+            email: user.email,
+            role: (user.role || 'CLIENT').toUpperCase(),
+            name: user.full_name,
+        }, getJwtSecret(), { algorithm: 'HS512', expiresIn: '24h' });
         res.cookie(COOKIE_NAME, token, {
             httpOnly: true,
             secure: process.env.NODE_ENV === 'production',
@@ -56,7 +70,9 @@ exports.authRouter.post('/login', (0, validate_js_1.validate)(auth_schema_js_1.l
         });
     }
     catch (err) {
-        res.status(500).json({ status: 'error', message: err.message || 'Error interno de autenticación.' });
+        res
+            .status(500)
+            .json({ status: 'error', message: err.message || 'Error interno de autenticación.' });
     }
 });
 /**

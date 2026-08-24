@@ -34,7 +34,7 @@ import {
 } from '../schemas/assetBatch.schema';
 import { updateAssetRightsSchema, UpdateAssetRightsInput } from '../schemas/assetRights.schema';
 import { retryJobsSchema, RetryJobsInput } from '../schemas/mediaJob.schema';
-import { dedupQuerySchema, deduplicateBodySchema } from '../schemas/assetDedup.schema';
+import { dedupQuerySchema, deduplicateBodySchema, DedupQueryInput } from '../schemas/assetDedup.schema';
 import { archiveAssetBodySchema, restoreAssetBodySchema } from '../schemas/assetArchival.schema';
 import { analyzeAssetBodySchema, applyAiTagsBodySchema } from '../schemas/assetAiMetadata.schema';
 import {
@@ -611,11 +611,12 @@ router.post(
       // 2. ACL Verification on Canonical Asset (VIEW permission required)
       const canonicalAllowed = await evaluateAclPermission(
         actor,
-        { resourceType: 'ASSET', resourceId: canonical_asset_id },
+        'ASSET',
+        canonical_asset_id,
         'VIEW',
       );
 
-      if (!canonicalAllowed) {
+      if (!canonicalAllowed.allowed) {
         res.status(403).json({
           status: 403,
           error: 'Forbidden',
@@ -628,11 +629,12 @@ router.post(
       for (const dupId of duplicate_asset_ids) {
         const dupAllowed = await evaluateAclPermission(
           actor,
-          { resourceType: 'ASSET', resourceId: dupId },
+          'ASSET',
+          dupId,
           'DELETE',
         );
 
-        if (!dupAllowed) {
+        if (!dupAllowed.allowed) {
           res.status(403).json({
             status: 403,
             error: 'Forbidden',
@@ -2983,9 +2985,9 @@ router.get(
         tenant_id: asset.tenant_id,
         asset_id: assetId,
         event_type: 'STREAM',
-        actor_id: actor.id,
+        actor_id: Number(actor.id),
         actor_type: 'USER',
-        bytes_served: version.byte_size,
+        bytes_served: Number(version.byte_size || 0),
         ip: req.ip,
         user_agent: req.headers['user-agent'],
         referer: req.headers['referer'] as string | undefined,

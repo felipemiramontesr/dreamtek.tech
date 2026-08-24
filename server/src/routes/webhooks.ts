@@ -49,7 +49,7 @@ function parsePayload(payload: any): any {
  * List all webhook endpoints for the current tenant (secret is omitted).
  */
 router.get('/', async (req: Request, res: Response): Promise<void> => {
-  const tenantId = (req as AuthenticatedRequest).user.tenantId;
+  const tenantId = (req as AuthenticatedRequest).user!.tenantId;
 
   try {
     const endpoints = await query<any[]>(
@@ -93,7 +93,7 @@ router.post(
   '/',
   validate(createWebhookSchema, 'body'),
   async (req: Request, res: Response): Promise<void> => {
-    const tenantId = (req as AuthenticatedRequest).user.tenantId;
+    const tenantId = (req as AuthenticatedRequest).user!.tenantId;
     const { url, description, events, is_active } = req.body;
 
     // SSRF Check
@@ -152,8 +152,8 @@ router.get(
   '/:id',
   validate(webhookIdParamSchema, 'params'),
   async (req: Request, res: Response): Promise<void> => {
-    const tenantId = (req as AuthenticatedRequest).user.tenantId;
-    const webhookId = parseInt(req.params.id, 10);
+    const tenantId = (req as AuthenticatedRequest).user!.tenantId;
+    const webhookId = parseInt(String(req.params.id), 10);
 
     try {
       const rows = await query<any[]>(
@@ -207,8 +207,8 @@ router.put(
   validate(webhookIdParamSchema, 'params'),
   validate(updateWebhookSchema, 'body'),
   async (req: Request, res: Response): Promise<void> => {
-    const tenantId = (req as AuthenticatedRequest).user.tenantId;
-    const webhookId = parseInt(req.params.id, 10);
+    const tenantId = (req as AuthenticatedRequest).user!.tenantId;
+    const webhookId = parseInt(String(req.params.id), 10);
     const { url, description, events, is_active } = req.body;
 
     try {
@@ -285,8 +285,8 @@ router.delete(
   '/:id',
   validate(webhookIdParamSchema, 'params'),
   async (req: Request, res: Response): Promise<void> => {
-    const tenantId = (req as AuthenticatedRequest).user.tenantId;
-    const webhookId = parseInt(req.params.id, 10);
+    const tenantId = (req as AuthenticatedRequest).user!.tenantId;
+    const webhookId = parseInt(String(req.params.id), 10);
 
     try {
       const existing = await query<any[]>(
@@ -331,8 +331,8 @@ router.post(
   '/:id/rotate-secret',
   validate(webhookIdParamSchema, 'params'),
   async (req: Request, res: Response): Promise<void> => {
-    const tenantId = (req as AuthenticatedRequest).user.tenantId;
-    const webhookId = parseInt(req.params.id, 10);
+    const tenantId = (req as AuthenticatedRequest).user!.tenantId;
+    const webhookId = parseInt(String(req.params.id), 10);
 
     try {
       const existing = await query<any[]>(
@@ -385,8 +385,8 @@ router.post(
   '/:id/test',
   validate(webhookIdParamSchema, 'params'),
   async (req: Request, res: Response): Promise<void> => {
-    const tenantId = (req as AuthenticatedRequest).user.tenantId;
-    const webhookId = parseInt(req.params.id, 10);
+    const tenantId = (req as AuthenticatedRequest).user!.tenantId;
+    const webhookId = parseInt(String(req.params.id), 10);
 
     try {
       const existing = await query<any[]>(
@@ -455,8 +455,8 @@ router.get(
   validate(webhookIdParamSchema, 'params'),
   validate(deliveriesQuerySchema, 'query'),
   async (req: Request, res: Response): Promise<void> => {
-    const tenantId = (req as AuthenticatedRequest).user.tenantId;
-    const webhookId = parseInt(req.params.id, 10);
+    const tenantId = (req as AuthenticatedRequest).user!.tenantId;
+    const webhookId = parseInt(String(req.params.id), 10);
     const page = Number(req.query.page);
     const limit = Number(req.query.limit);
     const status = req.query.status as string;

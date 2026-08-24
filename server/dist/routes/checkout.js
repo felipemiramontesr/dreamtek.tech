@@ -74,7 +74,9 @@ exports.checkoutRouter.post('/session', async (req, res) => {
         });
     }
     catch (err) {
-        res.status(500).json({ status: 'error', message: err.message || 'Error al generar la sesión de pago.' });
+        res
+            .status(500)
+            .json({ status: 'error', message: err.message || 'Error al generar la sesión de pago.' });
     }
 });
 /**
@@ -85,13 +87,16 @@ exports.checkoutRouter.post('/webhook', async (req, res) => {
         const sig = req.headers['stripe-signature'];
         const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET || 'whsec_mock_secret_key';
         let event;
-        if (sig && (webhookSecret !== 'whsec_mock_secret_key' || testStripe?.webhooks?.constructEvent)) {
+        if (sig &&
+            (webhookSecret !== 'whsec_mock_secret_key' || testStripe?.webhooks?.constructEvent)) {
             const stripeInstance = getStripe(process.env.STRIPE_SECRET_KEY || 'sk_test_mock');
             try {
                 event = stripeInstance.webhooks.constructEvent(req.body, sig, webhookSecret);
             }
             catch (err) {
-                res.status(400).json({ status: 'error', message: `Firma webhook inválida: ${err.message}` });
+                res
+                    .status(400)
+                    .json({ status: 'error', message: `Firma webhook inválida: ${err.message}` });
                 return;
             }
         }
@@ -100,7 +105,9 @@ exports.checkoutRouter.post('/webhook', async (req, res) => {
                 res.status(400).json({ status: 'error', message: 'Firma stripe-signature requerida.' });
                 return;
             }
-            const rawBody = Buffer.isBuffer(req.body) ? req.body.toString('utf-8') : JSON.stringify(req.body);
+            const rawBody = Buffer.isBuffer(req.body)
+                ? req.body.toString('utf-8')
+                : JSON.stringify(req.body);
             event = JSON.parse(rawBody);
         }
         if (!event || !event.type) {
@@ -115,7 +122,9 @@ exports.checkoutRouter.post('/webhook', async (req, res) => {
             let userId = clientRefId || metadataUserId || null;
             if (!userId && email) {
                 try {
-                    const userRows = await (0, db_js_1.query)('SELECT id FROM users WHERE email = ? LIMIT 1', [email]);
+                    const userRows = await (0, db_js_1.query)('SELECT id FROM users WHERE email = ? LIMIT 1', [
+                        email,
+                    ]);
                     if (userRows && userRows.length > 0) {
                         userId = userRows[0].id;
                     }
@@ -125,7 +134,10 @@ exports.checkoutRouter.post('/webhook', async (req, res) => {
                 }
             }
             if (!userId) {
-                res.status(400).json({ status: 'error', message: 'No se pudo asociar el pago a ningún usuario registrado.' });
+                res.status(400).json({
+                    status: 'error',
+                    message: 'No se pudo asociar el pago a ningún usuario registrado.',
+                });
                 return;
             }
             // Check idempotency (C-S5)
@@ -149,12 +161,20 @@ exports.checkoutRouter.post('/webhook', async (req, res) => {
             const sub = event.data.object;
             const mappedStatus = sub.status === 'canceled' ? 'cancelled' : sub.status === 'past_due' ? 'past_due' : 'active';
             const customerId = String(sub.customer ?? sub.id);
-            await (0, db_js_1.query)('UPDATE subscriptions SET status = ? WHERE user_id = ? OR plan_id = ?', [mappedStatus, customerId, sub.id]);
+            await (0, db_js_1.query)('UPDATE subscriptions SET status = ? WHERE user_id = ? OR plan_id = ?', [
+                mappedStatus,
+                customerId,
+                sub.id,
+            ]);
         }
         else if (event.type === 'customer.subscription.deleted') {
             const sub = event.data.object;
             const customerId = String(sub.customer ?? sub.id);
-            await (0, db_js_1.query)('UPDATE subscriptions SET status = ? WHERE user_id = ? OR plan_id = ?', ['cancelled', customerId, sub.id]);
+            await (0, db_js_1.query)('UPDATE subscriptions SET status = ? WHERE user_id = ? OR plan_id = ?', [
+                'cancelled',
+                customerId,
+                sub.id,
+            ]);
         }
         res.json({ received: true, event_id: event.id });
     }

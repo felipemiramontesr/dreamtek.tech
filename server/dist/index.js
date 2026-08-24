@@ -3,6 +3,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
+exports.app = exports.initialize = exports.setupSignalHandlers = exports.gracefulShutdown = exports.server = exports.createServerInstance = exports.startServer = exports.corsOriginHandler = exports.getCorsOrigins = void 0;
 const express_1 = __importDefault(require("express"));
 const cors_1 = __importDefault(require("cors"));
 const helmet_1 = __importDefault(require("helmet"));
@@ -23,10 +24,19 @@ const contact_js_1 = require("./routes/contact.js");
 const events_js_1 = require("./routes/events.js");
 const assets_js_1 = __importDefault(require("./routes/assets.js"));
 const shares_js_1 = require("./routes/shares.js");
+const tags_js_1 = require("./routes/tags.js");
+const acl_js_1 = __importDefault(require("./routes/acl.js"));
+const workspaces_js_1 = require("./routes/workspaces.js");
+const collections_js_1 = require("./routes/collections.js");
+const webhooks_js_1 = __importDefault(require("./routes/webhooks.js"));
+const workflows_js_1 = __importDefault(require("./routes/workflows.js"));
+const analytics_js_1 = __importDefault(require("./routes/analytics.js"));
+const portals_js_1 = require("./routes/portals.js");
 const db_js_1 = require("./db.js");
 const cache_js_1 = require("./utils/cache.js");
 dotenv_1.default.config({ path: path_1.default.join(__dirname, '../.env') });
 const app = (0, express_1.default)();
+exports.app = app;
 const PORT = process.env.PORT || 3001;
 // Register Telemetry Middleware first
 app.use(metrics_js_1.metricsMiddleware);
@@ -57,22 +67,24 @@ app.use((0, helmet_1.default)({
         policy: 'strict-origin-when-cross-origin',
     },
 }));
-// CORS Fail-Closed Allowlist Setup (Condition C-H4)
-const allowedOrigins = [
+// Condition C-H4: CORS Fail-Closed Allowlist Setup
+const getCorsOrigins = () => [
     'http://localhost:3000',
     'https://dreamtek.tech',
     'https://www.dreamtek.tech',
+    ...(process.env.CORS_ORIGIN ? [process.env.CORS_ORIGIN] : []),
 ];
-if (process.env.CORS_ORIGIN) {
-    allowedOrigins.push(process.env.CORS_ORIGIN);
-}
+exports.getCorsOrigins = getCorsOrigins;
+const corsOriginHandler = (origin, callback) => {
+    const allowed = (0, exports.getCorsOrigins)();
+    if (!origin || allowed.includes(origin)) {
+        return callback(null, true);
+    }
+    return callback(new Error('CORS Policy: Origin not allowed by Access-Control-Allow-Origin'));
+};
+exports.corsOriginHandler = corsOriginHandler;
 app.use((0, cors_1.default)({
-    origin: (origin, callback) => {
-        if (!origin || allowedOrigins.includes(origin)) {
-            return callback(null, true);
-        }
-        return callback(new Error('CORS Policy: Origin not allowed by Access-Control-Allow-Origin'));
-    },
+    origin: exports.corsOriginHandler,
     credentials: true,
 }));
 // Stripe Webhook Raw Body Parser (Must run before global express.json parser)
@@ -103,10 +115,13 @@ app.get('/api/v1/docs', async (_req, res) => {
             res.json(rawData);
             return;
         }
-        res.sendFile(openapiPath);
+        res.json({ openapi: '3.1.0', info: { title: 'Dreamtek Enterprise API', version: '1.0.0' } });
     }
     catch (_err) {
-        res.sendFile(path_1.default.join(__dirname, 'docs/openapi.json'));
+        res.json({
+            openapi: '3.1.0',
+            info: { title: 'Dreamtek Enterprise API (Fallback)', version: '1.0.0' },
+        });
     }
 });
 // Condition C-N2: Mount Prometheus Metrics routes (Protected)
@@ -124,15 +139,30 @@ app.use('/api/v1/admin', admin_js_1.adminRouter);
 app.use('/api/v1/contact', rateLimiter_js_1.sensitiveEndpointLimiter, contact_js_1.contactRouter);
 app.use('/api/v1/assets', assets_js_1.default);
 app.use('/api/v1/shares', shares_js_1.sharesRouter);
+app.use('/api/v1/tags', tags_js_1.tagsRouter);
+app.use('/api/v1/acl', rateLimiter_js_1.aclRateLimiter, acl_js_1.default);
+app.use('/api/v1/workspaces', rateLimiter_js_1.workspacesRateLimiter, workspaces_js_1.workspacesRouter);
+app.use('/api/v1/collections', rateLimiter_js_1.collectionsRateLimiter, collections_js_1.collectionsRouter);
+app.use('/api/v1/webhooks', rateLimiter_js_1.webhooksRateLimiter, webhooks_js_1.default);
+app.use('/api/v1/workflows', rateLimiter_js_1.workflowsRateLimiter, workflows_js_1.default);
+app.use('/api/v1/analytics', rateLimiter_js_1.analyticsRateLimiter, analytics_js_1.default);
+app.use('/api/v1/portals', portals_js_1.portalsRouter);
+app.use('/api/v1/public/portals', portals_js_1.publicPortalsRouter);
 app.use('/api/v1', events_js_1.eventsRouter);
 // Start HTTP Server
-const server = process.env.NODE_ENV !== 'test'
-    ? app.listen(PORT, () => {
-        console.log(`🚀 Dreamtek Node.js API Server running on port ${PORT}`);
-    })
-    : null;
+const startServer = (port = PORT) => {
+    return app.listen(port, () => {
+        console.log(`🚀 Dreamtek Node.js API Server running on port ${port}`);
+    });
+};
+exports.startServer = startServer;
+const createServerInstance = (env = process.env.NODE_ENV) => {
+    return env === 'test' ? null : (0, exports.startServer)();
+};
+exports.createServerInstance = createServerInstance;
+exports.server = (0, exports.createServerInstance)();
 // Graceful Shutdown Logic (Condition C-J3)
-const gracefulShutdown = (signal) => {
+const gracefulShutdown = (signal, customServer = exports.server, customPool = db_js_1.pool) => {
     console.log(`\n⚠️ Received ${signal}. Starting Graceful Shutdown...`);
     (0, health_js_1.setShuttingDownState)(true);
     // Condition C-J3: 10-second fallback forced exit timer unref'd
@@ -141,12 +171,12 @@ const gracefulShutdown = (signal) => {
         process.exit(1);
     }, 10000);
     forceExitTimeout.unref();
-    if (server) {
-        server.close(async () => {
+    if (customServer) {
+        customServer.close(async () => {
             console.log('🔒 Express HTTP server closed. Closing MariaDB connection pool...');
             try {
-                if (db_js_1.pool && typeof db_js_1.pool.end === 'function') {
-                    await db_js_1.pool.end();
+                if (customPool && typeof customPool.end === 'function') {
+                    await customPool.end();
                 }
                 console.log('✅ MariaDB pool closed cleanly. Process exiting.');
                 process.exit(0);
@@ -161,8 +191,17 @@ const gracefulShutdown = (signal) => {
         process.exit(0);
     }
 };
-if (process.env.NODE_ENV !== 'test') {
-    process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
-    process.on('SIGINT', () => gracefulShutdown('SIGINT'));
-}
+exports.gracefulShutdown = gracefulShutdown;
+const setupSignalHandlers = () => {
+    process.on('SIGTERM', () => (0, exports.gracefulShutdown)('SIGTERM'));
+    process.on('SIGINT', () => (0, exports.gracefulShutdown)('SIGINT'));
+};
+exports.setupSignalHandlers = setupSignalHandlers;
+const initialize = () => {
+    if (process.env.NODE_ENV !== 'test') {
+        (0, exports.setupSignalHandlers)();
+    }
+};
+exports.initialize = initialize;
+(0, exports.initialize)();
 exports.default = app;

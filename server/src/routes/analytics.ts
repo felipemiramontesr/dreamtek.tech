@@ -92,20 +92,19 @@ analyticsRouter.post(
         }
 
         tenantId = validShare.tenant_id;
-      } else {
-        // Authenticated USER / SYSTEM flow
+      } else {        // Authenticated USER / SYSTEM flow
         const authUser = (req as AuthenticatedRequest).user!;
-        tenantId = authUser.tenantId;
-        actorId = authUser.userId;
+        tenantId = Number(authUser.tenantId);
+        actorId = Number(authUser.userId);
 
         // Check ACL VIEW permission on the asset
         const aclResult = await evaluateAclPermission(
           {
-            id: authUser.userId,
-            role: authUser.role,
-            tenantId: authUser.tenantId,
+            id: Number(authUser.userId),
+            role: String(authUser.role),
+            tenantId: Number(authUser.tenantId),
           },
-          'asset',
+          'ASSET',
           asset_id,
           'VIEW',
         );
@@ -120,38 +119,28 @@ analyticsRouter.post(
         }
       }
 
-      // Record event asynchronously
-      const clientIp = getClientIp(req);
-      const userAgent = req.headers['user-agent'];
-      const refererHeader = referer || (req.headers['referer'] as string);
-
       await recordAnalyticsEvent({
         tenant_id: tenantId,
         asset_id,
         event_type,
         actor_id: actorId,
         actor_type,
-        bytes_served,
-        ip: clientIp,
-        user_agent: userAgent,
-        referer: refererHeader,
+        bytes_served: bytes_served || 0,
+        ip: req.ip,
+        user_agent: req.headers['user-agent'],
+        referer: req.headers['referer'] as string | undefined,
       });
 
       res.status(201).json({
         status: 201,
-        message: 'Evento de analíticas registrado exitosamente.',
-        data: {
-          asset_id,
-          event_type,
-          actor_type,
-        },
+        message: 'Evento de analítica registrado exitosamente.',
       });
     } catch (err: any) {
-      console.error('Analytics event ingestion error:', err);
+      console.error('Record event error:', err);
       res.status(500).json({
         status: 500,
         error: 'Internal Server Error',
-        message: 'Error al registrar el evento de analíticas.',
+        message: 'Error al registrar el evento de analítica.',
       });
     }
   },
@@ -159,7 +148,7 @@ analyticsRouter.post(
 
 /**
  * GET /api/v1/analytics/overview
- * Returns tenant-wide aggregate KPIs (Admin only - Condition C-018.4).
+ * Returns high-level telemetry and metrics for tenant (Admin only - Condition C-018.4).
  */
 analyticsRouter.get(
   '/overview',
@@ -169,10 +158,10 @@ analyticsRouter.get(
   validate(analyticsOverviewQuerySchema, 'query'),
   async (req: AuthenticatedRequest, res: Response): Promise<void> => {
     try {
-      const tenantId = req.user!.tenantId;
-      const { days } = req.query as unknown as { days: number };
+      const tenantId = Number(req.user!.tenantId);
+      const { days } = req.query as any;
 
-      const data = await getOverviewMetrics(tenantId, days);
+      const data = await getOverviewMetrics(tenantId, Number(days || 30));
 
       res.status(200).json({
         status: 200,
@@ -201,8 +190,8 @@ analyticsRouter.get(
   validate(assetAnalyticsQuerySchema, 'query'),
   async (req: AuthenticatedRequest, res: Response): Promise<void> => {
     try {
-      const tenantId = req.user!.tenantId;
-      const assetId = parseInt(req.params.id, 10);
+      const tenantId = Number(req.user!.tenantId);
+      const assetId = parseInt(String(req.params.id), 10);
 
       if (isNaN(assetId) || assetId <= 0) {
         res.status(400).json({
@@ -216,11 +205,11 @@ analyticsRouter.get(
       // Check ACL VIEW permission
       const aclResult = await evaluateAclPermission(
         {
-          id: req.user!.userId,
-          role: req.user!.role,
-          tenantId: req.user!.tenantId,
+          id: Number(req.user!.userId),
+          role: String(req.user!.role),
+          tenantId: Number(req.user!.tenantId),
         },
-        'asset',
+        'ASSET',
         assetId,
         'VIEW',
       );
@@ -234,8 +223,8 @@ analyticsRouter.get(
         return;
       }
 
-      const { days } = req.query as unknown as { days: number };
-      const data = await getAssetMetrics(tenantId, assetId, days);
+      const { days } = req.query as any;
+      const data = await getAssetMetrics(tenantId, assetId, Number(days));
 
       if (!data) {
         res.status(404).json({
@@ -274,14 +263,15 @@ analyticsRouter.get(
   validate(topAssetsQuerySchema, 'query'),
   async (req: AuthenticatedRequest, res: Response): Promise<void> => {
     try {
-      const tenantId = req.user!.tenantId;
-      const { metric, days, limit } = req.query as unknown as {
-        metric: string;
-        days: number;
-        limit: number;
-      };
+      const tenantId = Number(req.user!.tenantId);
+      const { metric, days, limit } = req.query as any;
 
-      const data = await getTopAssets(tenantId, metric, days, limit);
+      const data = await getTopAssets(
+        tenantId,
+        String(metric || 'views'),
+        Number(days || 30),
+        Number(limit || 10),
+      );
 
       res.status(200).json({
         status: 200,
@@ -311,14 +301,15 @@ analyticsRouter.get(
   validate(roiReportQuerySchema, 'query'),
   async (req: AuthenticatedRequest, res: Response): Promise<void> => {
     try {
-      const tenantId = req.user!.tenantId;
-      const { days, dormant_threshold_days, limit } = req.query as unknown as {
-        days: number;
-        dormant_threshold_days: number;
-        limit: number;
-      };
+      const tenantId = Number(req.user!.tenantId);
+      const { days, dormant_threshold_days, limit } = req.query as any;
 
-      const data = await getRoiReport(tenantId, days, dormant_threshold_days, limit);
+      const data = await getRoiReport(
+        tenantId,
+        Number(days || 90),
+        Number(dormant_threshold_days || 180),
+        Number(limit || 50),
+      );
 
       res.status(200).json({
         status: 200,

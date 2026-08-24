@@ -22,7 +22,9 @@ exports.adminRouter.get('/leads', async (_req, res) => {
         });
     }
     catch (err) {
-        res.status(500).json({ status: 'error', message: err.message || 'Error al consultar prospectos.' });
+        res
+            .status(500)
+            .json({ status: 'error', message: err.message || 'Error al consultar prospectos.' });
     }
 });
 /**
@@ -46,7 +48,9 @@ exports.adminRouter.get('/audit-logs', async (req, res) => {
         });
     }
     catch (err) {
-        res.status(500).json({ status: 'error', message: err.message || 'Error al consultar logs de auditoría.' });
+        res
+            .status(500)
+            .json({ status: 'error', message: err.message || 'Error al consultar logs de auditoría.' });
     }
 });
 /**
@@ -55,8 +59,12 @@ exports.adminRouter.get('/audit-logs', async (req, res) => {
  */
 exports.adminRouter.get('/metrics', async (_req, res) => {
     try {
-        const leadsCount = await (0, db_js_1.query)('SELECT COUNT(*) as total FROM leads').catch(() => [{ total: 0 }]);
-        const usersCount = await (0, db_js_1.query)('SELECT COUNT(*) as total FROM users').catch(() => [{ total: 0 }]);
+        const leadsCount = await (0, db_js_1.query)('SELECT COUNT(*) as total FROM leads').catch(() => [
+            { total: 0 },
+        ]);
+        const usersCount = await (0, db_js_1.query)('SELECT COUNT(*) as total FROM users').catch(() => [
+            { total: 0 },
+        ]);
         res.json({
             status: 'success',
             metrics: {
@@ -68,6 +76,8 @@ exports.adminRouter.get('/metrics', async (_req, res) => {
         });
     }
     catch (err) {
-        res.status(500).json({ status: 'error', message: err.message || 'Error al consultar métricas.' });
+        res
+            .status(500)
+            .json({ status: 'error', message: err.message || 'Error al consultar métricas.' });
     }
 });

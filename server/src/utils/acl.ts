@@ -23,6 +23,7 @@ export interface PreloadedResourceMetadata {
   tenantId?: number;
   workspaceId?: number | null;
   collectionId?: number | null;
+  assetId?: number | null;
   status?: string;
   deletedAt?: Date | null;
 }
