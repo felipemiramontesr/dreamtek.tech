@@ -43,6 +43,10 @@ vi.mock('../../../server/src/utils/webhookDispatcher', () => ({
   dispatchWebhookEvent: vi.fn().mockResolvedValue(undefined),
 }));
 
+import { evaluateAclPermission } from '../../../server/src/utils/acl';
+import { dispatchWebhookEvent } from '../../../server/src/utils/webhookDispatcher';
+import assetsRouter from '../../../server/src/routes/assets';
+
 const TEST_SECRET = 'test-jwt-secret-key-super-secure-and-long-enough-for-hs512-compliance-testing';
 process.env.JWT_SECRET = TEST_SECRET;
 
@@ -65,18 +69,15 @@ describe('DAM Advanced Semantic & Vector Similarity Search (FC 016)', () => {
 
   let app: express.Express;
 
-  beforeEach(async () => {
+  beforeEach(() => {
     vi.resetAllMocks();
-    const aclModule = await import('../../../server/src/utils/acl');
-    vi.mocked(aclModule.evaluateAclPermission).mockResolvedValue({
+    vi.mocked(evaluateAclPermission).mockResolvedValue({
       allowed: true,
       reason: 'ADMIN_BYPASS',
     });
-    const webhookModule = await import('../../../server/src/utils/webhookDispatcher');
-    vi.mocked(webhookModule.dispatchWebhookEvent).mockResolvedValue(undefined);
+    vi.mocked(dispatchWebhookEvent).mockResolvedValue(undefined);
     app = express();
     app.use(express.json());
-    const assetsRouter = (await import('../../../server/src/routes/assets')).default;
     app.use('/api/v1/assets', assetsRouter);
   });
 

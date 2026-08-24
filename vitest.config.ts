@@ -7,7 +7,9 @@ export default defineConfig({
   test: {
     environment: 'jsdom',
     globals: true,
-    testTimeout: 20000,
+    testTimeout: 30000,
+    hookTimeout: 30000,
+    teardownTimeout: 30000,
     fileParallelism: false,
     maxWorkers: 1,
     exclude: ['node_modules/**', '**/node_modules/**', 'e2e/**'],

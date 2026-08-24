@@ -331,7 +331,7 @@ export async function processMediaJob(
 
     return { success: true };
   } catch (err: any) {
-    if (timer) clearTimeout(timer);
+    clearTimeout(timer);
     const errorMsg = err instanceof Error ? err.message : String(err);
 
     // Mark as FAILED (retaining error message and attempt count)
