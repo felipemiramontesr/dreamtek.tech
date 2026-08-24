@@ -17,6 +17,7 @@ import {
   archivalRateLimiter,
   aiRateLimiter,
   semanticSearchRateLimiter,
+  videoAiRateLimiter,
 } from '../middleware/rateLimiter';
 import { validate } from '../middleware/validate';
 import { createShareSchema } from '../schemas/share.schema';
@@ -42,6 +43,12 @@ import {
   semanticSearchBodySchema,
   similarAssetsQuerySchema,
 } from '../schemas/assetSemanticSearch.schema';
+import {
+  videoAnalysisBodySchema,
+  videoScenesQuerySchema,
+  videoTranscriptQuerySchema,
+  searchVideoScenesBodySchema,
+} from '../schemas/videoScene.schema';
 import { logSecurityEvent } from '../middleware/auditLogger';
 import { query } from '../db';
 import { validateMagicBytes } from '../utils/magicBytes';
@@ -68,6 +75,12 @@ import {
   searchSemantic,
   findSimilarAssets,
 } from '../utils/vectorSearchEngine';
+import {
+  analyzeVideoAsset,
+  getVideoScenes,
+  getVideoTranscript,
+  searchVideoContent,
+} from '../utils/videoAiEngine';
 import { dispatchWorkflowsForEvent } from '../utils/workflowEngine';
 import { recordAnalyticsEvent } from '../utils/analyticsEngine';
 import {
@@ -1304,7 +1317,292 @@ router.get(
 );
 
 /**
+ * POST /api/v1/assets/search/video-scenes
+ * Searches video scene visual descriptions and transcript dialogues across tenant assets (FC 020, OWASP A01/A03/A04).
+ */
+router.post(
+  '/search/video-scenes',
+  videoAiRateLimiter,
+  requireAuth,
+  validate(searchVideoScenesBodySchema, 'body'),
+  async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+    try {
+      const tenantId = Number(req.user!.tenantId);
+      const actorId = Number(req.user!.userId);
+      const { query: queryText, search_type, limit, offset } = req.body;
+
+      const rawResults = await searchVideoContent(
+        tenantId,
+        queryText,
+        search_type,
+        Number(limit),
+        Number(offset),
+      );
+
+      // ACL VIEW filter on matched assets
+      const filteredResults = [];
+      const actor: AclActor = { id: actorId, role: String(req.user!.role), tenantId };
+
+      for (const item of rawResults) {
+        const evalResult = await evaluateAclPermission(actor, 'ASSET', item.asset_id, 'VIEW');
+        if (evalResult.allowed) {
+          filteredResults.push(item);
+        }
+      }
+
+      await logSecurityEvent(req, {
+        eventType: 'VIDEO_SCENE_SEARCH_EXECUTED',
+        userId: actorId,
+        status: 'SUCCESS',
+        details: `Searched video content for query "${queryText}" with ${filteredResults.length} matches`,
+      });
+
+      res.status(200).json({
+        status: 200,
+        message: 'Búsqueda de escenas y diálogos de video ejecutada exitosamente.',
+        data: {
+          total_matches: filteredResults.length,
+          matches: filteredResults,
+        },
+      });
+    } catch (err: any) {
+      console.error('Search video scenes error:', err);
+      res.status(500).json({
+        status: 500,
+        error: 'Internal Server Error',
+        message: 'Error al ejecutar la búsqueda de escenas de video.',
+      });
+    }
+  },
+);
+
+/**
+ * POST /api/v1/assets/:id/video-analysis
+ * Triggers video scene segmentation and speech transcription (FC 020, OWASP A01/A04/A09).
+ */
+router.post(
+  '/:id/video-analysis',
+  videoAiRateLimiter,
+  requireAuth,
+  validate(videoAnalysisBodySchema, 'body'),
+  async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+    try {
+      const tenantId = Number(req.user!.tenantId);
+      const actorId = Number(req.user!.userId);
+      const assetId = parseInt(String(req.params.id), 10);
+      const actor: AclActor = {
+        id: actorId,
+        role: String(req.user!.role),
+        tenantId,
+      };
+
+      if (isNaN(assetId) || assetId <= 0) {
+        res.status(400).json({ status: 400, error: 'Bad Request', message: 'ID de activo inválido.' });
+        return;
+      }
+
+      // Check asset existence and type in tenant
+      const assetRows: any[] = await query(
+        'SELECT id, mime_type, current_version_id FROM assets WHERE id = ? AND tenant_id = ? AND deleted_at IS NULL',
+        [assetId, tenantId],
+      );
+
+      if (!assetRows.length) {
+        res.status(404).json({ status: 404, error: 'Not Found', message: 'Activo digital no encontrado.' });
+        return;
+      }
+
+      const asset = assetRows[0];
+      if (!String(asset.mime_type).startsWith('video/')) {
+        res.status(400).json({
+          status: 400,
+          error: 'Bad Request',
+          message: 'El activo especificado no es un archivo de video compatible para análisis.',
+        });
+        return;
+      }
+
+      // ACL check: EDIT permission required
+      const evalResult = await evaluateAclPermission(actor, 'ASSET', assetId, 'EDIT');
+      if (!evalResult.allowed) {
+        res.status(403).json({
+          status: 403,
+          error: 'Forbidden',
+          message: 'Acceso denegado por política de control de acceso (ACL) para analizar el video.',
+        });
+        return;
+      }
+
+      const versionId = Number(asset.current_version_id);
+      const { force_refresh, language_code, scene_duration_target_seconds } = req.body;
+
+      const analysisResult = await analyzeVideoAsset(tenantId, assetId, versionId, {
+        forceRefresh: force_refresh,
+        languageCode: language_code,
+        sceneDurationTargetSeconds: scene_duration_target_seconds,
+      });
+
+      await logSecurityEvent(req, {
+        eventType: 'VIDEO_AI_ANALYSIS_EXECUTED',
+        userId: actorId,
+        status: 'SUCCESS',
+        details: `Video analysis completed for asset ID ${assetId}: ${analysisResult.scene_count} scenes, ${analysisResult.transcript_count} transcripts`,
+      });
+
+      res.status(200).json({
+        status: 200,
+        message: 'Análisis de escenas y transcripción de video ejecutado exitosamente.',
+        data: analysisResult,
+      });
+    } catch (err: any) {
+      console.error('Video analysis error:', err);
+      res.status(500).json({
+        status: 500,
+        error: 'Internal Server Error',
+        message: 'Error al procesar el análisis de video.',
+      });
+    }
+  },
+);
+
+/**
+ * GET /api/v1/assets/:id/scenes
+ * Retrieves chronological detected scenes and keyframes for a video asset (FC 020, OWASP A01/A04/A09).
+ */
+router.get(
+  '/:id/scenes',
+  videoAiRateLimiter,
+  requireAuth,
+  validate(videoScenesQuerySchema, 'query'),
+  async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+    try {
+      const tenantId = Number(req.user!.tenantId);
+      const actorId = Number(req.user!.userId);
+      const assetId = parseInt(String(req.params.id), 10);
+      const actor: AclActor = {
+        id: actorId,
+        role: String(req.user!.role),
+        tenantId,
+      };
+
+      if (isNaN(assetId) || assetId <= 0) {
+        res.status(400).json({ status: 400, error: 'Bad Request', message: 'ID de activo inválido.' });
+        return;
+      }
+
+      // Check asset in tenant
+      const assetRows: any[] = await query(
+        'SELECT id FROM assets WHERE id = ? AND tenant_id = ? AND deleted_at IS NULL',
+        [assetId, tenantId],
+      );
+
+      if (!assetRows.length) {
+        res.status(404).json({ status: 404, error: 'Not Found', message: 'Activo digital no encontrado.' });
+        return;
+      }
+
+      // ACL check: VIEW permission required
+      const evalResult = await evaluateAclPermission(actor, 'ASSET', assetId, 'VIEW');
+      if (!evalResult.allowed) {
+        res.status(403).json({
+          status: 403,
+          error: 'Forbidden',
+          message: 'Acceso denegado por política de control de acceso (ACL) para consultar escenas.',
+        });
+        return;
+      }
+
+      const { limit, offset } = req.query as any;
+      const scenes = await getVideoScenes(tenantId, assetId, Number(limit), Number(offset));
+
+      res.status(200).json({
+        status: 200,
+        message: 'Escenas de video recuperadas exitosamente.',
+        data: scenes,
+      });
+    } catch (err: any) {
+      console.error('Get video scenes error:', err);
+      res.status(500).json({
+        status: 500,
+        error: 'Internal Server Error',
+        message: 'Error al consultar las escenas de video.',
+      });
+    }
+  },
+);
+
+/**
+ * GET /api/v1/assets/:id/transcript
+ * Retrieves speech-to-text transcript segments for a video asset (FC 020, OWASP A01/A04/A09).
+ */
+router.get(
+  '/:id/transcript',
+  videoAiRateLimiter,
+  requireAuth,
+  validate(videoTranscriptQuerySchema, 'query'),
+  async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+    try {
+      const tenantId = Number(req.user!.tenantId);
+      const actorId = Number(req.user!.userId);
+      const assetId = parseInt(String(req.params.id), 10);
+      const actor: AclActor = {
+        id: actorId,
+        role: String(req.user!.role),
+        tenantId,
+      };
+
+      if (isNaN(assetId) || assetId <= 0) {
+        res.status(400).json({ status: 400, error: 'Bad Request', message: 'ID de activo inválido.' });
+        return;
+      }
+
+      // Check asset in tenant
+      const assetRows: any[] = await query(
+        'SELECT id FROM assets WHERE id = ? AND tenant_id = ? AND deleted_at IS NULL',
+        [assetId, tenantId],
+      );
+
+      if (!assetRows.length) {
+        res.status(404).json({ status: 404, error: 'Not Found', message: 'Activo digital no encontrado.' });
+        return;
+      }
+
+      // ACL check: VIEW permission required
+      const evalResult = await evaluateAclPermission(actor, 'ASSET', assetId, 'VIEW');
+      if (!evalResult.allowed) {
+        res.status(403).json({
+          status: 403,
+          error: 'Forbidden',
+          message: 'Acceso denegado por política de control de acceso (ACL) para consultar la transcripción.',
+        });
+        return;
+      }
+
+      const { speaker, language_code } = req.query as any;
+      const transcripts = await getVideoTranscript(tenantId, assetId, {
+        speaker: speaker as string | undefined,
+        languageCode: language_code as string | undefined,
+      });
+
+      res.status(200).json({
+        status: 200,
+        message: 'Transcripción de video recuperada exitosamente.',
+        data: transcripts,
+      });
+    } catch (err: any) {
+      console.error('Get video transcript error:', err);
+      res.status(500).json({
+        status: 500,
+        error: 'Internal Server Error',
+        message: 'Error al consultar la transcripción de video.',
+      });
+    }
+  },
+);
+
+/**
  * GET /api/v1/assets/:id
+
  * Get asset metadata & versions with Anti-IDOR verification.
  */
 router.get('/:id', requireAuth, async (req: AuthenticatedRequest, res: Response): Promise<void> => {
