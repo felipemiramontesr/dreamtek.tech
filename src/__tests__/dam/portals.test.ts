@@ -235,7 +235,11 @@ describe('FC 019 — DAM Brand Portals, Guidelines & External Distribution', () 
       expect(portalEngine.getPortalJwtSecret()).toBe('test-jwt-secret:portal');
 
       delete process.env.JWT_SECRET;
-      expect(portalEngine.getPortalJwtSecret()).toBe('dreamtek-portal-secret-key-salt');
+      expect(portalEngine.getPortalJwtSecret()).toBe('dreamtek_dev_portal_jwt_secret_2026');
+
+      process.env.NODE_ENV = 'production';
+      expect(() => portalEngine.getPortalJwtSecret()).toThrow('FATAL SECURITY ERROR');
+      process.env.NODE_ENV = 'test';
 
       process.env.PORTAL_JWT_SECRET = 'explicit-portal-secret';
       expect(portalEngine.getPortalJwtSecret()).toBe('explicit-portal-secret');

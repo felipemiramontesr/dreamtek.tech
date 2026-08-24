@@ -311,9 +311,7 @@ export async function processMediaJob(
     };
 
     const payload = await Promise.race([executeJob(), timeoutPromise]);
-    if (timer) {
-      clearTimeout(timer);
-    }
+    clearTimeout(timer);
 
     // 4. Update status to COMPLETED
     await query(

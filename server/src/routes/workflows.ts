@@ -65,7 +65,7 @@ router.post(
 
       await logSecurityEvent(req, {
         eventType: 'WORKFLOW_CREATED',
-        userId: Number(actorId) || null,
+        userId: Number(req.user!.userId),
         status: 'SUCCESS',
         details: `Workflow ${workflowId} (${name}) created for event ${trigger_event}`,
       });
@@ -246,7 +246,7 @@ router.put(
 
       await logSecurityEvent(req, {
         eventType: 'WORKFLOW_UPDATED',
-        userId: Number(req.user!.userId) || null,
+        userId: Number(req.user!.userId),
         status: 'SUCCESS',
         details: `Workflow ${workflowId} updated`,
       });
@@ -318,7 +318,7 @@ router.delete(
 
       await logSecurityEvent(req, {
         eventType: 'WORKFLOW_DELETED',
-        userId: Number(req.user!.userId) || null,
+        userId: Number(req.user!.userId),
         status: 'SUCCESS',
         details: `Workflow ${workflowId} deleted`,
       });
@@ -378,7 +378,7 @@ router.post(
 
       await logSecurityEvent(req, {
         eventType: 'WORKFLOW_EXECUTED',
-        userId: Number(actorId) || null,
+        userId: Number(req.user!.userId),
         status: 'SUCCESS',
         details: `Workflow ${workflowId} executed for asset ${assetId} with status ${result.status}`,
       });

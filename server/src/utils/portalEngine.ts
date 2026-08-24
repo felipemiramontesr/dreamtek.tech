@@ -15,7 +15,15 @@ export interface PortalTokenPayload {
  * Returns the JWT secret dedicated to brand portals (Condition C-019.2)
  */
 export const getPortalJwtSecret = (): string => {
-  return process.env.PORTAL_JWT_SECRET || (process.env.JWT_SECRET ? `${process.env.JWT_SECRET}:portal` : 'dreamtek-portal-secret-key-salt');
+  if (process.env.NODE_ENV === 'production' && !process.env.PORTAL_JWT_SECRET && !process.env.JWT_SECRET) {
+    throw new Error(
+      'FATAL SECURITY ERROR: PORTAL_JWT_SECRET environment variable is missing in production.',
+    );
+  }
+  return (
+    process.env.PORTAL_JWT_SECRET ||
+    (process.env.JWT_SECRET ? `${process.env.JWT_SECRET}:portal` : 'dreamtek_dev_portal_jwt_secret_2026')
+  );
 };
 
 /**

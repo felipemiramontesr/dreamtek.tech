@@ -609,6 +609,8 @@ router.post(
       }
 
       // 2. ACL Verification on Canonical Asset (VIEW permission required)
+      const isAllowed = (res: any) => Boolean(res?.allowed ?? res);
+
       const canonicalAllowed = await evaluateAclPermission(
         actor,
         'ASSET',
@@ -616,7 +618,7 @@ router.post(
         'VIEW',
       );
 
-      if (!canonicalAllowed.allowed) {
+      if (!isAllowed(canonicalAllowed)) {
         res.status(403).json({
           status: 403,
           error: 'Forbidden',
@@ -634,7 +636,7 @@ router.post(
           'DELETE',
         );
 
-        if (!dupAllowed.allowed) {
+        if (!isAllowed(dupAllowed)) {
           res.status(403).json({
             status: 403,
             error: 'Forbidden',
@@ -2987,7 +2989,7 @@ router.get(
         event_type: 'STREAM',
         actor_id: Number(actor.id),
         actor_type: 'USER',
-        bytes_served: Number(version.byte_size || 0),
+        bytes_served: Number(version.byte_size),
         ip: req.ip,
         user_agent: req.headers['user-agent'],
         referer: req.headers['referer'] as string | undefined,

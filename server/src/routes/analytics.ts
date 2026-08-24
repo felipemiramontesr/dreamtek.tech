@@ -133,7 +133,12 @@ analyticsRouter.post(
 
       res.status(201).json({
         status: 201,
-        message: 'Evento de analítica registrado exitosamente.',
+        message: 'Evento de analíticas registrado exitosamente.',
+        data: {
+          asset_id,
+          event_type,
+          actor_type,
+        },
       });
     } catch (err: any) {
       console.error('Record event error:', err);
@@ -161,7 +166,7 @@ analyticsRouter.get(
       const tenantId = Number(req.user!.tenantId);
       const { days } = req.query as any;
 
-      const data = await getOverviewMetrics(tenantId, Number(days || 30));
+      const data = await getOverviewMetrics(tenantId, Number(days));
 
       res.status(200).json({
         status: 200,
@@ -268,9 +273,9 @@ analyticsRouter.get(
 
       const data = await getTopAssets(
         tenantId,
-        String(metric || 'views'),
-        Number(days || 30),
-        Number(limit || 10),
+        String(metric),
+        Number(days),
+        Number(limit),
       );
 
       res.status(200).json({
@@ -306,9 +311,9 @@ analyticsRouter.get(
 
       const data = await getRoiReport(
         tenantId,
-        Number(days || 90),
-        Number(dormant_threshold_days || 180),
-        Number(limit || 50),
+        Number(days),
+        Number(dormant_threshold_days),
+        Number(limit),
       );
 
       res.status(200).json({
