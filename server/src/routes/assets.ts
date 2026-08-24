@@ -18,6 +18,7 @@ import {
   aiRateLimiter,
   semanticSearchRateLimiter,
   videoAiRateLimiter,
+  videoHighlightsRateLimiter,
 } from '../middleware/rateLimiter';
 import { validate } from '../middleware/validate';
 import { createShareSchema } from '../schemas/share.schema';
@@ -49,6 +50,10 @@ import {
   videoTranscriptQuerySchema,
   searchVideoScenesBodySchema,
 } from '../schemas/videoScene.schema';
+import {
+  createVideoHighlightBodySchema,
+  listVideoHighlightsQuerySchema,
+} from '../schemas/videoHighlights.schema';
 import { logSecurityEvent } from '../middleware/auditLogger';
 import { query } from '../db';
 import { validateMagicBytes } from '../utils/magicBytes';
@@ -81,6 +86,12 @@ import {
   getVideoTranscript,
   searchVideoContent,
 } from '../utils/videoAiEngine';
+import {
+  createVideoHighlight,
+  listVideoHighlights,
+  getVideoHighlightById,
+  deleteVideoHighlight,
+} from '../utils/videoHighlightsEngine';
 import { dispatchWorkflowsForEvent } from '../utils/workflowEngine';
 import { recordAnalyticsEvent } from '../utils/analyticsEngine';
 import {
@@ -1595,6 +1606,285 @@ router.get(
         status: 500,
         error: 'Internal Server Error',
         message: 'Error al consultar la transcripción de video.',
+      });
+    }
+  },
+);
+
+/**
+ * POST /api/v1/assets/:id/highlights
+ * Creates an automated highlight reel / storyboard derivative (FC 021, OWASP A01/A04/A09).
+ */
+router.post(
+  '/:id/highlights',
+  videoHighlightsRateLimiter,
+  requireAuth,
+  validate(createVideoHighlightBodySchema, 'body'),
+  async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+    try {
+      const tenantId = Number(req.user!.tenantId);
+      const actorId = Number(req.user!.userId);
+      const assetId = parseInt(String(req.params.id), 10);
+      const actor: AclActor = { id: actorId, role: String(req.user!.role), tenantId };
+
+      if (isNaN(assetId) || assetId <= 0) {
+        res.status(400).json({ status: 400, error: 'Bad Request', message: 'ID de activo inválido.' });
+        return;
+      }
+
+      // Check asset in tenant
+      const assetRows: any[] = await query(
+        'SELECT id, mime_type, current_version_id FROM assets WHERE id = ? AND tenant_id = ? AND deleted_at IS NULL',
+        [assetId, tenantId],
+      );
+
+      if (!assetRows.length) {
+        res.status(404).json({ status: 404, error: 'Not Found', message: 'Activo digital no encontrado.' });
+        return;
+      }
+
+      const asset = assetRows[0];
+      if (!String(asset.mime_type).startsWith('video/')) {
+        res.status(400).json({
+          status: 400,
+          error: 'Bad Request',
+          message: 'El activo especificado no es un archivo de video compatible para generar resúmenes.',
+        });
+        return;
+      }
+
+      // ACL check: EDIT permission required
+      const evalResult = await evaluateAclPermission(actor, 'ASSET', assetId, 'EDIT');
+      if (!evalResult.allowed) {
+        res.status(403).json({
+          status: 403,
+          error: 'Forbidden',
+          message: 'Acceso denegado por política de control de acceso (ACL) para generar resúmenes del video.',
+        });
+        return;
+      }
+
+      const versionId = Number(asset.current_version_id);
+      const { title, aspect_ratio, target_duration_seconds } = req.body;
+
+      const result = await createVideoHighlight(
+        tenantId,
+        assetId,
+        versionId,
+        title,
+        aspect_ratio,
+        target_duration_seconds,
+      );
+
+      if (!result.success) {
+        res.status(400).json({
+          status: 400,
+          error: 'Bad Request',
+          message: result.message,
+        });
+        return;
+      }
+
+      await logSecurityEvent(req, {
+        eventType: 'VIDEO_HIGHLIGHT_CREATED',
+        userId: actorId,
+        status: 'SUCCESS',
+        details: `Created video highlight ID ${result.highlight!.id} for asset ${assetId} (${aspect_ratio}, ${result.highlight!.actual_duration_seconds}s)`,
+      });
+
+      res.status(201).json({
+        status: 201,
+        message: 'Resumen de video generado exitosamente.',
+        data: result.highlight,
+      });
+    } catch (err: any) {
+      console.error('Create video highlight error:', err);
+      res.status(500).json({
+        status: 500,
+        error: 'Internal Server Error',
+        message: 'Error al generar el resumen de video.',
+      });
+    }
+  },
+);
+
+/**
+ * GET /api/v1/assets/:id/highlights
+ * Lists generated highlight reels for an asset (FC 021, OWASP A01/A04/A09).
+ */
+router.get(
+  '/:id/highlights',
+  videoHighlightsRateLimiter,
+  requireAuth,
+  validate(listVideoHighlightsQuerySchema, 'query'),
+  async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+    try {
+      const tenantId = Number(req.user!.tenantId);
+      const actorId = Number(req.user!.userId);
+      const assetId = parseInt(String(req.params.id), 10);
+      const actor: AclActor = { id: actorId, role: String(req.user!.role), tenantId };
+
+      if (isNaN(assetId) || assetId <= 0) {
+        res.status(400).json({ status: 400, error: 'Bad Request', message: 'ID de activo inválido.' });
+        return;
+      }
+
+      // Check asset in tenant
+      const assetRows: any[] = await query(
+        'SELECT id FROM assets WHERE id = ? AND tenant_id = ? AND deleted_at IS NULL',
+        [assetId, tenantId],
+      );
+
+      if (!assetRows.length) {
+        res.status(404).json({ status: 404, error: 'Not Found', message: 'Activo digital no encontrado.' });
+        return;
+      }
+
+      // ACL check: VIEW permission required
+      const evalResult = await evaluateAclPermission(actor, 'ASSET', assetId, 'VIEW');
+      if (!evalResult.allowed) {
+        res.status(403).json({
+          status: 403,
+          error: 'Forbidden',
+          message: 'Acceso denegado por política de control de acceso (ACL) para consultar los resúmenes.',
+        });
+        return;
+      }
+
+      const { limit, offset, aspect_ratio } = req.query as any;
+      const highlights = await listVideoHighlights(
+        tenantId,
+        assetId,
+        Number(limit),
+        Number(offset),
+        aspect_ratio as string | undefined,
+      );
+
+      res.status(200).json({
+        status: 200,
+        message: 'Resúmenes de video recuperados exitosamente.',
+        data: highlights,
+      });
+    } catch (err: any) {
+      console.error('List video highlights error:', err);
+      res.status(500).json({
+        status: 500,
+        error: 'Internal Server Error',
+        message: 'Error al consultar los resúmenes de video.',
+      });
+    }
+  },
+);
+
+/**
+ * GET /api/v1/assets/:id/highlights/:highlightId
+ * Gets details of a specific highlight reel (FC 021, OWASP A01/A04/A09).
+ */
+router.get(
+  '/:id/highlights/:highlightId',
+  videoHighlightsRateLimiter,
+  requireAuth,
+  async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+    try {
+      const tenantId = Number(req.user!.tenantId);
+      const actorId = Number(req.user!.userId);
+      const assetId = parseInt(String(req.params.id), 10);
+      const highlightId = parseInt(String(req.params.highlightId), 10);
+      const actor: AclActor = { id: actorId, role: String(req.user!.role), tenantId };
+
+      if (isNaN(assetId) || assetId <= 0 || isNaN(highlightId) || highlightId <= 0) {
+        res.status(400).json({ status: 400, error: 'Bad Request', message: 'Parámetros inválidos.' });
+        return;
+      }
+
+      // ACL check: VIEW permission required
+      const evalResult = await evaluateAclPermission(actor, 'ASSET', assetId, 'VIEW');
+      if (!evalResult.allowed) {
+        res.status(403).json({
+          status: 403,
+          error: 'Forbidden',
+          message: 'Acceso denegado por política de control de acceso (ACL) para consultar el resumen.',
+        });
+        return;
+      }
+
+      const highlight = await getVideoHighlightById(tenantId, assetId, highlightId);
+      if (!highlight) {
+        res.status(404).json({ status: 404, error: 'Not Found', message: 'Resumen de video no encontrado.' });
+        return;
+      }
+
+      res.status(200).json({
+        status: 200,
+        message: 'Detalle del resumen de video recuperado exitosamente.',
+        data: highlight,
+      });
+    } catch (err: any) {
+      console.error('Get video highlight detail error:', err);
+      res.status(500).json({
+        status: 500,
+        error: 'Internal Server Error',
+        message: 'Error al consultar el detalle del resumen de video.',
+      });
+    }
+  },
+);
+
+/**
+ * DELETE /api/v1/assets/:id/highlights/:highlightId
+ * Deletes a highlight reel and unlinks its derivative from disk (FC 021, OWASP A01/A04/A09).
+ */
+router.delete(
+  '/:id/highlights/:highlightId',
+  videoHighlightsRateLimiter,
+  requireAuth,
+  async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+    try {
+      const tenantId = Number(req.user!.tenantId);
+      const actorId = Number(req.user!.userId);
+      const assetId = parseInt(String(req.params.id), 10);
+      const highlightId = parseInt(String(req.params.highlightId), 10);
+      const actor: AclActor = { id: actorId, role: String(req.user!.role), tenantId };
+
+      if (isNaN(assetId) || assetId <= 0 || isNaN(highlightId) || highlightId <= 0) {
+        res.status(400).json({ status: 400, error: 'Bad Request', message: 'Parámetros inválidos.' });
+        return;
+      }
+
+      // ACL check: EDIT permission required
+      const evalResult = await evaluateAclPermission(actor, 'ASSET', assetId, 'EDIT');
+      if (!evalResult.allowed) {
+        res.status(403).json({
+          status: 403,
+          error: 'Forbidden',
+          message: 'Acceso denegado por política de control de acceso (ACL) para eliminar el resumen.',
+        });
+        return;
+      }
+
+      const deleted = await deleteVideoHighlight(tenantId, assetId, highlightId);
+      if (!deleted) {
+        res.status(404).json({ status: 404, error: 'Not Found', message: 'Resumen de video no encontrado.' });
+        return;
+      }
+
+      await logSecurityEvent(req, {
+        eventType: 'VIDEO_HIGHLIGHT_DELETED',
+        userId: actorId,
+        status: 'SUCCESS',
+        details: `Deleted video highlight ID ${highlightId} for asset ${assetId}`,
+      });
+
+      res.status(200).json({
+        status: 200,
+        message: 'Resumen de video eliminado exitosamente.',
+      });
+    } catch (err: any) {
+      console.error('Delete video highlight error:', err);
+      res.status(500).json({
+        status: 500,
+        error: 'Internal Server Error',
+        message: 'Error al eliminar el resumen de video.',
       });
     }
   },
