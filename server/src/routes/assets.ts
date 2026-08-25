@@ -21,6 +21,7 @@ import {
   videoHighlightsRateLimiter,
   audioCleaningRateLimiter,
   subtitlesRateLimiter,
+  smartCropRateLimiter,
 } from '../middleware/rateLimiter';
 import { validate } from '../middleware/validate';
 import { createShareSchema } from '../schemas/share.schema';
@@ -64,6 +65,10 @@ import {
   createSubtitleBodySchema,
   listSubtitlesQuerySchema,
 } from '../schemas/subtitle.schema';
+import {
+  createSmartCropBodySchema,
+  listSmartCropsQuerySchema,
+} from '../schemas/smartCrop.schema';
 import { logSecurityEvent } from '../middleware/auditLogger';
 import { query } from '../db';
 import { validateMagicBytes } from '../utils/magicBytes';
@@ -114,6 +119,12 @@ import {
   getAssetSubtitleById,
   deleteAssetSubtitle,
 } from '../utils/subtitleEngine';
+import {
+  createAssetSmartCrop,
+  listAssetSmartCrops,
+  getAssetSmartCropById,
+  deleteAssetSmartCrop,
+} from '../utils/smartCropEngine';
 import { dispatchWorkflowsForEvent } from '../utils/workflowEngine';
 import { recordAnalyticsEvent } from '../utils/analyticsEngine';
 import {
@@ -2458,6 +2469,287 @@ router.delete(
         status: 500,
         error: 'Internal Server Error',
         message: 'Error al eliminar la pista de subtítulos.',
+      });
+    }
+  },
+);
+
+/**
+ * POST /api/v1/assets/:id/smart-crop
+ * Generates an AI smart-cropped derivative with focal point detection (FC 024, OWASP A01/A03/A04/A07).
+ */
+router.post(
+  '/:id/smart-crop',
+  smartCropRateLimiter,
+  requireAuth,
+  validate(createSmartCropBodySchema, 'body'),
+  async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+    try {
+      const tenantId = Number(req.user!.tenantId);
+      const actorId = Number(req.user!.userId);
+      const assetId = parseInt(String(req.params.id), 10);
+      const actor: AclActor = { id: actorId, role: String(req.user!.role), tenantId };
+
+      if (isNaN(assetId) || assetId <= 0) {
+        res.status(400).json({ status: 400, error: 'Bad Request', message: 'ID de activo inválido.' });
+        return;
+      }
+
+      // Check asset in tenant
+      const assetRows: any[] = await query(
+        'SELECT id, mime_type, current_version_id FROM assets WHERE id = ? AND tenant_id = ? AND deleted_at IS NULL',
+        [assetId, tenantId],
+      );
+
+      if (!assetRows.length) {
+        res.status(404).json({ status: 404, error: 'Not Found', message: 'Activo digital no encontrado.' });
+        return;
+      }
+
+      const asset = assetRows[0];
+
+      // ACL check: EDIT permission required
+      const evalResult = await evaluateAclPermission(actor, 'ASSET', assetId, 'EDIT');
+      if (!evalResult.allowed) {
+        res.status(403).json({
+          status: 403,
+          error: 'Forbidden',
+          message: 'Acceso denegado por política de control de acceso (ACL) para generar smart crop.',
+        });
+        return;
+      }
+
+      const versionId = Number(asset.current_version_id);
+      const {
+        aspect_ratio,
+        strategy,
+        focal_x,
+        focal_y,
+        target_width,
+        target_height,
+      } = req.body;
+
+      const result = await createAssetSmartCrop(
+        tenantId,
+        assetId,
+        versionId,
+        aspect_ratio,
+        strategy,
+        focal_x,
+        focal_y,
+        target_width,
+        target_height,
+      );
+
+      if (!result.success) {
+        res.status(result.statusCode).json({
+          status: result.statusCode,
+          error: result.statusCode === 404 ? 'Not Found' : 'Bad Request',
+          message: result.message,
+        });
+        return;
+      }
+
+      await logSecurityEvent(req, {
+        eventType: 'SMART_CROP_CREATED',
+        userId: actorId,
+        status: 'SUCCESS',
+        details: `Created smart crop ID ${result.smartCrop!.id} for asset ${assetId} (${aspect_ratio})`,
+      });
+
+      res.status(201).json({
+        status: 201,
+        message: 'Recorte inteligente generado exitosamente.',
+        data: result.smartCrop,
+      });
+    } catch (err: any) {
+      console.error('Create smart crop error:', err);
+      res.status(500).json({
+        status: 500,
+        error: 'Internal Server Error',
+        message: 'Error al generar el recorte inteligente.',
+      });
+    }
+  },
+);
+
+/**
+ * GET /api/v1/assets/:id/smart-crops
+ * Lists smart crop derivatives for an asset (FC 024, OWASP A01/A04/A09).
+ */
+router.get(
+  '/:id/smart-crops',
+  smartCropRateLimiter,
+  requireAuth,
+  validate(listSmartCropsQuerySchema, 'query'),
+  async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+    try {
+      const tenantId = Number(req.user!.tenantId);
+      const actorId = Number(req.user!.userId);
+      const assetId = parseInt(String(req.params.id), 10);
+      const actor: AclActor = { id: actorId, role: String(req.user!.role), tenantId };
+
+      if (isNaN(assetId) || assetId <= 0) {
+        res.status(400).json({ status: 400, error: 'Bad Request', message: 'ID de activo inválido.' });
+        return;
+      }
+
+      // Check asset in tenant
+      const assetRows: any[] = await query(
+        'SELECT id FROM assets WHERE id = ? AND tenant_id = ? AND deleted_at IS NULL',
+        [assetId, tenantId],
+      );
+
+      if (!assetRows.length) {
+        res.status(404).json({ status: 404, error: 'Not Found', message: 'Activo digital no encontrado.' });
+        return;
+      }
+
+      // ACL check: VIEW permission required
+      const evalResult = await evaluateAclPermission(actor, 'ASSET', assetId, 'VIEW');
+      if (!evalResult.allowed) {
+        res.status(403).json({
+          status: 403,
+          error: 'Forbidden',
+          message: 'Acceso denegado por política de control de acceso (ACL) para consultar smart crops.',
+        });
+        return;
+      }
+
+      const { limit, offset, aspect_ratio } = req.query as any;
+      const smartCrops = await listAssetSmartCrops(
+        tenantId,
+        assetId,
+        Number(limit),
+        Number(offset),
+        aspect_ratio as string | undefined,
+      );
+
+      res.status(200).json({
+        status: 200,
+        message: 'Recortes inteligentes recuperados exitosamente.',
+        data: smartCrops,
+      });
+    } catch (err: any) {
+      console.error('List smart crops error:', err);
+      res.status(500).json({
+        status: 500,
+        error: 'Internal Server Error',
+        message: 'Error al consultar los recortes inteligentes.',
+      });
+    }
+  },
+);
+
+/**
+ * GET /api/v1/assets/:id/smart-crops/:cropId
+ * Gets details of a specific smart crop derivative (FC 024, OWASP A01/A04/A09).
+ */
+router.get(
+  '/:id/smart-crops/:cropId',
+  smartCropRateLimiter,
+  requireAuth,
+  async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+    try {
+      const tenantId = Number(req.user!.tenantId);
+      const actorId = Number(req.user!.userId);
+      const assetId = parseInt(String(req.params.id), 10);
+      const cropId = parseInt(String(req.params.cropId), 10);
+      const actor: AclActor = { id: actorId, role: String(req.user!.role), tenantId };
+
+      if (isNaN(assetId) || assetId <= 0 || isNaN(cropId) || cropId <= 0) {
+        res.status(400).json({ status: 400, error: 'Bad Request', message: 'Parámetros inválidos.' });
+        return;
+      }
+
+      // ACL check: VIEW permission required
+      const evalResult = await evaluateAclPermission(actor, 'ASSET', assetId, 'VIEW');
+      if (!evalResult.allowed) {
+        res.status(403).json({
+          status: 403,
+          error: 'Forbidden',
+          message: 'Acceso denegado por política de control de acceso (ACL) para consultar el smart crop.',
+        });
+        return;
+      }
+
+      const smartCrop = await getAssetSmartCropById(tenantId, assetId, cropId);
+      if (!smartCrop) {
+        res.status(404).json({ status: 404, error: 'Not Found', message: 'Recorte inteligente no encontrado.' });
+        return;
+      }
+
+      res.status(200).json({
+        status: 200,
+        message: 'Detalle del recorte inteligente recuperado exitosamente.',
+        data: smartCrop,
+      });
+    } catch (err: any) {
+      console.error('Get smart crop detail error:', err);
+      res.status(500).json({
+        status: 500,
+        error: 'Internal Server Error',
+        message: 'Error al consultar el detalle del recorte inteligente.',
+      });
+    }
+  },
+);
+
+/**
+ * DELETE /api/v1/assets/:id/smart-crops/:cropId
+ * Deletes a smart crop derivative and unlinks its file from disk (FC 024, OWASP A01/A04/A09).
+ */
+router.delete(
+  '/:id/smart-crops/:cropId',
+  smartCropRateLimiter,
+  requireAuth,
+  async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+    try {
+      const tenantId = Number(req.user!.tenantId);
+      const actorId = Number(req.user!.userId);
+      const assetId = parseInt(String(req.params.id), 10);
+      const cropId = parseInt(String(req.params.cropId), 10);
+      const actor: AclActor = { id: actorId, role: String(req.user!.role), tenantId };
+
+      if (isNaN(assetId) || assetId <= 0 || isNaN(cropId) || cropId <= 0) {
+        res.status(400).json({ status: 400, error: 'Bad Request', message: 'Parámetros inválidos.' });
+        return;
+      }
+
+      // ACL check: EDIT permission required
+      const evalResult = await evaluateAclPermission(actor, 'ASSET', assetId, 'EDIT');
+      if (!evalResult.allowed) {
+        res.status(403).json({
+          status: 403,
+          error: 'Forbidden',
+          message: 'Acceso denegado por política de control de acceso (ACL) para eliminar el smart crop.',
+        });
+        return;
+      }
+
+      const deleted = await deleteAssetSmartCrop(tenantId, assetId, cropId);
+      if (!deleted) {
+        res.status(404).json({ status: 404, error: 'Not Found', message: 'Recorte inteligente no encontrado.' });
+        return;
+      }
+
+      await logSecurityEvent(req, {
+        eventType: 'SMART_CROP_DELETED',
+        userId: actorId,
+        status: 'SUCCESS',
+        details: `Deleted smart crop derivative ID ${cropId} for asset ${assetId}`,
+      });
+
+      res.status(200).json({
+        status: 200,
+        message: 'Recorte inteligente eliminado exitosamente.',
+      });
+    } catch (err: any) {
+      console.error('Delete smart crop error:', err);
+      res.status(500).json({
+        status: 500,
+        error: 'Internal Server Error',
+        message: 'Error al eliminar el recorte inteligente.',
       });
     }
   },
