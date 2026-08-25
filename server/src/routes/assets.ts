@@ -22,6 +22,7 @@ import {
   audioCleaningRateLimiter,
   subtitlesRateLimiter,
   smartCropRateLimiter,
+  imageEnhancementRateLimiter,
 } from '../middleware/rateLimiter';
 import { validate } from '../middleware/validate';
 import { createShareSchema } from '../schemas/share.schema';
@@ -69,6 +70,10 @@ import {
   createSmartCropBodySchema,
   listSmartCropsQuerySchema,
 } from '../schemas/smartCrop.schema';
+import {
+  createImageEnhancementBodySchema,
+  listImageEnhancementsQuerySchema,
+} from '../schemas/imageEnhancement.schema';
 import { logSecurityEvent } from '../middleware/auditLogger';
 import { query } from '../db';
 import { validateMagicBytes } from '../utils/magicBytes';
@@ -125,6 +130,12 @@ import {
   getAssetSmartCropById,
   deleteAssetSmartCrop,
 } from '../utils/smartCropEngine';
+import {
+  createAssetImageEnhancement,
+  listAssetImageEnhancements,
+  getAssetImageEnhancementById,
+  deleteAssetImageEnhancement,
+} from '../utils/imageEnhancementEngine';
 import { dispatchWorkflowsForEvent } from '../utils/workflowEngine';
 import { recordAnalyticsEvent } from '../utils/analyticsEngine';
 import {
@@ -2754,6 +2765,292 @@ router.delete(
     }
   },
 );
+
+/**
+ * POST /api/v1/assets/:id/enhance
+ * Generates an enhanced/colorized derivative for an image asset (FC 025, OWASP A01/A03/A04/A07).
+ */
+router.post(
+  '/:id/enhance',
+  imageEnhancementRateLimiter,
+  requireAuth,
+  validate(createImageEnhancementBodySchema, 'body'),
+  async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+    try {
+      const tenantId = Number(req.user!.tenantId);
+      const actorId = Number(req.user!.userId);
+      const assetId = parseInt(String(req.params.id), 10);
+      const actor: AclActor = { id: actorId, role: String(req.user!.role), tenantId };
+
+      if (isNaN(assetId) || assetId <= 0) {
+        res.status(400).json({ status: 400, error: 'Bad Request', message: 'ID de activo inválido.' });
+        return;
+      }
+
+      // Check asset in tenant
+      const assetRows: any[] = await query(
+        'SELECT id, mime_type, current_version_id FROM assets WHERE id = ? AND tenant_id = ? AND deleted_at IS NULL',
+        [assetId, tenantId],
+      );
+
+      if (!assetRows.length) {
+        res.status(404).json({ status: 404, error: 'Not Found', message: 'Activo digital no encontrado.' });
+        return;
+      }
+
+      const asset = assetRows[0];
+
+      // ACL check: EDIT permission required
+      const evalResult = await evaluateAclPermission(actor, 'ASSET', assetId, 'EDIT');
+      if (!evalResult.allowed) {
+        res.status(403).json({
+          status: 403,
+          error: 'Forbidden',
+          message: 'Acceso denegado por política de control de acceso (ACL) para generar realce de imagen.',
+        });
+        return;
+      }
+
+      const versionId = Number(asset.current_version_id);
+      const {
+        preset,
+        brightness,
+        contrast,
+        saturation,
+        sharpness,
+        gamma,
+        tint_hex,
+      } = req.body;
+
+      const result = await createAssetImageEnhancement(
+        tenantId,
+        assetId,
+        versionId,
+        preset,
+        {
+          brightness,
+          contrast,
+          saturation,
+          sharpness,
+          gamma,
+          tint_hex,
+        },
+      );
+
+      if (!result.success) {
+        res.status(result.statusCode).json({
+          status: result.statusCode,
+          error: result.statusCode === 404 ? 'Not Found' : 'Bad Request',
+          message: result.message,
+        });
+        return;
+      }
+
+      await logSecurityEvent(req, {
+        eventType: 'IMAGE_ENHANCED',
+        userId: actorId,
+        status: 'SUCCESS',
+        details: `Created image enhancement ID ${result.enhancement.id} for asset ${assetId} (preset ${result.enhancement.preset})`,
+      });
+
+      res.status(201).json({
+        status: 201,
+        message: 'Realce de imagen generado exitosamente.',
+        data: result.enhancement,
+      });
+    } catch (err: any) {
+      console.error('Create image enhancement error:', err);
+      res.status(500).json({
+        status: 500,
+        error: 'Internal Server Error',
+        message: 'Error al generar el realce de la imagen.',
+      });
+    }
+  },
+);
+
+/**
+ * GET /api/v1/assets/:id/enhancements
+ * Lists all enhancement records for an asset (FC 025, OWASP A01/A04/A09).
+ */
+router.get(
+  '/:id/enhancements',
+  imageEnhancementRateLimiter,
+  requireAuth,
+  validate(listImageEnhancementsQuerySchema, 'query'),
+  async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+    try {
+      const tenantId = Number(req.user!.tenantId);
+      const actorId = Number(req.user!.userId);
+      const assetId = parseInt(String(req.params.id), 10);
+      const actor: AclActor = { id: actorId, role: String(req.user!.role), tenantId };
+
+      if (isNaN(assetId) || assetId <= 0) {
+        res.status(400).json({ status: 400, error: 'Bad Request', message: 'ID de activo inválido.' });
+        return;
+      }
+
+      // Check asset in tenant
+      const assetRows: any[] = await query(
+        'SELECT id FROM assets WHERE id = ? AND tenant_id = ? AND deleted_at IS NULL',
+        [assetId, tenantId],
+      );
+
+      if (!assetRows.length) {
+        res.status(404).json({ status: 404, error: 'Not Found', message: 'Activo digital no encontrado.' });
+        return;
+      }
+
+      // ACL check: VIEW permission required
+      const evalResult = await evaluateAclPermission(actor, 'ASSET', assetId, 'VIEW');
+      if (!evalResult.allowed) {
+        res.status(403).json({
+          status: 403,
+          error: 'Forbidden',
+          message: 'Acceso denegado por política de control de acceso (ACL) para consultar realces de imagen.',
+        });
+        return;
+      }
+
+      const { limit, offset, preset } = req.query as any;
+      const enhancements = await listAssetImageEnhancements(
+        tenantId,
+        assetId,
+        Number(limit),
+        Number(offset),
+        preset as string | undefined,
+      );
+
+      res.status(200).json({
+        status: 200,
+        message: 'Realces de imagen recuperados exitosamente.',
+        data: enhancements,
+      });
+    } catch (err: any) {
+      console.error('List image enhancements error:', err);
+      res.status(500).json({
+        status: 500,
+        error: 'Internal Server Error',
+        message: 'Error al consultar los realces de imagen.',
+      });
+    }
+  },
+);
+
+/**
+ * GET /api/v1/assets/:id/enhancements/:enhancementId
+ * Gets details of a specific image enhancement derivative (FC 025, OWASP A01/A04/A09).
+ */
+router.get(
+  '/:id/enhancements/:enhancementId',
+  imageEnhancementRateLimiter,
+  requireAuth,
+  async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+    try {
+      const tenantId = Number(req.user!.tenantId);
+      const actorId = Number(req.user!.userId);
+      const assetId = parseInt(String(req.params.id), 10);
+      const enhancementId = parseInt(String(req.params.enhancementId), 10);
+      const actor: AclActor = { id: actorId, role: String(req.user!.role), tenantId };
+
+      if (isNaN(assetId) || assetId <= 0 || isNaN(enhancementId) || enhancementId <= 0) {
+        res.status(400).json({ status: 400, error: 'Bad Request', message: 'Parámetros inválidos.' });
+        return;
+      }
+
+      // ACL check: VIEW permission required
+      const evalResult = await evaluateAclPermission(actor, 'ASSET', assetId, 'VIEW');
+      if (!evalResult.allowed) {
+        res.status(403).json({
+          status: 403,
+          error: 'Forbidden',
+          message: 'Acceso denegado por política de control de acceso (ACL) para consultar el realce de imagen.',
+        });
+        return;
+      }
+
+      const enhancement = await getAssetImageEnhancementById(tenantId, assetId, enhancementId);
+      if (!enhancement) {
+        res.status(404).json({ status: 404, error: 'Not Found', message: 'Realce de imagen no encontrado.' });
+        return;
+      }
+
+      res.status(200).json({
+        status: 200,
+        message: 'Detalle del realce de imagen recuperado exitosamente.',
+        data: enhancement,
+      });
+    } catch (err: any) {
+      console.error('Get image enhancement detail error:', err);
+      res.status(500).json({
+        status: 500,
+        error: 'Internal Server Error',
+        message: 'Error al consultar el detalle del realce de imagen.',
+      });
+    }
+  },
+);
+
+/**
+ * DELETE /api/v1/assets/:id/enhancements/:enhancementId
+ * Deletes an image enhancement derivative and unlinks its file from disk (FC 025, OWASP A01/A04/A09).
+ */
+router.delete(
+  '/:id/enhancements/:enhancementId',
+  imageEnhancementRateLimiter,
+  requireAuth,
+  async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+    try {
+      const tenantId = Number(req.user!.tenantId);
+      const actorId = Number(req.user!.userId);
+      const assetId = parseInt(String(req.params.id), 10);
+      const enhancementId = parseInt(String(req.params.enhancementId), 10);
+      const actor: AclActor = { id: actorId, role: String(req.user!.role), tenantId };
+
+      if (isNaN(assetId) || assetId <= 0 || isNaN(enhancementId) || enhancementId <= 0) {
+        res.status(400).json({ status: 400, error: 'Bad Request', message: 'Parámetros inválidos.' });
+        return;
+      }
+
+      // ACL check: EDIT permission required
+      const evalResult = await evaluateAclPermission(actor, 'ASSET', assetId, 'EDIT');
+      if (!evalResult.allowed) {
+        res.status(403).json({
+          status: 403,
+          error: 'Forbidden',
+          message: 'Acceso denegado por política de control de acceso (ACL) para eliminar el realce de imagen.',
+        });
+        return;
+      }
+
+      const deleted = await deleteAssetImageEnhancement(tenantId, assetId, enhancementId);
+      if (!deleted) {
+        res.status(404).json({ status: 404, error: 'Not Found', message: 'Realce de imagen no encontrado.' });
+        return;
+      }
+
+      await logSecurityEvent(req, {
+        eventType: 'IMAGE_ENHANCEMENT_DELETED',
+        userId: actorId,
+        status: 'SUCCESS',
+        details: `Deleted image enhancement derivative ID ${enhancementId} for asset ${assetId}`,
+      });
+
+      res.status(200).json({
+        status: 200,
+        message: 'Realce de imagen eliminado exitosamente.',
+      });
+    } catch (err: any) {
+      console.error('Delete image enhancement error:', err);
+      res.status(500).json({
+        status: 500,
+        error: 'Internal Server Error',
+        message: 'Error al eliminar el realce de imagen.',
+      });
+    }
+  },
+);
+
 
 /**
  * GET /api/v1/assets/:id
