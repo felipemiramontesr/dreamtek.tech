@@ -19,6 +19,7 @@ import {
   semanticSearchRateLimiter,
   videoAiRateLimiter,
   videoHighlightsRateLimiter,
+  audioCleaningRateLimiter,
 } from '../middleware/rateLimiter';
 import { validate } from '../middleware/validate';
 import { createShareSchema } from '../schemas/share.schema';
@@ -54,6 +55,10 @@ import {
   createVideoHighlightBodySchema,
   listVideoHighlightsQuerySchema,
 } from '../schemas/videoHighlights.schema';
+import {
+  createAudioCleaningBodySchema,
+  listAudioCleaningQuerySchema,
+} from '../schemas/audioCleaning.schema';
 import { logSecurityEvent } from '../middleware/auditLogger';
 import { query } from '../db';
 import { validateMagicBytes } from '../utils/magicBytes';
@@ -92,6 +97,12 @@ import {
   getVideoHighlightById,
   deleteVideoHighlight,
 } from '../utils/videoHighlightsEngine';
+import {
+  createAudioCleaningJob,
+  listAudioCleaningJobs,
+  getAudioCleaningJobById,
+  deleteAudioCleaningJob,
+} from '../utils/audioCleaningEngine';
 import { dispatchWorkflowsForEvent } from '../utils/workflowEngine';
 import { recordAnalyticsEvent } from '../utils/analyticsEngine';
 import {
@@ -1885,6 +1896,276 @@ router.delete(
         status: 500,
         error: 'Internal Server Error',
         message: 'Error al eliminar el resumen de video.',
+      });
+    }
+  },
+);
+
+/**
+ * POST /api/v1/assets/:id/audio-cleaning
+ * Executes an acoustic cleaning job on an audio or video asset (FC 022, OWASP A01/A04/A09).
+ */
+router.post(
+  '/:id/audio-cleaning',
+  audioCleaningRateLimiter,
+  requireAuth,
+  validate(createAudioCleaningBodySchema, 'body'),
+  async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+    try {
+      const tenantId = Number(req.user!.tenantId);
+      const actorId = Number(req.user!.userId);
+      const assetId = parseInt(String(req.params.id), 10);
+      const actor: AclActor = { id: actorId, role: String(req.user!.role), tenantId };
+
+      if (isNaN(assetId) || assetId <= 0) {
+        res.status(400).json({ status: 400, error: 'Bad Request', message: 'ID de activo inválido.' });
+        return;
+      }
+
+      // Check asset in tenant
+      const assetRows: any[] = await query(
+        'SELECT id, mime_type, current_version_id FROM assets WHERE id = ? AND tenant_id = ? AND deleted_at IS NULL',
+        [assetId, tenantId],
+      );
+
+      if (!assetRows.length) {
+        res.status(404).json({ status: 404, error: 'Not Found', message: 'Activo digital no encontrado.' });
+        return;
+      }
+
+      const asset = assetRows[0];
+      const mimeType = String(asset.mime_type);
+      if (!mimeType.startsWith('audio/') && !mimeType.startsWith('video/')) {
+        res.status(400).json({
+          status: 400,
+          error: 'Bad Request',
+          message: 'El activo especificado no es un archivo de audio o video compatible para limpieza acústica.',
+        });
+        return;
+      }
+
+      // ACL check: EDIT permission required
+      const evalResult = await evaluateAclPermission(actor, 'ASSET', assetId, 'EDIT');
+      if (!evalResult.allowed) {
+        res.status(403).json({
+          status: 403,
+          error: 'Forbidden',
+          message: 'Acceso denegado por política de control de acceso (ACL) para ejecutar limpieza acústica.',
+        });
+        return;
+      }
+
+      const versionId = Number(asset.current_version_id);
+      const { profile, noise_reduction_db } = req.body;
+
+      const job = await createAudioCleaningJob(
+        tenantId,
+        assetId,
+        versionId,
+        profile,
+        noise_reduction_db,
+      );
+
+      await logSecurityEvent(req, {
+        eventType: 'AUDIO_CLEANING_CREATED',
+        userId: actorId,
+        status: 'SUCCESS',
+        details: `Executed audio cleaning job ID ${job.id} for asset ${assetId} (${profile}, ${noise_reduction_db}dB)`,
+      });
+
+      res.status(201).json({
+        status: 201,
+        message: 'Trabajo de limpieza de audio procesado exitosamente.',
+        data: job,
+      });
+    } catch (err: any) {
+      console.error('Create audio cleaning job error:', err);
+      res.status(500).json({
+        status: 500,
+        error: 'Internal Server Error',
+        message: 'Error al procesar la limpieza de audio.',
+      });
+    }
+  },
+);
+
+/**
+ * GET /api/v1/assets/:id/audio-cleaning
+ * Lists audio cleaning jobs for an asset (FC 022, OWASP A01/A04/A09).
+ */
+router.get(
+  '/:id/audio-cleaning',
+  audioCleaningRateLimiter,
+  requireAuth,
+  validate(listAudioCleaningQuerySchema, 'query'),
+  async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+    try {
+      const tenantId = Number(req.user!.tenantId);
+      const actorId = Number(req.user!.userId);
+      const assetId = parseInt(String(req.params.id), 10);
+      const actor: AclActor = { id: actorId, role: String(req.user!.role), tenantId };
+
+      if (isNaN(assetId) || assetId <= 0) {
+        res.status(400).json({ status: 400, error: 'Bad Request', message: 'ID de activo inválido.' });
+        return;
+      }
+
+      // Check asset in tenant
+      const assetRows: any[] = await query(
+        'SELECT id FROM assets WHERE id = ? AND tenant_id = ? AND deleted_at IS NULL',
+        [assetId, tenantId],
+      );
+
+      if (!assetRows.length) {
+        res.status(404).json({ status: 404, error: 'Not Found', message: 'Activo digital no encontrado.' });
+        return;
+      }
+
+      // ACL check: VIEW permission required
+      const evalResult = await evaluateAclPermission(actor, 'ASSET', assetId, 'VIEW');
+      if (!evalResult.allowed) {
+        res.status(403).json({
+          status: 403,
+          error: 'Forbidden',
+          message: 'Acceso denegado por política de control de acceso (ACL) para consultar tareas de limpieza.',
+        });
+        return;
+      }
+
+      const { limit, offset, profile } = req.query as any;
+      const jobs = await listAudioCleaningJobs(
+        tenantId,
+        assetId,
+        Number(limit),
+        Number(offset),
+        profile as string | undefined,
+      );
+
+      res.status(200).json({
+        status: 200,
+        message: 'Tareas de limpieza de audio recuperadas exitosamente.',
+        data: jobs,
+      });
+    } catch (err: any) {
+      console.error('List audio cleaning jobs error:', err);
+      res.status(500).json({
+        status: 500,
+        error: 'Internal Server Error',
+        message: 'Error al consultar las tareas de limpieza de audio.',
+      });
+    }
+  },
+);
+
+/**
+ * GET /api/v1/assets/:id/audio-cleaning/:jobId
+ * Gets details of a specific audio cleaning job (FC 022, OWASP A01/A04/A09).
+ */
+router.get(
+  '/:id/audio-cleaning/:jobId',
+  audioCleaningRateLimiter,
+  requireAuth,
+  async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+    try {
+      const tenantId = Number(req.user!.tenantId);
+      const actorId = Number(req.user!.userId);
+      const assetId = parseInt(String(req.params.id), 10);
+      const jobId = parseInt(String(req.params.jobId), 10);
+      const actor: AclActor = { id: actorId, role: String(req.user!.role), tenantId };
+
+      if (isNaN(assetId) || assetId <= 0 || isNaN(jobId) || jobId <= 0) {
+        res.status(400).json({ status: 400, error: 'Bad Request', message: 'Parámetros inválidos.' });
+        return;
+      }
+
+      // ACL check: VIEW permission required
+      const evalResult = await evaluateAclPermission(actor, 'ASSET', assetId, 'VIEW');
+      if (!evalResult.allowed) {
+        res.status(403).json({
+          status: 403,
+          error: 'Forbidden',
+          message: 'Acceso denegado por política de control de acceso (ACL) para consultar la tarea de limpieza.',
+        });
+        return;
+      }
+
+      const job = await getAudioCleaningJobById(tenantId, assetId, jobId);
+      if (!job) {
+        res.status(404).json({ status: 404, error: 'Not Found', message: 'Tarea de limpieza de audio no encontrada.' });
+        return;
+      }
+
+      res.status(200).json({
+        status: 200,
+        message: 'Detalle de la tarea de limpieza de audio recuperado exitosamente.',
+        data: job,
+      });
+    } catch (err: any) {
+      console.error('Get audio cleaning job detail error:', err);
+      res.status(500).json({
+        status: 500,
+        error: 'Internal Server Error',
+        message: 'Error al consultar el detalle de la tarea de limpieza de audio.',
+      });
+    }
+  },
+);
+
+/**
+ * DELETE /api/v1/assets/:id/audio-cleaning/:jobId
+ * Deletes an audio cleaning job and unlinks its derivative from disk (FC 022, OWASP A01/A04/A09).
+ */
+router.delete(
+  '/:id/audio-cleaning/:jobId',
+  audioCleaningRateLimiter,
+  requireAuth,
+  async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+    try {
+      const tenantId = Number(req.user!.tenantId);
+      const actorId = Number(req.user!.userId);
+      const assetId = parseInt(String(req.params.id), 10);
+      const jobId = parseInt(String(req.params.jobId), 10);
+      const actor: AclActor = { id: actorId, role: String(req.user!.role), tenantId };
+
+      if (isNaN(assetId) || assetId <= 0 || isNaN(jobId) || jobId <= 0) {
+        res.status(400).json({ status: 400, error: 'Bad Request', message: 'Parámetros inválidos.' });
+        return;
+      }
+
+      // ACL check: EDIT permission required
+      const evalResult = await evaluateAclPermission(actor, 'ASSET', assetId, 'EDIT');
+      if (!evalResult.allowed) {
+        res.status(403).json({
+          status: 403,
+          error: 'Forbidden',
+          message: 'Acceso denegado por política de control de acceso (ACL) para eliminar la tarea de limpieza.',
+        });
+        return;
+      }
+
+      const deleted = await deleteAudioCleaningJob(tenantId, assetId, jobId);
+      if (!deleted) {
+        res.status(404).json({ status: 404, error: 'Not Found', message: 'Tarea de limpieza de audio no encontrada.' });
+        return;
+      }
+
+      await logSecurityEvent(req, {
+        eventType: 'AUDIO_CLEANING_DELETED',
+        userId: actorId,
+        status: 'SUCCESS',
+        details: `Deleted audio cleaning job ID ${jobId} for asset ${assetId}`,
+      });
+
+      res.status(200).json({
+        status: 200,
+        message: 'Tarea de limpieza de audio eliminada exitosamente.',
+      });
+    } catch (err: any) {
+      console.error('Delete audio cleaning job error:', err);
+      res.status(500).json({
+        status: 500,
+        error: 'Internal Server Error',
+        message: 'Error al eliminar la tarea de limpieza de audio.',
       });
     }
   },
