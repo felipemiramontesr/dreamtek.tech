@@ -20,6 +20,7 @@ import {
   videoAiRateLimiter,
   videoHighlightsRateLimiter,
   audioCleaningRateLimiter,
+  subtitlesRateLimiter,
 } from '../middleware/rateLimiter';
 import { validate } from '../middleware/validate';
 import { createShareSchema } from '../schemas/share.schema';
@@ -59,6 +60,10 @@ import {
   createAudioCleaningBodySchema,
   listAudioCleaningQuerySchema,
 } from '../schemas/audioCleaning.schema';
+import {
+  createSubtitleBodySchema,
+  listSubtitlesQuerySchema,
+} from '../schemas/subtitle.schema';
 import { logSecurityEvent } from '../middleware/auditLogger';
 import { query } from '../db';
 import { validateMagicBytes } from '../utils/magicBytes';
@@ -103,6 +108,12 @@ import {
   getAudioCleaningJobById,
   deleteAudioCleaningJob,
 } from '../utils/audioCleaningEngine';
+import {
+  createAssetSubtitles,
+  listAssetSubtitles,
+  getAssetSubtitleById,
+  deleteAssetSubtitle,
+} from '../utils/subtitleEngine';
 import { dispatchWorkflowsForEvent } from '../utils/workflowEngine';
 import { recordAnalyticsEvent } from '../utils/analyticsEngine';
 import {
@@ -2166,6 +2177,287 @@ router.delete(
         status: 500,
         error: 'Internal Server Error',
         message: 'Error al eliminar la tarea de limpieza de audio.',
+      });
+    }
+  },
+);
+
+/**
+ * POST /api/v1/assets/:id/subtitles
+ * Generates or translates subtitles (SRT, VTT, JSON) for a video or audio asset (FC 023, OWASP A01/A04/A09).
+ */
+router.post(
+  '/:id/subtitles',
+  subtitlesRateLimiter,
+  requireAuth,
+  validate(createSubtitleBodySchema, 'body'),
+  async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+    try {
+      const tenantId = Number(req.user!.tenantId);
+      const actorId = Number(req.user!.userId);
+      const assetId = parseInt(String(req.params.id), 10);
+      const actor: AclActor = { id: actorId, role: String(req.user!.role), tenantId };
+
+      if (isNaN(assetId) || assetId <= 0) {
+        res.status(400).json({ status: 400, error: 'Bad Request', message: 'ID de activo inválido.' });
+        return;
+      }
+
+      // Check asset in tenant
+      const assetRows: any[] = await query(
+        'SELECT id, mime_type, current_version_id FROM assets WHERE id = ? AND tenant_id = ? AND deleted_at IS NULL',
+        [assetId, tenantId],
+      );
+
+      if (!assetRows.length) {
+        res.status(404).json({ status: 404, error: 'Not Found', message: 'Activo digital no encontrado.' });
+        return;
+      }
+
+      const asset = assetRows[0];
+      const mimeType = String(asset.mime_type);
+      if (!mimeType.startsWith('video/') && !mimeType.startsWith('audio/')) {
+        res.status(400).json({
+          status: 400,
+          error: 'Bad Request',
+          message: 'El activo especificado no es un archivo de video o audio compatible para generación de subtítulos.',
+        });
+        return;
+      }
+
+      // ACL check: EDIT permission required
+      const evalResult = await evaluateAclPermission(actor, 'ASSET', assetId, 'EDIT');
+      if (!evalResult.allowed) {
+        res.status(403).json({
+          status: 403,
+          error: 'Forbidden',
+          message: 'Acceso denegado por política de control de acceso (ACL) para generar subtítulos.',
+        });
+        return;
+      }
+
+      const versionId = Number(asset.current_version_id);
+      const { language_code, format, cues } = req.body;
+
+      const result = await createAssetSubtitles(
+        tenantId,
+        assetId,
+        versionId,
+        language_code,
+        format,
+        cues,
+      );
+
+      if (!result.success) {
+        res.status(400).json({
+          status: 400,
+          error: 'Bad Request',
+          message: result.message,
+        });
+        return;
+      }
+
+      await logSecurityEvent(req, {
+        eventType: 'SUBTITLE_CREATED',
+        userId: actorId,
+        status: 'SUCCESS',
+        details: `Created subtitles ID ${result.subtitle!.id} for asset ${assetId} (${language_code}, ${format})`,
+      });
+
+      res.status(201).json({
+        status: 201,
+        message: 'Pista de subtítulos generada exitosamente.',
+        data: result.subtitle,
+      });
+    } catch (err: any) {
+      console.error('Create subtitles error:', err);
+      res.status(500).json({
+        status: 500,
+        error: 'Internal Server Error',
+        message: 'Error al generar la pista de subtítulos.',
+      });
+    }
+  },
+);
+
+/**
+ * GET /api/v1/assets/:id/subtitles
+ * Lists subtitle tracks for an asset (FC 023, OWASP A01/A04/A09).
+ */
+router.get(
+  '/:id/subtitles',
+  subtitlesRateLimiter,
+  requireAuth,
+  validate(listSubtitlesQuerySchema, 'query'),
+  async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+    try {
+      const tenantId = Number(req.user!.tenantId);
+      const actorId = Number(req.user!.userId);
+      const assetId = parseInt(String(req.params.id), 10);
+      const actor: AclActor = { id: actorId, role: String(req.user!.role), tenantId };
+
+      if (isNaN(assetId) || assetId <= 0) {
+        res.status(400).json({ status: 400, error: 'Bad Request', message: 'ID de activo inválido.' });
+        return;
+      }
+
+      // Check asset in tenant
+      const assetRows: any[] = await query(
+        'SELECT id FROM assets WHERE id = ? AND tenant_id = ? AND deleted_at IS NULL',
+        [assetId, tenantId],
+      );
+
+      if (!assetRows.length) {
+        res.status(404).json({ status: 404, error: 'Not Found', message: 'Activo digital no encontrado.' });
+        return;
+      }
+
+      // ACL check: VIEW permission required
+      const evalResult = await evaluateAclPermission(actor, 'ASSET', assetId, 'VIEW');
+      if (!evalResult.allowed) {
+        res.status(403).json({
+          status: 403,
+          error: 'Forbidden',
+          message: 'Acceso denegado por política de control de acceso (ACL) para consultar subtítulos.',
+        });
+        return;
+      }
+
+      const { limit, offset, language_code, format } = req.query as any;
+      const subtitles = await listAssetSubtitles(
+        tenantId,
+        assetId,
+        Number(limit),
+        Number(offset),
+        language_code as string | undefined,
+        format as string | undefined,
+      );
+
+      res.status(200).json({
+        status: 200,
+        message: 'Pistas de subtítulos recuperadas exitosamente.',
+        data: subtitles,
+      });
+    } catch (err: any) {
+      console.error('List subtitles error:', err);
+      res.status(500).json({
+        status: 500,
+        error: 'Internal Server Error',
+        message: 'Error al consultar las pistas de subtítulos.',
+      });
+    }
+  },
+);
+
+/**
+ * GET /api/v1/assets/:id/subtitles/:subtitleId
+ * Gets details and cues of a specific subtitle track (FC 023, OWASP A01/A04/A09).
+ */
+router.get(
+  '/:id/subtitles/:subtitleId',
+  subtitlesRateLimiter,
+  requireAuth,
+  async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+    try {
+      const tenantId = Number(req.user!.tenantId);
+      const actorId = Number(req.user!.userId);
+      const assetId = parseInt(String(req.params.id), 10);
+      const subtitleId = parseInt(String(req.params.subtitleId), 10);
+      const actor: AclActor = { id: actorId, role: String(req.user!.role), tenantId };
+
+      if (isNaN(assetId) || assetId <= 0 || isNaN(subtitleId) || subtitleId <= 0) {
+        res.status(400).json({ status: 400, error: 'Bad Request', message: 'Parámetros inválidos.' });
+        return;
+      }
+
+      // ACL check: VIEW permission required
+      const evalResult = await evaluateAclPermission(actor, 'ASSET', assetId, 'VIEW');
+      if (!evalResult.allowed) {
+        res.status(403).json({
+          status: 403,
+          error: 'Forbidden',
+          message: 'Acceso denegado por política de control de acceso (ACL) para consultar el subtítulo.',
+        });
+        return;
+      }
+
+      const subtitle = await getAssetSubtitleById(tenantId, assetId, subtitleId);
+      if (!subtitle) {
+        res.status(404).json({ status: 404, error: 'Not Found', message: 'Pista de subtítulos no encontrada.' });
+        return;
+      }
+
+      res.status(200).json({
+        status: 200,
+        message: 'Detalle de la pista de subtítulos recuperado exitosamente.',
+        data: subtitle,
+      });
+    } catch (err: any) {
+      console.error('Get subtitle detail error:', err);
+      res.status(500).json({
+        status: 500,
+        error: 'Internal Server Error',
+        message: 'Error al consultar el detalle de la pista de subtítulos.',
+      });
+    }
+  },
+);
+
+/**
+ * DELETE /api/v1/assets/:id/subtitles/:subtitleId
+ * Deletes a subtitle track and unlinks its derivative file (FC 023, OWASP A01/A04/A09).
+ */
+router.delete(
+  '/:id/subtitles/:subtitleId',
+  subtitlesRateLimiter,
+  requireAuth,
+  async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+    try {
+      const tenantId = Number(req.user!.tenantId);
+      const actorId = Number(req.user!.userId);
+      const assetId = parseInt(String(req.params.id), 10);
+      const subtitleId = parseInt(String(req.params.subtitleId), 10);
+      const actor: AclActor = { id: actorId, role: String(req.user!.role), tenantId };
+
+      if (isNaN(assetId) || assetId <= 0 || isNaN(subtitleId) || subtitleId <= 0) {
+        res.status(400).json({ status: 400, error: 'Bad Request', message: 'Parámetros inválidos.' });
+        return;
+      }
+
+      // ACL check: EDIT permission required
+      const evalResult = await evaluateAclPermission(actor, 'ASSET', assetId, 'EDIT');
+      if (!evalResult.allowed) {
+        res.status(403).json({
+          status: 403,
+          error: 'Forbidden',
+          message: 'Acceso denegado por política de control de acceso (ACL) para eliminar la pista de subtítulos.',
+        });
+        return;
+      }
+
+      const deleted = await deleteAssetSubtitle(tenantId, assetId, subtitleId);
+      if (!deleted) {
+        res.status(404).json({ status: 404, error: 'Not Found', message: 'Pista de subtítulos no encontrada.' });
+        return;
+      }
+
+      await logSecurityEvent(req, {
+        eventType: 'SUBTITLE_DELETED',
+        userId: actorId,
+        status: 'SUCCESS',
+        details: `Deleted subtitle track ID ${subtitleId} for asset ${assetId}`,
+      });
+
+      res.status(200).json({
+        status: 200,
+        message: 'Pista de subtítulos eliminada exitosamente.',
+      });
+    } catch (err: any) {
+      console.error('Delete subtitle error:', err);
+      res.status(500).json({
+        status: 500,
+        error: 'Internal Server Error',
+        message: 'Error al eliminar la pista de subtítulos.',
       });
     }
   },
