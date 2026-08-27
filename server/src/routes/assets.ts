@@ -23,6 +23,7 @@ import {
   subtitlesRateLimiter,
   smartCropRateLimiter,
   imageEnhancementRateLimiter,
+  backgroundReplacementRateLimiter,
 } from '../middleware/rateLimiter';
 import { validate } from '../middleware/validate';
 import { createShareSchema } from '../schemas/share.schema';
@@ -74,6 +75,10 @@ import {
   createImageEnhancementBodySchema,
   listImageEnhancementsQuerySchema,
 } from '../schemas/imageEnhancement.schema';
+import {
+  createBackgroundReplacementBodySchema,
+  listBackgroundReplacementsQuerySchema,
+} from '../schemas/backgroundReplacement.schema';
 import { logSecurityEvent } from '../middleware/auditLogger';
 import { query } from '../db';
 import { validateMagicBytes } from '../utils/magicBytes';
@@ -136,6 +141,12 @@ import {
   getAssetImageEnhancementById,
   deleteAssetImageEnhancement,
 } from '../utils/imageEnhancementEngine';
+import {
+  createAssetBackgroundReplacement,
+  listAssetBackgroundReplacements,
+  getAssetBackgroundReplacementById,
+  deleteAssetBackgroundReplacement,
+} from '../utils/backgroundReplacementEngine';
 import { dispatchWorkflowsForEvent } from '../utils/workflowEngine';
 import { recordAnalyticsEvent } from '../utils/analyticsEngine';
 import {
@@ -3050,6 +3061,282 @@ router.delete(
     }
   },
 );
+
+/**
+ * POST /api/v1/assets/:id/background-replace
+ * Generates an automated background replacement or inpaint derivative for a raster image (FC 026, OWASP A01/A04/A07/A09).
+ */
+router.post(
+  '/:id/background-replace',
+  backgroundReplacementRateLimiter,
+  requireAuth,
+  validate(createBackgroundReplacementBodySchema, 'body'),
+  async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+    try {
+      const tenantId = Number(req.user!.tenantId);
+      const actorId = Number(req.user!.userId);
+      const assetId = parseInt(String(req.params.id), 10);
+      const actor: AclActor = { id: actorId, role: String(req.user!.role), tenantId };
+
+      if (isNaN(assetId) || assetId <= 0) {
+        res.status(400).json({ status: 400, error: 'Bad Request', message: 'ID de activo inválido.' });
+        return;
+      }
+
+      // Verify asset exists and belongs to tenant
+      const assetRows = (await query(
+        `SELECT id, mime_type, current_version_id FROM assets WHERE id = ? AND tenant_id = ? LIMIT 1`,
+        [assetId, tenantId],
+      )) as any[];
+
+      if (!assetRows || assetRows.length === 0) {
+        res.status(404).json({ status: 404, error: 'Not Found', message: 'Activo digital no encontrado.' });
+        return;
+      }
+
+      const asset = assetRows[0];
+
+      // ACL check: EDIT permission required
+      const evalResult = await evaluateAclPermission(actor, 'ASSET', assetId, 'EDIT');
+      if (!evalResult.allowed) {
+        res.status(403).json({
+          status: 403,
+          error: 'Forbidden',
+          message: 'Acceso denegado por política de control de acceso (ACL) para reemplazar el fondo del activo.',
+        });
+        return;
+      }
+
+      const { mode, preset, background_color_hex, threshold, inpaint_box } = req.body;
+
+      const result = await createAssetBackgroundReplacement(
+        tenantId,
+        assetId,
+        asset.current_version_id || 1,
+        mode,
+        preset,
+        {
+          background_color_hex,
+          threshold,
+          inpaint_box,
+        },
+      );
+
+      if (!result.success) {
+        res.status(result.statusCode).json({
+          status: result.statusCode,
+          error: result.statusCode === 404 ? 'Not Found' : 'Bad Request',
+          message: result.message,
+        });
+        return;
+      }
+
+      await logSecurityEvent(req, {
+        eventType: 'BACKGROUND_REPLACED',
+        userId: actorId,
+        status: 'SUCCESS',
+        details: `Created background replacement derivative ID ${result.replacement.id} for asset ${assetId} (mode ${result.replacement.mode}, preset ${result.replacement.preset})`,
+      });
+
+      res.status(201).json({
+        status: 201,
+        message: 'Reemplazo de fondo generado exitosamente.',
+        data: result.replacement,
+      });
+    } catch (err: any) {
+      console.error('Create background replacement error:', err);
+      res.status(500).json({
+        status: 500,
+        error: 'Internal Server Error',
+        message: 'Error al generar el reemplazo de fondo de la imagen.',
+      });
+    }
+  },
+);
+
+/**
+ * GET /api/v1/assets/:id/background-replacements
+ * Lists generated background replacement derivatives for an asset (FC 026, OWASP A01/A04/A09).
+ */
+router.get(
+  '/:id/background-replacements',
+  backgroundReplacementRateLimiter,
+  requireAuth,
+  validate(listBackgroundReplacementsQuerySchema, 'query'),
+  async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+    try {
+      const tenantId = Number(req.user!.tenantId);
+      const actorId = Number(req.user!.userId);
+      const assetId = parseInt(String(req.params.id), 10);
+      const actor: AclActor = { id: actorId, role: String(req.user!.role), tenantId };
+
+      if (isNaN(assetId) || assetId <= 0) {
+        res.status(400).json({ status: 400, error: 'Bad Request', message: 'ID de activo inválido.' });
+        return;
+      }
+
+      // Verify asset exists in tenant
+      const assetRows = (await query(
+        `SELECT id FROM assets WHERE id = ? AND tenant_id = ? LIMIT 1`,
+        [assetId, tenantId],
+      )) as any[];
+
+      if (!assetRows || assetRows.length === 0) {
+        res.status(404).json({ status: 404, error: 'Not Found', message: 'Activo digital no encontrado.' });
+        return;
+      }
+
+      // ACL check: VIEW permission required
+      const evalResult = await evaluateAclPermission(actor, 'ASSET', assetId, 'VIEW');
+      if (!evalResult.allowed) {
+        res.status(403).json({
+          status: 403,
+          error: 'Forbidden',
+          message: 'Acceso denegado por política de control de acceso (ACL) para consultar reemplazos de fondo.',
+        });
+        return;
+      }
+
+      const { limit, offset, mode, preset } = req.query as any;
+      const replacements = await listAssetBackgroundReplacements(
+        tenantId,
+        assetId,
+        Number(limit),
+        Number(offset),
+        mode as any,
+        preset as any,
+      );
+
+      res.status(200).json({
+        status: 200,
+        message: 'Reemplazos de fondo recuperados exitosamente.',
+        data: replacements,
+      });
+    } catch (err: any) {
+      console.error('List background replacements error:', err);
+      res.status(500).json({
+        status: 500,
+        error: 'Internal Server Error',
+        message: 'Error al consultar los reemplazos de fondo.',
+      });
+    }
+  },
+);
+
+/**
+ * GET /api/v1/assets/:id/background-replacements/:replacementId
+ * Gets details of a specific background replacement derivative (FC 026, OWASP A01/A04/A09).
+ */
+router.get(
+  '/:id/background-replacements/:replacementId',
+  backgroundReplacementRateLimiter,
+  requireAuth,
+  async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+    try {
+      const tenantId = Number(req.user!.tenantId);
+      const actorId = Number(req.user!.userId);
+      const assetId = parseInt(String(req.params.id), 10);
+      const replacementId = parseInt(String(req.params.replacementId), 10);
+      const actor: AclActor = { id: actorId, role: String(req.user!.role), tenantId };
+
+      if (isNaN(assetId) || assetId <= 0 || isNaN(replacementId) || replacementId <= 0) {
+        res.status(400).json({ status: 400, error: 'Bad Request', message: 'Parámetros inválidos.' });
+        return;
+      }
+
+      // ACL check: VIEW permission required
+      const evalResult = await evaluateAclPermission(actor, 'ASSET', assetId, 'VIEW');
+      if (!evalResult.allowed) {
+        res.status(403).json({
+          status: 403,
+          error: 'Forbidden',
+          message: 'Acceso denegado por política de control de acceso (ACL) para consultar el reemplazo de fondo.',
+        });
+        return;
+      }
+
+      const replacement = await getAssetBackgroundReplacementById(tenantId, assetId, replacementId);
+      if (!replacement) {
+        res.status(404).json({ status: 404, error: 'Not Found', message: 'Reemplazo de fondo no encontrado.' });
+        return;
+      }
+
+      res.status(200).json({
+        status: 200,
+        message: 'Detalle del reemplazo de fondo recuperado exitosamente.',
+        data: replacement,
+      });
+    } catch (err: any) {
+      console.error('Get background replacement detail error:', err);
+      res.status(500).json({
+        status: 500,
+        error: 'Internal Server Error',
+        message: 'Error al consultar el detalle del reemplazo de fondo.',
+      });
+    }
+  },
+);
+
+/**
+ * DELETE /api/v1/assets/:id/background-replacements/:replacementId
+ * Deletes a background replacement derivative and unlinks its file from disk (FC 026, OWASP A01/A04/A09).
+ */
+router.delete(
+  '/:id/background-replacements/:replacementId',
+  backgroundReplacementRateLimiter,
+  requireAuth,
+  async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+    try {
+      const tenantId = Number(req.user!.tenantId);
+      const actorId = Number(req.user!.userId);
+      const assetId = parseInt(String(req.params.id), 10);
+      const replacementId = parseInt(String(req.params.replacementId), 10);
+      const actor: AclActor = { id: actorId, role: String(req.user!.role), tenantId };
+
+      if (isNaN(assetId) || assetId <= 0 || isNaN(replacementId) || replacementId <= 0) {
+        res.status(400).json({ status: 400, error: 'Bad Request', message: 'Parámetros inválidos.' });
+        return;
+      }
+
+      // ACL check: EDIT permission required
+      const evalResult = await evaluateAclPermission(actor, 'ASSET', assetId, 'EDIT');
+      if (!evalResult.allowed) {
+        res.status(403).json({
+          status: 403,
+          error: 'Forbidden',
+          message: 'Acceso denegado por política de control de acceso (ACL) para eliminar el reemplazo de fondo.',
+        });
+        return;
+      }
+
+      const deleted = await deleteAssetBackgroundReplacement(tenantId, assetId, replacementId);
+      if (!deleted) {
+        res.status(404).json({ status: 404, error: 'Not Found', message: 'Reemplazo de fondo no encontrado.' });
+        return;
+      }
+
+      await logSecurityEvent(req, {
+        eventType: 'BACKGROUND_REPLACEMENT_DELETED',
+        userId: actorId,
+        status: 'SUCCESS',
+        details: `Deleted background replacement derivative ID ${replacementId} for asset ${assetId}`,
+      });
+
+      res.status(200).json({
+        status: 200,
+        message: 'Reemplazo de fondo eliminado exitosamente.',
+      });
+    } catch (err: any) {
+      console.error('Delete background replacement error:', err);
+      res.status(500).json({
+        status: 500,
+        error: 'Internal Server Error',
+        message: 'Error al eliminar el reemplazo de fondo.',
+      });
+    }
+  },
+);
+
 
 
 /**
