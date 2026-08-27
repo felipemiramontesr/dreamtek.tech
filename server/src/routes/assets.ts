@@ -24,6 +24,7 @@ import {
   smartCropRateLimiter,
   imageEnhancementRateLimiter,
   backgroundReplacementRateLimiter,
+  faceBlurringRateLimiter,
 } from '../middleware/rateLimiter';
 import { validate } from '../middleware/validate';
 import { createShareSchema } from '../schemas/share.schema';
@@ -79,6 +80,10 @@ import {
   createBackgroundReplacementBodySchema,
   listBackgroundReplacementsQuerySchema,
 } from '../schemas/backgroundReplacement.schema';
+import {
+  createFaceBlurringBodySchema,
+  listFaceBlurringsQuerySchema,
+} from '../schemas/faceBlurring.schema';
 import { logSecurityEvent } from '../middleware/auditLogger';
 import { query } from '../db';
 import { validateMagicBytes } from '../utils/magicBytes';
@@ -147,6 +152,12 @@ import {
   getAssetBackgroundReplacementById,
   deleteAssetBackgroundReplacement,
 } from '../utils/backgroundReplacementEngine';
+import {
+  createAssetFaceBlurring,
+  listAssetFaceBlurrings,
+  getAssetFaceBlurringById,
+  deleteAssetFaceBlurring,
+} from '../utils/faceBlurringEngine';
 import { dispatchWorkflowsForEvent } from '../utils/workflowEngine';
 import { recordAnalyticsEvent } from '../utils/analyticsEngine';
 import {
@@ -3332,6 +3343,268 @@ router.delete(
         status: 500,
         error: 'Internal Server Error',
         message: 'Error al eliminar el reemplazo de fondo.',
+      });
+    }
+  },
+);
+
+/**
+ * POST /api/v1/assets/:id/anonymize
+ * Generates an anonymized image derivative with face/ROI blurring, pixelation, or censoring (FC 027, OWASP A01/A03/A04/A07).
+ */
+router.post(
+  '/:id/anonymize',
+  faceBlurringRateLimiter,
+  requireAuth,
+  validate(createFaceBlurringBodySchema, 'body'),
+  async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+    try {
+      const tenantId = Number(req.user!.tenantId);
+      const actorId = Number(req.user!.userId);
+      const assetId = parseInt(String(req.params.id), 10);
+      const actor: AclActor = { id: actorId, role: String(req.user!.role), tenantId };
+
+      if (isNaN(assetId) || assetId <= 0) {
+        res.status(400).json({ status: 400, error: 'Bad Request', message: 'ID de activo inválido.' });
+        return;
+      }
+
+      // Verify asset exists in tenant
+      const assetRows = (await query(
+        `SELECT id, current_version_id, mime_type FROM assets WHERE id = ? AND tenant_id = ? LIMIT 1`,
+        [assetId, tenantId],
+      )) as any[];
+
+      if (!assetRows || assetRows.length === 0) {
+        res.status(404).json({ status: 404, error: 'Not Found', message: 'Activo digital no encontrado.' });
+        return;
+      }
+
+      // ACL check: EDIT permission required
+      const evalResult = await evaluateAclPermission(actor, 'ASSET', assetId, 'EDIT');
+      if (!evalResult.allowed) {
+        res.status(403).json({
+          status: 403,
+          error: 'Forbidden',
+          message: 'Acceso denegado por política de control de acceso (ACL) para anonimizar el activo.',
+        });
+        return;
+      }
+
+      const versionId = Number(assetRows[0].current_version_id) || 1;
+      const input = req.body;
+
+      const result = await createAssetFaceBlurring(tenantId, assetId, versionId, input);
+
+      if (!result.success) {
+        res.status(result.statusCode).json({
+          status: result.statusCode,
+          error: result.statusCode === 404 ? 'Not Found' : 'Bad Request',
+          message: result.message,
+        });
+        return;
+      }
+
+      await logSecurityEvent(req, {
+        eventType: 'ASSET_ANONYMIZED',
+        userId: actorId,
+        status: 'SUCCESS',
+        details: `Created face blurring / anonymization derivative for asset ${assetId}, strategy ${input.strategy}`,
+      });
+
+      res.status(201).json({
+        status: 201,
+        message: 'Derivada de anonimización visual creada exitosamente.',
+        data: result.anonymization,
+      });
+    } catch (err: any) {
+      console.error('Create face blurring error:', err);
+      res.status(500).json({
+        status: 500,
+        error: 'Internal Server Error',
+        message: 'Error al procesar la anonimización visual del activo.',
+      });
+    }
+  },
+);
+
+/**
+ * GET /api/v1/assets/:id/anonymizations
+ * Lists all anonymization derivatives for an asset (FC 027, OWASP A01/A04/A09).
+ */
+router.get(
+  '/:id/anonymizations',
+  faceBlurringRateLimiter,
+  requireAuth,
+  validate(listFaceBlurringsQuerySchema, 'query'),
+  async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+    try {
+      const tenantId = Number(req.user!.tenantId);
+      const actorId = Number(req.user!.userId);
+      const assetId = parseInt(String(req.params.id), 10);
+      const actor: AclActor = { id: actorId, role: String(req.user!.role), tenantId };
+
+      if (isNaN(assetId) || assetId <= 0) {
+        res.status(400).json({ status: 400, error: 'Bad Request', message: 'ID de activo inválido.' });
+        return;
+      }
+
+      // Verify asset exists in tenant
+      const assetRows = (await query(
+        `SELECT id FROM assets WHERE id = ? AND tenant_id = ? LIMIT 1`,
+        [assetId, tenantId],
+      )) as any[];
+
+      if (!assetRows || assetRows.length === 0) {
+        res.status(404).json({ status: 404, error: 'Not Found', message: 'Activo digital no encontrado.' });
+        return;
+      }
+
+      // ACL check: VIEW permission required
+      const evalResult = await evaluateAclPermission(actor, 'ASSET', assetId, 'VIEW');
+      if (!evalResult.allowed) {
+        res.status(403).json({
+          status: 403,
+          error: 'Forbidden',
+          message: 'Acceso denegado por política de control de acceso (ACL) para consultar anonimizaciones.',
+        });
+        return;
+      }
+
+      const { limit, offset, strategy } = req.query as any;
+      const anonymizations = await listAssetFaceBlurrings(
+        tenantId,
+        assetId,
+        Number(limit),
+        Number(offset),
+        strategy,
+      );
+
+      res.status(200).json({
+        status: 200,
+        message: 'Derivadas de anonimización recuperadas exitosamente.',
+        data: anonymizations,
+      });
+    } catch (err: any) {
+      console.error('List face blurrings error:', err);
+      res.status(500).json({
+        status: 500,
+        error: 'Internal Server Error',
+        message: 'Error al consultar las anonimizaciones visuales.',
+      });
+    }
+  },
+);
+
+/**
+ * GET /api/v1/assets/:id/anonymizations/:anonymizationId
+ * Gets details of a specific anonymization derivative (FC 027, OWASP A01/A04/A09).
+ */
+router.get(
+  '/:id/anonymizations/:anonymizationId',
+  faceBlurringRateLimiter,
+  requireAuth,
+  async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+    try {
+      const tenantId = Number(req.user!.tenantId);
+      const actorId = Number(req.user!.userId);
+      const assetId = parseInt(String(req.params.id), 10);
+      const anonymizationId = parseInt(String(req.params.anonymizationId), 10);
+      const actor: AclActor = { id: actorId, role: String(req.user!.role), tenantId };
+
+      if (isNaN(assetId) || assetId <= 0 || isNaN(anonymizationId) || anonymizationId <= 0) {
+        res.status(400).json({ status: 400, error: 'Bad Request', message: 'Parámetros inválidos.' });
+        return;
+      }
+
+      // ACL check: VIEW permission required
+      const evalResult = await evaluateAclPermission(actor, 'ASSET', assetId, 'VIEW');
+      if (!evalResult.allowed) {
+        res.status(403).json({
+          status: 403,
+          error: 'Forbidden',
+          message: 'Acceso denegado por política de control de acceso (ACL) para consultar la anonimización.',
+        });
+        return;
+      }
+
+      const anonymization = await getAssetFaceBlurringById(tenantId, assetId, anonymizationId);
+      if (!anonymization) {
+        res.status(404).json({ status: 404, error: 'Not Found', message: 'Anonimización no encontrada.' });
+        return;
+      }
+
+      res.status(200).json({
+        status: 200,
+        message: 'Detalle de anonimización recuperado exitosamente.',
+        data: anonymization,
+      });
+    } catch (err: any) {
+      console.error('Get face blurring detail error:', err);
+      res.status(500).json({
+        status: 500,
+        error: 'Internal Server Error',
+        message: 'Error al consultar el detalle de la anonimización.',
+      });
+    }
+  },
+);
+
+/**
+ * DELETE /api/v1/assets/:id/anonymizations/:anonymizationId
+ * Deletes an anonymization derivative and unlinks its physical file from disk (FC 027, OWASP A01/A04/A09).
+ */
+router.delete(
+  '/:id/anonymizations/:anonymizationId',
+  faceBlurringRateLimiter,
+  requireAuth,
+  async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+    try {
+      const tenantId = Number(req.user!.tenantId);
+      const actorId = Number(req.user!.userId);
+      const assetId = parseInt(String(req.params.id), 10);
+      const anonymizationId = parseInt(String(req.params.anonymizationId), 10);
+      const actor: AclActor = { id: actorId, role: String(req.user!.role), tenantId };
+
+      if (isNaN(assetId) || assetId <= 0 || isNaN(anonymizationId) || anonymizationId <= 0) {
+        res.status(400).json({ status: 400, error: 'Bad Request', message: 'Parámetros inválidos.' });
+        return;
+      }
+
+      // ACL check: EDIT permission required
+      const evalResult = await evaluateAclPermission(actor, 'ASSET', assetId, 'EDIT');
+      if (!evalResult.allowed) {
+        res.status(403).json({
+          status: 403,
+          error: 'Forbidden',
+          message: 'Acceso denegado por política de control de acceso (ACL) para eliminar la anonimización.',
+        });
+        return;
+      }
+
+      const deleted = await deleteAssetFaceBlurring(tenantId, assetId, anonymizationId);
+      if (!deleted) {
+        res.status(404).json({ status: 404, error: 'Not Found', message: 'Anonimización no encontrada.' });
+        return;
+      }
+
+      await logSecurityEvent(req, {
+        eventType: 'ASSET_ANONYMIZATION_DELETED',
+        userId: actorId,
+        status: 'SUCCESS',
+        details: `Deleted face blurring derivative ID ${anonymizationId} for asset ${assetId}`,
+      });
+
+      res.status(200).json({
+        status: 200,
+        message: 'Anonimización visual eliminada exitosamente.',
+      });
+    } catch (err: any) {
+      console.error('Delete face blurring error:', err);
+      res.status(500).json({
+        status: 500,
+        error: 'Internal Server Error',
+        message: 'Error al eliminar la anonimización visual.',
       });
     }
   },
