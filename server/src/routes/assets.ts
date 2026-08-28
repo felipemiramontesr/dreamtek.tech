@@ -30,6 +30,7 @@ import {
   watermarkRateLimiter,
   bannerAdaptationRateLimiter,
   videoTranscodingRateLimiter,
+  videoThumbnailRateLimiter,
 } from '../middleware/rateLimiter';
 import { validate } from '../middleware/validate';
 import { createShareSchema } from '../schemas/share.schema';
@@ -110,6 +111,11 @@ import {
   listVideoTranscodingsQuerySchema,
   streamFileParamSchema,
 } from '../schemas/videoTranscoding.schema';
+import {
+  createVideoThumbnailBodySchema,
+  listVideoThumbnailsQuerySchema,
+  videoThumbnailParamSchema,
+} from '../schemas/videoThumbnail.schema';
 import { logSecurityEvent } from '../middleware/auditLogger';
 import { query } from '../db';
 import { validateMagicBytes } from '../utils/magicBytes';
@@ -215,6 +221,12 @@ import {
   deleteAssetVideoTranscoding,
   getTranscodingStreamFilePath,
 } from '../utils/videoTranscodingEngine';
+import {
+  createAssetVideoThumbnail,
+  listAssetVideoThumbnails,
+  getAssetVideoThumbnailById,
+  deleteAssetVideoThumbnail,
+} from '../utils/videoThumbnailEngine';
 import { dispatchWorkflowsForEvent } from '../utils/workflowEngine';
 import { recordAnalyticsEvent } from '../utils/analyticsEngine';
 import {
@@ -5043,6 +5055,269 @@ router.get(
     }
   },
 );
+
+/**
+ * POST /api/v1/assets/:id/video-thumbnail
+ * Generates a static poster or animated preview (GIF/WebP/VTT) (FC 033, OWASP A01/A03/A04/A09).
+ */
+router.post(
+  '/:id/video-thumbnail',
+  videoThumbnailRateLimiter,
+  requireAuth,
+  validate(createVideoThumbnailBodySchema, 'body'),
+  async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+    try {
+      const tenantId = Number(req.user!.tenantId);
+      const actorId = Number(req.user!.userId);
+      const assetId = parseInt(String(req.params.id), 10);
+      const actor: AclActor = { id: actorId, role: String(req.user!.role), tenantId };
+
+      if (isNaN(assetId) || assetId <= 0) {
+        res.status(400).json({ status: 400, error: 'Bad Request', message: 'ID de activo inválido.' });
+        return;
+      }
+
+      // Verify asset exists in tenant
+      const assetRows = (await query(
+        `SELECT id, current_version_id, mime_type FROM assets WHERE id = ? AND tenant_id = ? LIMIT 1`,
+        [assetId, tenantId],
+      )) as any[];
+
+      if (!assetRows || assetRows.length === 0) {
+        res.status(404).json({ status: 404, error: 'Not Found', message: 'Activo digital no encontrado.' });
+        return;
+      }
+
+      // ACL check: EDIT permission required
+      const evalResult = await evaluateAclPermission(actor, 'ASSET', assetId, 'EDIT');
+      if (!evalResult.allowed) {
+        res.status(403).json({
+          status: 403,
+          error: 'Forbidden',
+          message: 'Acceso denegado por política de control de acceso (ACL) para generar miniaturas de este video.',
+        });
+        return;
+      }
+
+      const versionId = Number(assetRows[0].current_version_id) || 1;
+      const input = req.body;
+
+      const result = await createAssetVideoThumbnail(tenantId, assetId, versionId, input);
+
+      if (!result.success) {
+        res.status(result.statusCode).json({
+          status: result.statusCode,
+          error: result.statusCode === 404 ? 'Not Found' : 'Bad Request',
+          message: result.message,
+        });
+        return;
+      }
+
+      await logSecurityEvent(req, {
+        eventType: 'ASSET_VIDEO_THUMBNAIL_CREATED',
+        userId: actorId,
+        status: 'SUCCESS',
+        details: `Generated video thumbnail for asset ${assetId}, type ${input.thumbnail_type}`,
+      });
+
+      res.status(201).json({
+        status: 201,
+        message: 'Miniatura o vista previa de video generada exitosamente.',
+        data: result.thumbnail,
+      });
+    } catch (err: any) {
+      console.error('Create video thumbnail error:', err);
+      res.status(500).json({
+        status: 500,
+        error: 'Internal Server Error',
+        message: 'Error al generar la miniatura o vista previa de video.',
+      });
+    }
+  },
+);
+
+/**
+ * GET /api/v1/assets/:id/video-thumbnails
+ * Lists all video thumbnails and animated previews for an asset (FC 033, OWASP A01/A04/A09).
+ */
+router.get(
+  '/:id/video-thumbnails',
+  videoThumbnailRateLimiter,
+  requireAuth,
+  validate(listVideoThumbnailsQuerySchema, 'query'),
+  async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+    try {
+      const tenantId = Number(req.user!.tenantId);
+      const actorId = Number(req.user!.userId);
+      const assetId = parseInt(String(req.params.id), 10);
+      const actor: AclActor = { id: actorId, role: String(req.user!.role), tenantId };
+
+      if (isNaN(assetId) || assetId <= 0) {
+        res.status(400).json({ status: 400, error: 'Bad Request', message: 'ID de activo inválido.' });
+        return;
+      }
+
+      // Verify asset exists in tenant
+      const assetRows = (await query(
+        `SELECT id FROM assets WHERE id = ? AND tenant_id = ? LIMIT 1`,
+        [assetId, tenantId],
+      )) as any[];
+
+      if (!assetRows || assetRows.length === 0) {
+        res.status(404).json({ status: 404, error: 'Not Found', message: 'Activo digital no encontrado.' });
+        return;
+      }
+
+      // ACL check: VIEW permission required
+      const evalResult = await evaluateAclPermission(actor, 'ASSET', assetId, 'VIEW');
+      if (!evalResult.allowed) {
+        res.status(403).json({
+          status: 403,
+          error: 'Forbidden',
+          message: 'Acceso denegado por política de control de acceso (ACL) para consultar miniaturas.',
+        });
+        return;
+      }
+
+      const { limit, offset, thumbnail_type } = req.query as any;
+      const thumbnails = await listAssetVideoThumbnails(
+        tenantId,
+        assetId,
+        Number(limit),
+        Number(offset),
+        thumbnail_type,
+      );
+
+      res.status(200).json({
+        status: 200,
+        message: 'Miniaturas y vistas previas de video recuperadas exitosamente.',
+        data: thumbnails,
+      });
+    } catch (err: any) {
+      console.error('List video thumbnails error:', err);
+      res.status(500).json({
+        status: 500,
+        error: 'Internal Server Error',
+        message: 'Error al listar las miniaturas de video del activo.',
+      });
+    }
+  },
+);
+
+/**
+ * GET /api/v1/assets/:id/video-thumbnails/:thumbnailId
+ * Gets details of a specific video thumbnail or animated preview (FC 033, OWASP A01/A04/A09).
+ */
+router.get(
+  '/:id/video-thumbnails/:thumbnailId',
+  videoThumbnailRateLimiter,
+  requireAuth,
+  async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+    try {
+      const tenantId = Number(req.user!.tenantId);
+      const actorId = Number(req.user!.userId);
+      const assetId = parseInt(String(req.params.id), 10);
+      const thumbnailId = parseInt(String(req.params.thumbnailId), 10);
+      const actor: AclActor = { id: actorId, role: String(req.user!.role), tenantId };
+
+      if (isNaN(assetId) || assetId <= 0 || isNaN(thumbnailId) || thumbnailId <= 0) {
+        res.status(400).json({ status: 400, error: 'Bad Request', message: 'Parámetros inválidos.' });
+        return;
+      }
+
+      // ACL check: VIEW permission required
+      const evalResult = await evaluateAclPermission(actor, 'ASSET', assetId, 'VIEW');
+      if (!evalResult.allowed) {
+        res.status(403).json({
+          status: 403,
+          error: 'Forbidden',
+          message: 'Acceso denegado por política de control de acceso (ACL) para consultar la miniatura.',
+        });
+        return;
+      }
+
+      const thumbnail = await getAssetVideoThumbnailById(tenantId, assetId, thumbnailId);
+      if (!thumbnail) {
+        res.status(404).json({ status: 404, error: 'Not Found', message: 'Miniatura de video no encontrada.' });
+        return;
+      }
+
+      res.status(200).json({
+        status: 200,
+        message: 'Detalle de miniatura de video recuperado exitosamente.',
+        data: thumbnail,
+      });
+    } catch (err: any) {
+      console.error('Get video thumbnail detail error:', err);
+      res.status(500).json({
+        status: 500,
+        error: 'Internal Server Error',
+        message: 'Error al consultar el detalle de la miniatura de video.',
+      });
+    }
+  },
+);
+
+/**
+ * DELETE /api/v1/assets/:id/video-thumbnails/:thumbnailId
+ * Deletes a video thumbnail and physically unlinks its file from storage (FC 033, OWASP A01/A04/A09).
+ */
+router.delete(
+  '/:id/video-thumbnails/:thumbnailId',
+  videoThumbnailRateLimiter,
+  requireAuth,
+  async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+    try {
+      const tenantId = Number(req.user!.tenantId);
+      const actorId = Number(req.user!.userId);
+      const assetId = parseInt(String(req.params.id), 10);
+      const thumbnailId = parseInt(String(req.params.thumbnailId), 10);
+      const actor: AclActor = { id: actorId, role: String(req.user!.role), tenantId };
+
+      if (isNaN(assetId) || assetId <= 0 || isNaN(thumbnailId) || thumbnailId <= 0) {
+        res.status(400).json({ status: 400, error: 'Bad Request', message: 'Parámetros inválidos.' });
+        return;
+      }
+
+      // ACL check: EDIT permission required
+      const evalResult = await evaluateAclPermission(actor, 'ASSET', assetId, 'EDIT');
+      if (!evalResult.allowed) {
+        res.status(403).json({
+          status: 403,
+          error: 'Forbidden',
+          message: 'Acceso denegado por política de control de acceso (ACL) para eliminar la miniatura.',
+        });
+        return;
+      }
+
+      const deleted = await deleteAssetVideoThumbnail(tenantId, assetId, thumbnailId);
+      if (!deleted) {
+        res.status(404).json({ status: 404, error: 'Not Found', message: 'Miniatura de video no encontrada.' });
+        return;
+      }
+
+      await logSecurityEvent(req, {
+        eventType: 'ASSET_VIDEO_THUMBNAIL_DELETED',
+        userId: actorId,
+        status: 'SUCCESS',
+        details: `Deleted video thumbnail ID ${thumbnailId} for asset ${assetId}`,
+      });
+
+      res.status(200).json({
+        status: 200,
+        message: 'Miniatura de video eliminada exitosamente.',
+      });
+    } catch (err: any) {
+      console.error('Delete video thumbnail error:', err);
+      res.status(500).json({
+        status: 500,
+        error: 'Internal Server Error',
+        message: 'Error al eliminar la miniatura de video.',
+      });
+    }
+  },
+);
+
 
 
 

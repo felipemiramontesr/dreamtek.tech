@@ -705,6 +705,26 @@ export const videoTranscodingRateLimiter = rateLimit({
   },
 });
 
+/**
+ * DAM AI Smart Video Thumbnail & Animated Preview Rate Limiter (OWASP A04)
+ * 30 requests per 1 minute window per IP
+ */
+export const videoThumbnailRateLimiter = rateLimit({
+  windowMs: 1 * 60 * 1000,
+  max: 30,
+  standardHeaders: true,
+  legacyHeaders: false,
+  handler: (_req: Request, res: Response) => {
+    res.status(429).json({
+      status: 429,
+      error: 'Too Many Requests',
+      message:
+        'Límite de operaciones de generación de miniaturas y vistas previas alcanzado. Intente nuevamente en un minuto.',
+    });
+  },
+});
+
+
 
 
 
