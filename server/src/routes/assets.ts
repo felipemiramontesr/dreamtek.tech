@@ -27,6 +27,7 @@ import {
   faceBlurringRateLimiter,
   superResolutionRateLimiter,
   compressionRateLimiter,
+  watermarkRateLimiter,
 } from '../middleware/rateLimiter';
 import { validate } from '../middleware/validate';
 import { createShareSchema } from '../schemas/share.schema';
@@ -94,6 +95,10 @@ import {
   createCompressionBodySchema,
   listCompressionsQuerySchema,
 } from '../schemas/compression.schema';
+import {
+  createWatermarkBodySchema,
+  listWatermarksQuerySchema,
+} from '../schemas/watermark.schema';
 import { logSecurityEvent } from '../middleware/auditLogger';
 import { query } from '../db';
 import { validateMagicBytes } from '../utils/magicBytes';
@@ -180,6 +185,12 @@ import {
   getAssetCompressionById,
   deleteAssetCompression,
 } from '../utils/compressionEngine';
+import {
+  createAssetWatermark,
+  listAssetWatermarks,
+  getAssetWatermarkById,
+  deleteAssetWatermark,
+} from '../utils/watermarkEngine';
 import { dispatchWorkflowsForEvent } from '../utils/workflowEngine';
 import { recordAnalyticsEvent } from '../utils/analyticsEngine';
 import {
@@ -4157,6 +4168,270 @@ router.delete(
     }
   },
 );
+
+/**
+ * POST /api/v1/assets/:id/watermark
+ * Creates a watermarked derivative for an asset (FC 030, OWASP A01/A03/A04/A09).
+ */
+router.post(
+  '/:id/watermark',
+  watermarkRateLimiter,
+  requireAuth,
+  validate(createWatermarkBodySchema, 'body'),
+  async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+    try {
+      const tenantId = Number(req.user!.tenantId);
+      const actorId = Number(req.user!.userId);
+      const assetId = parseInt(String(req.params.id), 10);
+      const actor: AclActor = { id: actorId, role: String(req.user!.role), tenantId };
+
+      if (isNaN(assetId) || assetId <= 0) {
+        res.status(400).json({ status: 400, error: 'Bad Request', message: 'ID de activo inválido.' });
+        return;
+      }
+
+      // Verify asset exists in tenant
+      const assetRows = (await query(
+        `SELECT id, current_version_id, mime_type FROM assets WHERE id = ? AND tenant_id = ? LIMIT 1`,
+        [assetId, tenantId],
+      )) as any[];
+
+      if (!assetRows || assetRows.length === 0) {
+        res.status(404).json({ status: 404, error: 'Not Found', message: 'Activo digital no encontrado.' });
+        return;
+      }
+
+      // ACL check: EDIT permission required
+      const evalResult = await evaluateAclPermission(actor, 'ASSET', assetId, 'EDIT');
+      if (!evalResult.allowed) {
+        res.status(403).json({
+          status: 403,
+          error: 'Forbidden',
+          message: 'Acceso denegado por política de control de acceso (ACL) para aplicar marca de agua a este activo.',
+        });
+        return;
+      }
+
+      const versionId = Number(assetRows[0].current_version_id) || 1;
+      const input = req.body;
+
+      const result = await createAssetWatermark(tenantId, assetId, versionId, input);
+
+      if (!result.success) {
+        res.status(result.statusCode).json({
+          status: result.statusCode,
+          error: result.statusCode === 404 ? 'Not Found' : 'Bad Request',
+          message: result.message,
+        });
+        return;
+      }
+
+      await logSecurityEvent(req, {
+        eventType: 'ASSET_WATERMARKED',
+        userId: actorId,
+        status: 'SUCCESS',
+        details: `Applied watermark to asset ${assetId}, type ${input.watermark_type}, position ${result.watermark.position}`,
+      });
+
+      res.status(201).json({
+        status: 201,
+        message: 'Derivada con marca de agua creada exitosamente.',
+        data: result.watermark,
+      });
+    } catch (err: any) {
+      console.error('Create watermark error:', err);
+      res.status(500).json({
+        status: 500,
+        error: 'Internal Server Error',
+        message: 'Error al procesar la aplicación de marca de agua al activo.',
+      });
+    }
+  },
+);
+
+/**
+ * GET /api/v1/assets/:id/watermarks
+ * Lists all watermarked derivatives for an asset (FC 030, OWASP A01/A04/A09).
+ */
+router.get(
+  '/:id/watermarks',
+  watermarkRateLimiter,
+  requireAuth,
+  validate(listWatermarksQuerySchema, 'query'),
+  async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+    try {
+      const tenantId = Number(req.user!.tenantId);
+      const actorId = Number(req.user!.userId);
+      const assetId = parseInt(String(req.params.id), 10);
+      const actor: AclActor = { id: actorId, role: String(req.user!.role), tenantId };
+
+      if (isNaN(assetId) || assetId <= 0) {
+        res.status(400).json({ status: 400, error: 'Bad Request', message: 'ID de activo inválido.' });
+        return;
+      }
+
+      // Verify asset exists in tenant
+      const assetRows = (await query(
+        `SELECT id FROM assets WHERE id = ? AND tenant_id = ? LIMIT 1`,
+        [assetId, tenantId],
+      )) as any[];
+
+      if (!assetRows || assetRows.length === 0) {
+        res.status(404).json({ status: 404, error: 'Not Found', message: 'Activo digital no encontrado.' });
+        return;
+      }
+
+      // ACL check: VIEW permission required
+      const evalResult = await evaluateAclPermission(actor, 'ASSET', assetId, 'VIEW');
+      if (!evalResult.allowed) {
+        res.status(403).json({
+          status: 403,
+          error: 'Forbidden',
+          message: 'Acceso denegado por política de control de acceso (ACL) para consultar derivadas con marca de agua.',
+        });
+        return;
+      }
+
+      const { limit, offset, watermark_type, position } = req.query as any;
+      const watermarks = await listAssetWatermarks(
+        tenantId,
+        assetId,
+        Number(limit),
+        Number(offset),
+        watermark_type,
+        position,
+      );
+
+      res.status(200).json({
+        status: 200,
+        message: 'Derivadas con marca de agua recuperadas exitosamente.',
+        data: watermarks,
+      });
+    } catch (err: any) {
+      console.error('List watermarks error:', err);
+      res.status(500).json({
+        status: 500,
+        error: 'Internal Server Error',
+        message: 'Error al listar las derivadas con marca de agua del activo.',
+      });
+    }
+  },
+);
+
+/**
+ * GET /api/v1/assets/:id/watermarks/:watermarkId
+ * Gets details of a specific watermarked derivative (FC 030, OWASP A01/A04/A09).
+ */
+router.get(
+  '/:id/watermarks/:watermarkId',
+  watermarkRateLimiter,
+  requireAuth,
+  async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+    try {
+      const tenantId = Number(req.user!.tenantId);
+      const actorId = Number(req.user!.userId);
+      const assetId = parseInt(String(req.params.id), 10);
+      const watermarkId = parseInt(String(req.params.watermarkId), 10);
+      const actor: AclActor = { id: actorId, role: String(req.user!.role), tenantId };
+
+      if (isNaN(assetId) || assetId <= 0 || isNaN(watermarkId) || watermarkId <= 0) {
+        res.status(400).json({ status: 400, error: 'Bad Request', message: 'Parámetros inválidos.' });
+        return;
+      }
+
+      // ACL check: VIEW permission required
+      const evalResult = await evaluateAclPermission(actor, 'ASSET', assetId, 'VIEW');
+      if (!evalResult.allowed) {
+        res.status(403).json({
+          status: 403,
+          error: 'Forbidden',
+          message: 'Acceso denegado por política de control de acceso (ACL) para consultar la derivada con marca de agua.',
+        });
+        return;
+      }
+
+      const watermark = await getAssetWatermarkById(tenantId, assetId, watermarkId);
+      if (!watermark) {
+        res.status(404).json({ status: 404, error: 'Not Found', message: 'Derivada con marca de agua no encontrada.' });
+        return;
+      }
+
+      res.status(200).json({
+        status: 200,
+        message: 'Detalle de derivada con marca de agua recuperado exitosamente.',
+        data: watermark,
+      });
+    } catch (err: any) {
+      console.error('Get watermark detail error:', err);
+      res.status(500).json({
+        status: 500,
+        error: 'Internal Server Error',
+        message: 'Error al consultar el detalle de la derivada con marca de agua.',
+      });
+    }
+  },
+);
+
+/**
+ * DELETE /api/v1/assets/:id/watermarks/:watermarkId
+ * Deletes a watermarked derivative and unlinks its physical file from disk (FC 030, OWASP A01/A04/A09).
+ */
+router.delete(
+  '/:id/watermarks/:watermarkId',
+  watermarkRateLimiter,
+  requireAuth,
+  async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+    try {
+      const tenantId = Number(req.user!.tenantId);
+      const actorId = Number(req.user!.userId);
+      const assetId = parseInt(String(req.params.id), 10);
+      const watermarkId = parseInt(String(req.params.watermarkId), 10);
+      const actor: AclActor = { id: actorId, role: String(req.user!.role), tenantId };
+
+      if (isNaN(assetId) || assetId <= 0 || isNaN(watermarkId) || watermarkId <= 0) {
+        res.status(400).json({ status: 400, error: 'Bad Request', message: 'Parámetros inválidos.' });
+        return;
+      }
+
+      // ACL check: EDIT permission required
+      const evalResult = await evaluateAclPermission(actor, 'ASSET', assetId, 'EDIT');
+      if (!evalResult.allowed) {
+        res.status(403).json({
+          status: 403,
+          error: 'Forbidden',
+          message: 'Acceso denegado por política de control de acceso (ACL) para eliminar la derivada con marca de agua.',
+        });
+        return;
+      }
+
+      const deleted = await deleteAssetWatermark(tenantId, assetId, watermarkId);
+      if (!deleted) {
+        res.status(404).json({ status: 404, error: 'Not Found', message: 'Derivada con marca de agua no encontrada.' });
+        return;
+      }
+
+      await logSecurityEvent(req, {
+        eventType: 'ASSET_WATERMARK_DELETED',
+        userId: actorId,
+        status: 'SUCCESS',
+        details: `Deleted watermarked derivative ID ${watermarkId} for asset ${assetId}`,
+      });
+
+      res.status(200).json({
+        status: 200,
+        message: 'Derivada con marca de agua eliminada exitosamente.',
+      });
+    } catch (err: any) {
+      console.error('Delete watermark error:', err);
+      res.status(500).json({
+        status: 500,
+        error: 'Internal Server Error',
+        message: 'Error al eliminar la derivada con marca de agua.',
+      });
+    }
+  },
+);
+
 
 
 
