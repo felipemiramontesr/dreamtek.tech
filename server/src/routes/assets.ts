@@ -26,6 +26,7 @@ import {
   backgroundReplacementRateLimiter,
   faceBlurringRateLimiter,
   superResolutionRateLimiter,
+  compressionRateLimiter,
 } from '../middleware/rateLimiter';
 import { validate } from '../middleware/validate';
 import { createShareSchema } from '../schemas/share.schema';
@@ -89,6 +90,10 @@ import {
   createSuperResolutionBodySchema,
   listSuperResolutionsQuerySchema,
 } from '../schemas/superResolution.schema';
+import {
+  createCompressionBodySchema,
+  listCompressionsQuerySchema,
+} from '../schemas/compression.schema';
 import { logSecurityEvent } from '../middleware/auditLogger';
 import { query } from '../db';
 import { validateMagicBytes } from '../utils/magicBytes';
@@ -169,6 +174,12 @@ import {
   getAssetSuperResolutionById,
   deleteAssetSuperResolution,
 } from '../utils/superResolutionEngine';
+import {
+  createAssetCompression,
+  listAssetCompressions,
+  getAssetCompressionById,
+  deleteAssetCompression,
+} from '../utils/compressionEngine';
 import { dispatchWorkflowsForEvent } from '../utils/workflowEngine';
 import { recordAnalyticsEvent } from '../utils/analyticsEngine';
 import {
@@ -3883,6 +3894,270 @@ router.delete(
     }
   },
 );
+
+/**
+ * POST /api/v1/assets/:id/compress
+ * Creates an optimized, compressed image derivative for an asset (FC 029, OWASP A01/A04/A09).
+ */
+router.post(
+  '/:id/compress',
+  compressionRateLimiter,
+  requireAuth,
+  validate(createCompressionBodySchema, 'body'),
+  async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+    try {
+      const tenantId = Number(req.user!.tenantId);
+      const actorId = Number(req.user!.userId);
+      const assetId = parseInt(String(req.params.id), 10);
+      const actor: AclActor = { id: actorId, role: String(req.user!.role), tenantId };
+
+      if (isNaN(assetId) || assetId <= 0) {
+        res.status(400).json({ status: 400, error: 'Bad Request', message: 'ID de activo inválido.' });
+        return;
+      }
+
+      // Verify asset exists in tenant
+      const assetRows = (await query(
+        `SELECT id, current_version_id, mime_type FROM assets WHERE id = ? AND tenant_id = ? LIMIT 1`,
+        [assetId, tenantId],
+      )) as any[];
+
+      if (!assetRows || assetRows.length === 0) {
+        res.status(404).json({ status: 404, error: 'Not Found', message: 'Activo digital no encontrado.' });
+        return;
+      }
+
+      // ACL check: EDIT permission required
+      const evalResult = await evaluateAclPermission(actor, 'ASSET', assetId, 'EDIT');
+      if (!evalResult.allowed) {
+        res.status(403).json({
+          status: 403,
+          error: 'Forbidden',
+          message: 'Acceso denegado por política de control de acceso (ACL) para comprimir este activo.',
+        });
+        return;
+      }
+
+      const versionId = Number(assetRows[0].current_version_id) || 1;
+      const input = req.body;
+
+      const result = await createAssetCompression(tenantId, assetId, versionId, input);
+
+      if (!result.success) {
+        res.status(result.statusCode).json({
+          status: result.statusCode,
+          error: result.statusCode === 404 ? 'Not Found' : 'Bad Request',
+          message: result.message,
+        });
+        return;
+      }
+
+      await logSecurityEvent(req, {
+        eventType: 'ASSET_COMPRESSED',
+        userId: actorId,
+        status: 'SUCCESS',
+        details: `Created compressed derivative for asset ${assetId}, format ${input.target_format}, preset ${result.compression.quality_preset}`,
+      });
+
+      res.status(201).json({
+        status: 201,
+        message: 'Derivada comprimida optimizada creada exitosamente.',
+        data: result.compression,
+      });
+    } catch (err: any) {
+      console.error('Create compression error:', err);
+      res.status(500).json({
+        status: 500,
+        error: 'Internal Server Error',
+        message: 'Error al procesar la compresión y optimización del activo.',
+      });
+    }
+  },
+);
+
+/**
+ * GET /api/v1/assets/:id/compressions
+ * Lists all compressed derivatives for an asset (FC 029, OWASP A01/A04/A09).
+ */
+router.get(
+  '/:id/compressions',
+  compressionRateLimiter,
+  requireAuth,
+  validate(listCompressionsQuerySchema, 'query'),
+  async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+    try {
+      const tenantId = Number(req.user!.tenantId);
+      const actorId = Number(req.user!.userId);
+      const assetId = parseInt(String(req.params.id), 10);
+      const actor: AclActor = { id: actorId, role: String(req.user!.role), tenantId };
+
+      if (isNaN(assetId) || assetId <= 0) {
+        res.status(400).json({ status: 400, error: 'Bad Request', message: 'ID de activo inválido.' });
+        return;
+      }
+
+      // Verify asset exists in tenant
+      const assetRows = (await query(
+        `SELECT id FROM assets WHERE id = ? AND tenant_id = ? LIMIT 1`,
+        [assetId, tenantId],
+      )) as any[];
+
+      if (!assetRows || assetRows.length === 0) {
+        res.status(404).json({ status: 404, error: 'Not Found', message: 'Activo digital no encontrado.' });
+        return;
+      }
+
+      // ACL check: VIEW permission required
+      const evalResult = await evaluateAclPermission(actor, 'ASSET', assetId, 'VIEW');
+      if (!evalResult.allowed) {
+        res.status(403).json({
+          status: 403,
+          error: 'Forbidden',
+          message: 'Acceso denegado por política de control de acceso (ACL) para consultar derivadas comprimidas.',
+        });
+        return;
+      }
+
+      const { limit, offset, target_format, quality_preset } = req.query as any;
+      const compressions = await listAssetCompressions(
+        tenantId,
+        assetId,
+        Number(limit),
+        Number(offset),
+        target_format,
+        quality_preset,
+      );
+
+      res.status(200).json({
+        status: 200,
+        message: 'Derivadas comprimidas recuperadas exitosamente.',
+        data: compressions,
+      });
+    } catch (err: any) {
+      console.error('List compressions error:', err);
+      res.status(500).json({
+        status: 500,
+        error: 'Internal Server Error',
+        message: 'Error al listar las derivadas comprimidas del activo.',
+      });
+    }
+  },
+);
+
+/**
+ * GET /api/v1/assets/:id/compressions/:compressionId
+ * Gets details of a specific compressed derivative (FC 029, OWASP A01/A04/A09).
+ */
+router.get(
+  '/:id/compressions/:compressionId',
+  compressionRateLimiter,
+  requireAuth,
+  async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+    try {
+      const tenantId = Number(req.user!.tenantId);
+      const actorId = Number(req.user!.userId);
+      const assetId = parseInt(String(req.params.id), 10);
+      const compressionId = parseInt(String(req.params.compressionId), 10);
+      const actor: AclActor = { id: actorId, role: String(req.user!.role), tenantId };
+
+      if (isNaN(assetId) || assetId <= 0 || isNaN(compressionId) || compressionId <= 0) {
+        res.status(400).json({ status: 400, error: 'Bad Request', message: 'Parámetros inválidos.' });
+        return;
+      }
+
+      // ACL check: VIEW permission required
+      const evalResult = await evaluateAclPermission(actor, 'ASSET', assetId, 'VIEW');
+      if (!evalResult.allowed) {
+        res.status(403).json({
+          status: 403,
+          error: 'Forbidden',
+          message: 'Acceso denegado por política de control de acceso (ACL) para consultar la derivada comprimida.',
+        });
+        return;
+      }
+
+      const compression = await getAssetCompressionById(tenantId, assetId, compressionId);
+      if (!compression) {
+        res.status(404).json({ status: 404, error: 'Not Found', message: 'Derivada comprimida no encontrada.' });
+        return;
+      }
+
+      res.status(200).json({
+        status: 200,
+        message: 'Detalle de derivada comprimida recuperado exitosamente.',
+        data: compression,
+      });
+    } catch (err: any) {
+      console.error('Get compression detail error:', err);
+      res.status(500).json({
+        status: 500,
+        error: 'Internal Server Error',
+        message: 'Error al consultar el detalle de la derivada comprimida.',
+      });
+    }
+  },
+);
+
+/**
+ * DELETE /api/v1/assets/:id/compressions/:compressionId
+ * Deletes a compressed derivative and unlinks its physical file from disk (FC 029, OWASP A01/A04/A09).
+ */
+router.delete(
+  '/:id/compressions/:compressionId',
+  compressionRateLimiter,
+  requireAuth,
+  async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+    try {
+      const tenantId = Number(req.user!.tenantId);
+      const actorId = Number(req.user!.userId);
+      const assetId = parseInt(String(req.params.id), 10);
+      const compressionId = parseInt(String(req.params.compressionId), 10);
+      const actor: AclActor = { id: actorId, role: String(req.user!.role), tenantId };
+
+      if (isNaN(assetId) || assetId <= 0 || isNaN(compressionId) || compressionId <= 0) {
+        res.status(400).json({ status: 400, error: 'Bad Request', message: 'Parámetros inválidos.' });
+        return;
+      }
+
+      // ACL check: EDIT permission required
+      const evalResult = await evaluateAclPermission(actor, 'ASSET', assetId, 'EDIT');
+      if (!evalResult.allowed) {
+        res.status(403).json({
+          status: 403,
+          error: 'Forbidden',
+          message: 'Acceso denegado por política de control de acceso (ACL) para eliminar la derivada comprimida.',
+        });
+        return;
+      }
+
+      const deleted = await deleteAssetCompression(tenantId, assetId, compressionId);
+      if (!deleted) {
+        res.status(404).json({ status: 404, error: 'Not Found', message: 'Derivada comprimida no encontrada.' });
+        return;
+      }
+
+      await logSecurityEvent(req, {
+        eventType: 'ASSET_COMPRESSION_DELETED',
+        userId: actorId,
+        status: 'SUCCESS',
+        details: `Deleted compressed derivative ID ${compressionId} for asset ${assetId}`,
+      });
+
+      res.status(200).json({
+        status: 200,
+        message: 'Derivada comprimida eliminada exitosamente.',
+      });
+    } catch (err: any) {
+      console.error('Delete compression error:', err);
+      res.status(500).json({
+        status: 500,
+        error: 'Internal Server Error',
+        message: 'Error al eliminar la derivada comprimida.',
+      });
+    }
+  },
+);
+
 
 
 
