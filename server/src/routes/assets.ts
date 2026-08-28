@@ -29,6 +29,7 @@ import {
   compressionRateLimiter,
   watermarkRateLimiter,
   bannerAdaptationRateLimiter,
+  videoTranscodingRateLimiter,
 } from '../middleware/rateLimiter';
 import { validate } from '../middleware/validate';
 import { createShareSchema } from '../schemas/share.schema';
@@ -104,6 +105,11 @@ import {
   createBannerAdaptationBodySchema,
   listBannerAdaptationsQuerySchema,
 } from '../schemas/bannerAdaptation.schema';
+import {
+  createVideoTranscodingBodySchema,
+  listVideoTranscodingsQuerySchema,
+  streamFileParamSchema,
+} from '../schemas/videoTranscoding.schema';
 import { logSecurityEvent } from '../middleware/auditLogger';
 import { query } from '../db';
 import { validateMagicBytes } from '../utils/magicBytes';
@@ -202,6 +208,13 @@ import {
   getAssetBannerAdaptationById,
   deleteAssetBannerAdaptation,
 } from '../utils/bannerAdaptationEngine';
+import {
+  createAssetVideoTranscoding,
+  listAssetVideoTranscodings,
+  getAssetVideoTranscodingById,
+  deleteAssetVideoTranscoding,
+  getTranscodingStreamFilePath,
+} from '../utils/videoTranscodingEngine';
 import { dispatchWorkflowsForEvent } from '../utils/workflowEngine';
 import { recordAnalyticsEvent } from '../utils/analyticsEngine';
 import {
@@ -4705,6 +4718,332 @@ router.delete(
     }
   },
 );
+
+/**
+ * POST /api/v1/assets/:id/transcode
+ * Creates an adaptive bitrate video transcoding job/renditions (FC 032, OWASP A01/A03/A04/A09).
+ */
+router.post(
+  '/:id/transcode',
+  videoTranscodingRateLimiter,
+  requireAuth,
+  validate(createVideoTranscodingBodySchema, 'body'),
+  async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+    try {
+      const tenantId = Number(req.user!.tenantId);
+      const actorId = Number(req.user!.userId);
+      const assetId = parseInt(String(req.params.id), 10);
+      const actor: AclActor = { id: actorId, role: String(req.user!.role), tenantId };
+
+      if (isNaN(assetId) || assetId <= 0) {
+        res.status(400).json({ status: 400, error: 'Bad Request', message: 'ID de activo inválido.' });
+        return;
+      }
+
+      // Verify asset exists in tenant
+      const assetRows = (await query(
+        `SELECT id, current_version_id, mime_type FROM assets WHERE id = ? AND tenant_id = ? LIMIT 1`,
+        [assetId, tenantId],
+      )) as any[];
+
+      if (!assetRows || assetRows.length === 0) {
+        res.status(404).json({ status: 404, error: 'Not Found', message: 'Activo digital no encontrado.' });
+        return;
+      }
+
+      // ACL check: EDIT permission required
+      const evalResult = await evaluateAclPermission(actor, 'ASSET', assetId, 'EDIT');
+      if (!evalResult.allowed) {
+        res.status(403).json({
+          status: 403,
+          error: 'Forbidden',
+          message: 'Acceso denegado por política de control de acceso (ACL) para transcodificar este video.',
+        });
+        return;
+      }
+
+      const versionId = Number(assetRows[0].current_version_id) || 1;
+      const input = req.body;
+
+      const result = await createAssetVideoTranscoding(tenantId, assetId, versionId, input);
+
+      if (!result.success) {
+        res.status(result.statusCode).json({
+          status: result.statusCode,
+          error: result.statusCode === 404 ? 'Not Found' : 'Bad Request',
+          message: result.message,
+        });
+        return;
+      }
+
+      await logSecurityEvent(req, {
+        eventType: 'ASSET_VIDEO_TRANSCODED',
+        userId: actorId,
+        status: 'SUCCESS',
+        details: `Transcoded video for asset ${assetId}, profile ${input.profile}`,
+      });
+
+      res.status(201).json({
+        status: 201,
+        message: 'Video transcodificado exitosamente para streaming adaptativo.',
+        data: result.transcoding,
+      });
+    } catch (err: any) {
+      console.error('Create video transcoding error:', err);
+      res.status(500).json({
+        status: 500,
+        error: 'Internal Server Error',
+        message: 'Error al procesar la transcodificación de video.',
+      });
+    }
+  },
+);
+
+/**
+ * GET /api/v1/assets/:id/transcodings
+ * Lists all video transcodings for an asset (FC 032, OWASP A01/A04/A09).
+ */
+router.get(
+  '/:id/transcodings',
+  videoTranscodingRateLimiter,
+  requireAuth,
+  validate(listVideoTranscodingsQuerySchema, 'query'),
+  async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+    try {
+      const tenantId = Number(req.user!.tenantId);
+      const actorId = Number(req.user!.userId);
+      const assetId = parseInt(String(req.params.id), 10);
+      const actor: AclActor = { id: actorId, role: String(req.user!.role), tenantId };
+
+      if (isNaN(assetId) || assetId <= 0) {
+        res.status(400).json({ status: 400, error: 'Bad Request', message: 'ID de activo inválido.' });
+        return;
+      }
+
+      // Verify asset exists in tenant
+      const assetRows = (await query(
+        `SELECT id FROM assets WHERE id = ? AND tenant_id = ? LIMIT 1`,
+        [assetId, tenantId],
+      )) as any[];
+
+      if (!assetRows || assetRows.length === 0) {
+        res.status(404).json({ status: 404, error: 'Not Found', message: 'Activo digital no encontrado.' });
+        return;
+      }
+
+      // ACL check: VIEW permission required
+      const evalResult = await evaluateAclPermission(actor, 'ASSET', assetId, 'VIEW');
+      if (!evalResult.allowed) {
+        res.status(403).json({
+          status: 403,
+          error: 'Forbidden',
+          message: 'Acceso denegado por política de control de acceso (ACL) para consultar transcodificaciones.',
+        });
+        return;
+      }
+
+      const { limit, offset, profile, status } = req.query as any;
+      const transcodings = await listAssetVideoTranscodings(
+        tenantId,
+        assetId,
+        Number(limit),
+        Number(offset),
+        profile,
+        status,
+      );
+
+      res.status(200).json({
+        status: 200,
+        message: 'Transcodificaciones de video recuperadas exitosamente.',
+        data: transcodings,
+      });
+    } catch (err: any) {
+      console.error('List video transcodings error:', err);
+      res.status(500).json({
+        status: 500,
+        error: 'Internal Server Error',
+        message: 'Error al listar las transcodificaciones de video del activo.',
+      });
+    }
+  },
+);
+
+/**
+ * GET /api/v1/assets/:id/transcodings/:transcodeId
+ * Gets details and manifest of a specific video transcoding (FC 032, OWASP A01/A04/A09).
+ */
+router.get(
+  '/:id/transcodings/:transcodeId',
+  videoTranscodingRateLimiter,
+  requireAuth,
+  async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+    try {
+      const tenantId = Number(req.user!.tenantId);
+      const actorId = Number(req.user!.userId);
+      const assetId = parseInt(String(req.params.id), 10);
+      const transcodeId = parseInt(String(req.params.transcodeId), 10);
+      const actor: AclActor = { id: actorId, role: String(req.user!.role), tenantId };
+
+      if (isNaN(assetId) || assetId <= 0 || isNaN(transcodeId) || transcodeId <= 0) {
+        res.status(400).json({ status: 400, error: 'Bad Request', message: 'Parámetros inválidos.' });
+        return;
+      }
+
+      // ACL check: VIEW permission required
+      const evalResult = await evaluateAclPermission(actor, 'ASSET', assetId, 'VIEW');
+      if (!evalResult.allowed) {
+        res.status(403).json({
+          status: 403,
+          error: 'Forbidden',
+          message: 'Acceso denegado por política de control de acceso (ACL) para consultar la transcodificación.',
+        });
+        return;
+      }
+
+      const transcoding = await getAssetVideoTranscodingById(tenantId, assetId, transcodeId);
+      if (!transcoding) {
+        res.status(404).json({ status: 404, error: 'Not Found', message: 'Transcodificación de video no encontrada.' });
+        return;
+      }
+
+      res.status(200).json({
+        status: 200,
+        message: 'Detalle de transcodificación de video recuperado exitosamente.',
+        data: transcoding,
+      });
+    } catch (err: any) {
+      console.error('Get video transcoding detail error:', err);
+      res.status(500).json({
+        status: 500,
+        error: 'Internal Server Error',
+        message: 'Error al consultar el detalle de la transcodificación de video.',
+      });
+    }
+  },
+);
+
+/**
+ * DELETE /api/v1/assets/:id/transcodings/:transcodeId
+ * Deletes a video transcoding and recursively unlinks its manifest and segment chunks (FC 032, OWASP A01/A04/A09).
+ */
+router.delete(
+  '/:id/transcodings/:transcodeId',
+  videoTranscodingRateLimiter,
+  requireAuth,
+  async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+    try {
+      const tenantId = Number(req.user!.tenantId);
+      const actorId = Number(req.user!.userId);
+      const assetId = parseInt(String(req.params.id), 10);
+      const transcodeId = parseInt(String(req.params.transcodeId), 10);
+      const actor: AclActor = { id: actorId, role: String(req.user!.role), tenantId };
+
+      if (isNaN(assetId) || assetId <= 0 || isNaN(transcodeId) || transcodeId <= 0) {
+        res.status(400).json({ status: 400, error: 'Bad Request', message: 'Parámetros inválidos.' });
+        return;
+      }
+
+      // ACL check: EDIT permission required
+      const evalResult = await evaluateAclPermission(actor, 'ASSET', assetId, 'EDIT');
+      if (!evalResult.allowed) {
+        res.status(403).json({
+          status: 403,
+          error: 'Forbidden',
+          message: 'Acceso denegado por política de control de acceso (ACL) para eliminar la transcodificación.',
+        });
+        return;
+      }
+
+      const deleted = await deleteAssetVideoTranscoding(tenantId, assetId, transcodeId);
+      if (!deleted) {
+        res.status(404).json({ status: 404, error: 'Not Found', message: 'Transcodificación de video no encontrada.' });
+        return;
+      }
+
+      await logSecurityEvent(req, {
+        eventType: 'ASSET_VIDEO_TRANSCODING_DELETED',
+        userId: actorId,
+        status: 'SUCCESS',
+        details: `Deleted video transcoding ID ${transcodeId} for asset ${assetId}`,
+      });
+
+      res.status(200).json({
+        status: 200,
+        message: 'Transcodificación de video eliminada exitosamente.',
+      });
+    } catch (err: any) {
+      console.error('Delete video transcoding error:', err);
+      res.status(500).json({
+        status: 500,
+        error: 'Internal Server Error',
+        message: 'Error al eliminar la transcodificación de video.',
+      });
+    }
+  },
+);
+
+/**
+ * GET /api/v1/assets/:id/transcodings/:transcodeId/stream/:filename
+ * Auth-gated delivery of HLS playlists (.m3u8), media segments (.ts) or web MP4 (FC 032, OWASP A01/A04/A07).
+ */
+router.get(
+  '/:id/transcodings/:transcodeId/stream/:filename',
+  videoTranscodingRateLimiter,
+  requireAuth,
+  validate(streamFileParamSchema, 'params'),
+  async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+    try {
+      const tenantId = Number(req.user!.tenantId);
+      const actorId = Number(req.user!.userId);
+      const assetId = parseInt(String(req.params.id), 10);
+      const transcodeId = parseInt(String(req.params.transcodeId), 10);
+      const filename = String(req.params.filename);
+      const actor: AclActor = { id: actorId, role: String(req.user!.role), tenantId };
+
+      // ACL check: VIEW permission required
+      const evalResult = await evaluateAclPermission(actor, 'ASSET', assetId, 'VIEW');
+      if (!evalResult.allowed) {
+        res.status(403).json({
+          status: 403,
+          error: 'Forbidden',
+          message: 'Acceso denegado por política de control de acceso (ACL) para reproducir el flujo de streaming.',
+        });
+        return;
+      }
+
+      const filePath = await getTranscodingStreamFilePath(tenantId, assetId, transcodeId, filename);
+      if (!filePath) {
+        res.status(404).json({
+          status: 404,
+          error: 'Not Found',
+          message: 'Archivo de streaming o segmento no encontrado.',
+        });
+        return;
+      }
+
+      if (filename.endsWith('.m3u8')) {
+        res.setHeader('Content-Type', 'application/vnd.apple.mpegurl');
+      } else if (filename.endsWith('.ts')) {
+        res.setHeader('Content-Type', 'video/mp2t');
+      } else if (filename.endsWith('.mp4')) {
+        res.setHeader('Content-Type', 'video/mp4');
+      } else {
+        res.setHeader('Content-Type', 'application/octet-stream');
+      }
+
+      const stream = fs.createReadStream(filePath);
+      stream.pipe(res);
+    } catch (err: any) {
+      console.error('Stream video transcoding file error:', err);
+      res.status(500).json({
+        status: 500,
+        error: 'Internal Server Error',
+        message: 'Error al servir el segmento de streaming de video.',
+      });
+    }
+  },
+);
+
 
 
 
