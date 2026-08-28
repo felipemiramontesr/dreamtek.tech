@@ -28,6 +28,7 @@ import {
   superResolutionRateLimiter,
   compressionRateLimiter,
   watermarkRateLimiter,
+  bannerAdaptationRateLimiter,
 } from '../middleware/rateLimiter';
 import { validate } from '../middleware/validate';
 import { createShareSchema } from '../schemas/share.schema';
@@ -99,6 +100,10 @@ import {
   createWatermarkBodySchema,
   listWatermarksQuerySchema,
 } from '../schemas/watermark.schema';
+import {
+  createBannerAdaptationBodySchema,
+  listBannerAdaptationsQuerySchema,
+} from '../schemas/bannerAdaptation.schema';
 import { logSecurityEvent } from '../middleware/auditLogger';
 import { query } from '../db';
 import { validateMagicBytes } from '../utils/magicBytes';
@@ -191,6 +196,12 @@ import {
   getAssetWatermarkById,
   deleteAssetWatermark,
 } from '../utils/watermarkEngine';
+import {
+  createAssetBannerAdaptation,
+  listAssetBannerAdaptations,
+  getAssetBannerAdaptationById,
+  deleteAssetBannerAdaptation,
+} from '../utils/bannerAdaptationEngine';
 import { dispatchWorkflowsForEvent } from '../utils/workflowEngine';
 import { recordAnalyticsEvent } from '../utils/analyticsEngine';
 import {
@@ -4431,6 +4442,270 @@ router.delete(
     }
   },
 );
+
+/**
+ * POST /api/v1/assets/:id/banner-adapt
+ * Creates an adapted banner derivative for an asset (FC 031, OWASP A01/A03/A04/A09).
+ */
+router.post(
+  '/:id/banner-adapt',
+  bannerAdaptationRateLimiter,
+  requireAuth,
+  validate(createBannerAdaptationBodySchema, 'body'),
+  async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+    try {
+      const tenantId = Number(req.user!.tenantId);
+      const actorId = Number(req.user!.userId);
+      const assetId = parseInt(String(req.params.id), 10);
+      const actor: AclActor = { id: actorId, role: String(req.user!.role), tenantId };
+
+      if (isNaN(assetId) || assetId <= 0) {
+        res.status(400).json({ status: 400, error: 'Bad Request', message: 'ID de activo inválido.' });
+        return;
+      }
+
+      // Verify asset exists in tenant
+      const assetRows = (await query(
+        `SELECT id, current_version_id, mime_type FROM assets WHERE id = ? AND tenant_id = ? LIMIT 1`,
+        [assetId, tenantId],
+      )) as any[];
+
+      if (!assetRows || assetRows.length === 0) {
+        res.status(404).json({ status: 404, error: 'Not Found', message: 'Activo digital no encontrado.' });
+        return;
+      }
+
+      // ACL check: EDIT permission required
+      const evalResult = await evaluateAclPermission(actor, 'ASSET', assetId, 'EDIT');
+      if (!evalResult.allowed) {
+        res.status(403).json({
+          status: 403,
+          error: 'Forbidden',
+          message: 'Acceso denegado por política de control de acceso (ACL) para adaptar banner a este activo.',
+        });
+        return;
+      }
+
+      const versionId = Number(assetRows[0].current_version_id) || 1;
+      const input = req.body;
+
+      const result = await createAssetBannerAdaptation(tenantId, assetId, versionId, input);
+
+      if (!result.success) {
+        res.status(result.statusCode).json({
+          status: result.statusCode,
+          error: result.statusCode === 404 ? 'Not Found' : 'Bad Request',
+          message: result.message,
+        });
+        return;
+      }
+
+      await logSecurityEvent(req, {
+        eventType: 'ASSET_BANNER_ADAPTED',
+        userId: actorId,
+        status: 'SUCCESS',
+        details: `Adapted banner for asset ${assetId}, preset ${input.preset}, strategy ${input.strategy}`,
+      });
+
+      res.status(201).json({
+        status: 201,
+        message: 'Derivada de banner adaptada exitosamente.',
+        data: result.adaptation,
+      });
+    } catch (err: any) {
+      console.error('Create banner adaptation error:', err);
+      res.status(500).json({
+        status: 500,
+        error: 'Internal Server Error',
+        message: 'Error al procesar la adaptación de banner al activo.',
+      });
+    }
+  },
+);
+
+/**
+ * GET /api/v1/assets/:id/banner-adaptations
+ * Lists all banner adaptations for an asset (FC 031, OWASP A01/A04/A09).
+ */
+router.get(
+  '/:id/banner-adaptations',
+  bannerAdaptationRateLimiter,
+  requireAuth,
+  validate(listBannerAdaptationsQuerySchema, 'query'),
+  async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+    try {
+      const tenantId = Number(req.user!.tenantId);
+      const actorId = Number(req.user!.userId);
+      const assetId = parseInt(String(req.params.id), 10);
+      const actor: AclActor = { id: actorId, role: String(req.user!.role), tenantId };
+
+      if (isNaN(assetId) || assetId <= 0) {
+        res.status(400).json({ status: 400, error: 'Bad Request', message: 'ID de activo inválido.' });
+        return;
+      }
+
+      // Verify asset exists in tenant
+      const assetRows = (await query(
+        `SELECT id FROM assets WHERE id = ? AND tenant_id = ? LIMIT 1`,
+        [assetId, tenantId],
+      )) as any[];
+
+      if (!assetRows || assetRows.length === 0) {
+        res.status(404).json({ status: 404, error: 'Not Found', message: 'Activo digital no encontrado.' });
+        return;
+      }
+
+      // ACL check: VIEW permission required
+      const evalResult = await evaluateAclPermission(actor, 'ASSET', assetId, 'VIEW');
+      if (!evalResult.allowed) {
+        res.status(403).json({
+          status: 403,
+          error: 'Forbidden',
+          message: 'Acceso denegado por política de control de acceso (ACL) para consultar derivadas de banners adaptados.',
+        });
+        return;
+      }
+
+      const { limit, offset, preset, strategy } = req.query as any;
+      const adaptations = await listAssetBannerAdaptations(
+        tenantId,
+        assetId,
+        Number(limit),
+        Number(offset),
+        preset,
+        strategy,
+      );
+
+      res.status(200).json({
+        status: 200,
+        message: 'Derivadas de banner recuperadas exitosamente.',
+        data: adaptations,
+      });
+    } catch (err: any) {
+      console.error('List banner adaptations error:', err);
+      res.status(500).json({
+        status: 500,
+        error: 'Internal Server Error',
+        message: 'Error al listar las adaptaciones de banner del activo.',
+      });
+    }
+  },
+);
+
+/**
+ * GET /api/v1/assets/:id/banner-adaptations/:adaptationId
+ * Gets details of a specific banner adaptation (FC 031, OWASP A01/A04/A09).
+ */
+router.get(
+  '/:id/banner-adaptations/:adaptationId',
+  bannerAdaptationRateLimiter,
+  requireAuth,
+  async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+    try {
+      const tenantId = Number(req.user!.tenantId);
+      const actorId = Number(req.user!.userId);
+      const assetId = parseInt(String(req.params.id), 10);
+      const adaptationId = parseInt(String(req.params.adaptationId), 10);
+      const actor: AclActor = { id: actorId, role: String(req.user!.role), tenantId };
+
+      if (isNaN(assetId) || assetId <= 0 || isNaN(adaptationId) || adaptationId <= 0) {
+        res.status(400).json({ status: 400, error: 'Bad Request', message: 'Parámetros inválidos.' });
+        return;
+      }
+
+      // ACL check: VIEW permission required
+      const evalResult = await evaluateAclPermission(actor, 'ASSET', assetId, 'VIEW');
+      if (!evalResult.allowed) {
+        res.status(403).json({
+          status: 403,
+          error: 'Forbidden',
+          message: 'Acceso denegado por política de control de acceso (ACL) para consultar la derivada de banner.',
+        });
+        return;
+      }
+
+      const adaptation = await getAssetBannerAdaptationById(tenantId, assetId, adaptationId);
+      if (!adaptation) {
+        res.status(404).json({ status: 404, error: 'Not Found', message: 'Derivada de banner no encontrada.' });
+        return;
+      }
+
+      res.status(200).json({
+        status: 200,
+        message: 'Detalle de derivada de banner recuperado exitosamente.',
+        data: adaptation,
+      });
+    } catch (err: any) {
+      console.error('Get banner adaptation detail error:', err);
+      res.status(500).json({
+        status: 500,
+        error: 'Internal Server Error',
+        message: 'Error al consultar el detalle de la derivada de banner.',
+      });
+    }
+  },
+);
+
+/**
+ * DELETE /api/v1/assets/:id/banner-adaptations/:adaptationId
+ * Deletes a banner adaptation and unlinks its physical file from disk (FC 031, OWASP A01/A04/A09).
+ */
+router.delete(
+  '/:id/banner-adaptations/:adaptationId',
+  bannerAdaptationRateLimiter,
+  requireAuth,
+  async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+    try {
+      const tenantId = Number(req.user!.tenantId);
+      const actorId = Number(req.user!.userId);
+      const assetId = parseInt(String(req.params.id), 10);
+      const adaptationId = parseInt(String(req.params.adaptationId), 10);
+      const actor: AclActor = { id: actorId, role: String(req.user!.role), tenantId };
+
+      if (isNaN(assetId) || assetId <= 0 || isNaN(adaptationId) || adaptationId <= 0) {
+        res.status(400).json({ status: 400, error: 'Bad Request', message: 'Parámetros inválidos.' });
+        return;
+      }
+
+      // ACL check: EDIT permission required
+      const evalResult = await evaluateAclPermission(actor, 'ASSET', assetId, 'EDIT');
+      if (!evalResult.allowed) {
+        res.status(403).json({
+          status: 403,
+          error: 'Forbidden',
+          message: 'Acceso denegado por política de control de acceso (ACL) para eliminar la derivada de banner.',
+        });
+        return;
+      }
+
+      const deleted = await deleteAssetBannerAdaptation(tenantId, assetId, adaptationId);
+      if (!deleted) {
+        res.status(404).json({ status: 404, error: 'Not Found', message: 'Derivada de banner no encontrada.' });
+        return;
+      }
+
+      await logSecurityEvent(req, {
+        eventType: 'ASSET_BANNER_ADAPTATION_DELETED',
+        userId: actorId,
+        status: 'SUCCESS',
+        details: `Deleted banner adaptation ID ${adaptationId} for asset ${assetId}`,
+      });
+
+      res.status(200).json({
+        status: 200,
+        message: 'Derivada de banner eliminada exitosamente.',
+      });
+    } catch (err: any) {
+      console.error('Delete banner adaptation error:', err);
+      res.status(500).json({
+        status: 500,
+        error: 'Internal Server Error',
+        message: 'Error al eliminar la derivada de banner.',
+      });
+    }
+  },
+);
+
 
 
 
