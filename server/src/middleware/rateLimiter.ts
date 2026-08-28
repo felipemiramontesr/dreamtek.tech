@@ -610,4 +610,24 @@ export const faceBlurringRateLimiter = rateLimit({
   },
 });
 
+/**
+ * DAM AI Image Super-Resolution & Smart Upscaling Rate Limiter (OWASP A04)
+ * 30 requests per 1 minute window per IP
+ */
+export const superResolutionRateLimiter = rateLimit({
+  windowMs: 1 * 60 * 1000,
+  max: 30,
+  standardHeaders: true,
+  legacyHeaders: false,
+  handler: (_req: Request, res: Response) => {
+    res.status(429).json({
+      status: 429,
+      error: 'Too Many Requests',
+      message:
+        'Límite de operaciones de super-resolución y escalado de imagen alcanzado. Intente nuevamente en un minuto.',
+    });
+  },
+});
+
+
 

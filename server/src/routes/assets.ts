@@ -25,6 +25,7 @@ import {
   imageEnhancementRateLimiter,
   backgroundReplacementRateLimiter,
   faceBlurringRateLimiter,
+  superResolutionRateLimiter,
 } from '../middleware/rateLimiter';
 import { validate } from '../middleware/validate';
 import { createShareSchema } from '../schemas/share.schema';
@@ -84,6 +85,10 @@ import {
   createFaceBlurringBodySchema,
   listFaceBlurringsQuerySchema,
 } from '../schemas/faceBlurring.schema';
+import {
+  createSuperResolutionBodySchema,
+  listSuperResolutionsQuerySchema,
+} from '../schemas/superResolution.schema';
 import { logSecurityEvent } from '../middleware/auditLogger';
 import { query } from '../db';
 import { validateMagicBytes } from '../utils/magicBytes';
@@ -158,6 +163,12 @@ import {
   getAssetFaceBlurringById,
   deleteAssetFaceBlurring,
 } from '../utils/faceBlurringEngine';
+import {
+  createAssetSuperResolution,
+  listAssetSuperResolutions,
+  getAssetSuperResolutionById,
+  deleteAssetSuperResolution,
+} from '../utils/superResolutionEngine';
 import { dispatchWorkflowsForEvent } from '../utils/workflowEngine';
 import { recordAnalyticsEvent } from '../utils/analyticsEngine';
 import {
@@ -3605,6 +3616,269 @@ router.delete(
         status: 500,
         error: 'Internal Server Error',
         message: 'Error al eliminar la anonimización visual.',
+      });
+    }
+  },
+);
+
+/**
+ * POST /api/v1/assets/:id/upscale
+ * Creates a super-resolution / smart upscaled derivative for an asset (FC 028, OWASP A01/A04/A09).
+ */
+router.post(
+  '/:id/upscale',
+  superResolutionRateLimiter,
+  requireAuth,
+  validate(createSuperResolutionBodySchema, 'body'),
+  async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+    try {
+      const tenantId = Number(req.user!.tenantId);
+      const actorId = Number(req.user!.userId);
+      const assetId = parseInt(String(req.params.id), 10);
+      const actor: AclActor = { id: actorId, role: String(req.user!.role), tenantId };
+
+      if (isNaN(assetId) || assetId <= 0) {
+        res.status(400).json({ status: 400, error: 'Bad Request', message: 'ID de activo inválido.' });
+        return;
+      }
+
+      // Verify asset exists in tenant
+      const assetRows = (await query(
+        `SELECT id, current_version_id, mime_type FROM assets WHERE id = ? AND tenant_id = ? LIMIT 1`,
+        [assetId, tenantId],
+      )) as any[];
+
+      if (!assetRows || assetRows.length === 0) {
+        res.status(404).json({ status: 404, error: 'Not Found', message: 'Activo digital no encontrado.' });
+        return;
+      }
+
+      // ACL check: EDIT permission required
+      const evalResult = await evaluateAclPermission(actor, 'ASSET', assetId, 'EDIT');
+      if (!evalResult.allowed) {
+        res.status(403).json({
+          status: 403,
+          error: 'Forbidden',
+          message: 'Acceso denegado por política de control de acceso (ACL) para escalar este activo.',
+        });
+        return;
+      }
+
+      const versionId = Number(assetRows[0].current_version_id) || 1;
+      const input = req.body;
+
+      const result = await createAssetSuperResolution(tenantId, assetId, versionId, input);
+
+      if (!result.success) {
+        res.status(result.statusCode).json({
+          status: result.statusCode,
+          error: result.statusCode === 404 ? 'Not Found' : 'Bad Request',
+          message: result.message,
+        });
+        return;
+      }
+
+      await logSecurityEvent(req, {
+        eventType: 'ASSET_UPSCALED',
+        userId: actorId,
+        status: 'SUCCESS',
+        details: `Created super-resolution derivative for asset ${assetId}, scale ${input.scale_factor}, algorithm ${input.algorithm}`,
+      });
+
+      res.status(201).json({
+        status: 201,
+        message: 'Derivada de super-resolución creada exitosamente.',
+        data: result.upscale,
+      });
+    } catch (err: any) {
+      console.error('Create super resolution error:', err);
+      res.status(500).json({
+        status: 500,
+        error: 'Internal Server Error',
+        message: 'Error al procesar la super-resolución del activo.',
+      });
+    }
+  },
+);
+
+/**
+ * GET /api/v1/assets/:id/upscales
+ * Lists all super-resolution derivatives for an asset (FC 028, OWASP A01/A04/A09).
+ */
+router.get(
+  '/:id/upscales',
+  superResolutionRateLimiter,
+  requireAuth,
+  validate(listSuperResolutionsQuerySchema, 'query'),
+  async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+    try {
+      const tenantId = Number(req.user!.tenantId);
+      const actorId = Number(req.user!.userId);
+      const assetId = parseInt(String(req.params.id), 10);
+      const actor: AclActor = { id: actorId, role: String(req.user!.role), tenantId };
+
+      if (isNaN(assetId) || assetId <= 0) {
+        res.status(400).json({ status: 400, error: 'Bad Request', message: 'ID de activo inválido.' });
+        return;
+      }
+
+      // Verify asset exists in tenant
+      const assetRows = (await query(
+        `SELECT id FROM assets WHERE id = ? AND tenant_id = ? LIMIT 1`,
+        [assetId, tenantId],
+      )) as any[];
+
+      if (!assetRows || assetRows.length === 0) {
+        res.status(404).json({ status: 404, error: 'Not Found', message: 'Activo digital no encontrado.' });
+        return;
+      }
+
+      // ACL check: VIEW permission required
+      const evalResult = await evaluateAclPermission(actor, 'ASSET', assetId, 'VIEW');
+      if (!evalResult.allowed) {
+        res.status(403).json({
+          status: 403,
+          error: 'Forbidden',
+          message: 'Acceso denegado por política de control de acceso (ACL) para consultar derivadas de super-resolución.',
+        });
+        return;
+      }
+
+      const { limit, offset, scale_factor, algorithm } = req.query as any;
+      const upscales = await listAssetSuperResolutions(
+        tenantId,
+        assetId,
+        Number(limit),
+        Number(offset),
+        scale_factor,
+        algorithm,
+      );
+
+      res.status(200).json({
+        status: 200,
+        message: 'Derivadas de super-resolución recuperadas exitosamente.',
+        data: upscales,
+      });
+    } catch (err: any) {
+      console.error('List super resolutions error:', err);
+      res.status(500).json({
+        status: 500,
+        error: 'Internal Server Error',
+        message: 'Error al consultar las derivadas de super-resolución.',
+      });
+    }
+  },
+);
+
+/**
+ * GET /api/v1/assets/:id/upscales/:upscaleId
+ * Gets details of a specific super-resolution derivative (FC 028, OWASP A01/A04/A09).
+ */
+router.get(
+  '/:id/upscales/:upscaleId',
+  superResolutionRateLimiter,
+  requireAuth,
+  async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+    try {
+      const tenantId = Number(req.user!.tenantId);
+      const actorId = Number(req.user!.userId);
+      const assetId = parseInt(String(req.params.id), 10);
+      const upscaleId = parseInt(String(req.params.upscaleId), 10);
+      const actor: AclActor = { id: actorId, role: String(req.user!.role), tenantId };
+
+      if (isNaN(assetId) || assetId <= 0 || isNaN(upscaleId) || upscaleId <= 0) {
+        res.status(400).json({ status: 400, error: 'Bad Request', message: 'Parámetros inválidos.' });
+        return;
+      }
+
+      // ACL check: VIEW permission required
+      const evalResult = await evaluateAclPermission(actor, 'ASSET', assetId, 'VIEW');
+      if (!evalResult.allowed) {
+        res.status(403).json({
+          status: 403,
+          error: 'Forbidden',
+          message: 'Acceso denegado por política de control de acceso (ACL) para consultar la super-resolución.',
+        });
+        return;
+      }
+
+      const upscale = await getAssetSuperResolutionById(tenantId, assetId, upscaleId);
+      if (!upscale) {
+        res.status(404).json({ status: 404, error: 'Not Found', message: 'Super-resolución no encontrada.' });
+        return;
+      }
+
+      res.status(200).json({
+        status: 200,
+        message: 'Detalle de super-resolución recuperado exitosamente.',
+        data: upscale,
+      });
+    } catch (err: any) {
+      console.error('Get super resolution detail error:', err);
+      res.status(500).json({
+        status: 500,
+        error: 'Internal Server Error',
+        message: 'Error al consultar el detalle de la super-resolución.',
+      });
+    }
+  },
+);
+
+/**
+ * DELETE /api/v1/assets/:id/upscales/:upscaleId
+ * Deletes a super-resolution derivative and unlinks its physical file from disk (FC 028, OWASP A01/A04/A09).
+ */
+router.delete(
+  '/:id/upscales/:upscaleId',
+  superResolutionRateLimiter,
+  requireAuth,
+  async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+    try {
+      const tenantId = Number(req.user!.tenantId);
+      const actorId = Number(req.user!.userId);
+      const assetId = parseInt(String(req.params.id), 10);
+      const upscaleId = parseInt(String(req.params.upscaleId), 10);
+      const actor: AclActor = { id: actorId, role: String(req.user!.role), tenantId };
+
+      if (isNaN(assetId) || assetId <= 0 || isNaN(upscaleId) || upscaleId <= 0) {
+        res.status(400).json({ status: 400, error: 'Bad Request', message: 'Parámetros inválidos.' });
+        return;
+      }
+
+      // ACL check: EDIT permission required
+      const evalResult = await evaluateAclPermission(actor, 'ASSET', assetId, 'EDIT');
+      if (!evalResult.allowed) {
+        res.status(403).json({
+          status: 403,
+          error: 'Forbidden',
+          message: 'Acceso denegado por política de control de acceso (ACL) para eliminar la super-resolución.',
+        });
+        return;
+      }
+
+      const deleted = await deleteAssetSuperResolution(tenantId, assetId, upscaleId);
+      if (!deleted) {
+        res.status(404).json({ status: 404, error: 'Not Found', message: 'Super-resolución no encontrada.' });
+        return;
+      }
+
+      await logSecurityEvent(req, {
+        eventType: 'ASSET_UPSCALING_DELETED',
+        userId: actorId,
+        status: 'SUCCESS',
+        details: `Deleted super-resolution derivative ID ${upscaleId} for asset ${assetId}`,
+      });
+
+      res.status(200).json({
+        status: 200,
+        message: 'Derivada de super-resolución eliminada exitosamente.',
+      });
+    } catch (err: any) {
+      console.error('Delete super resolution error:', err);
+      res.status(500).json({
+        status: 500,
+        error: 'Internal Server Error',
+        message: 'Error al eliminar la super-resolución.',
       });
     }
   },
