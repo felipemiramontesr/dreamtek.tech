@@ -31,6 +31,7 @@ import {
   bannerAdaptationRateLimiter,
   videoTranscodingRateLimiter,
   videoThumbnailRateLimiter,
+  videoChapterRateLimiter,
 } from '../middleware/rateLimiter';
 import { validate } from '../middleware/validate';
 import { createShareSchema } from '../schemas/share.schema';
@@ -227,6 +228,20 @@ import {
   getAssetVideoThumbnailById,
   deleteAssetVideoThumbnail,
 } from '../utils/videoThumbnailEngine';
+import {
+  createVideoChaptersBodySchema,
+  listVideoChaptersQuerySchema,
+  getVideoSummaryQuerySchema,
+  updateVideoChapterBodySchema,
+  videoChapterParamSchema,
+} from '../schemas/videoChapter.schema';
+import {
+  createAssetVideoChapters,
+  listAssetVideoChapters,
+  getAssetVideoSummary,
+  updateAssetVideoChapter,
+  deleteAssetVideoChapters,
+} from '../utils/videoChapterEngine';
 import { dispatchWorkflowsForEvent } from '../utils/workflowEngine';
 import { recordAnalyticsEvent } from '../utils/analyticsEngine';
 import {
@@ -5317,6 +5332,345 @@ router.delete(
     }
   },
 );
+
+/**
+ * POST /api/v1/assets/:id/video-chapters
+ * Automatically creates/regenerates video chapters and structured summary (FC 034, OWASP A01/A03/A04/A09).
+ */
+router.post(
+  '/:id/video-chapters',
+  videoChapterRateLimiter,
+  requireAuth,
+  validate(createVideoChaptersBodySchema, 'body'),
+  async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+    try {
+      const tenantId = Number(req.user!.tenantId);
+      const actorId = Number(req.user!.userId);
+      const assetId = parseInt(String(req.params.id), 10);
+      const actor: AclActor = { id: actorId, role: String(req.user!.role), tenantId };
+
+      if (isNaN(assetId) || assetId <= 0) {
+        res.status(400).json({ status: 400, error: 'Bad Request', message: 'ID de activo inválido.' });
+        return;
+      }
+
+      // Verify asset exists in tenant
+      const assetRows = (await query(
+        `SELECT id, current_version_id FROM assets WHERE id = ? AND tenant_id = ? LIMIT 1`,
+        [assetId, tenantId],
+      )) as any[];
+
+      if (!assetRows || assetRows.length === 0) {
+        res.status(404).json({ status: 404, error: 'Not Found', message: 'Activo digital no encontrado.' });
+        return;
+      }
+
+      // ACL check: EDIT permission required
+      const evalResult = await evaluateAclPermission(actor, 'ASSET', assetId, 'EDIT');
+      if (!evalResult.allowed) {
+        res.status(403).json({
+          status: 403,
+          error: 'Forbidden',
+          message: 'Acceso denegado por política de control de acceso (ACL) para generar capítulos de este video.',
+        });
+        return;
+      }
+
+      const versionId = Number(assetRows[0].current_version_id) || 1;
+      const input = req.body;
+
+      const result = await createAssetVideoChapters(tenantId, assetId, versionId, input);
+
+      if (!result.success) {
+        res.status(result.statusCode).json({
+          status: result.statusCode,
+          error: result.statusCode === 404 ? 'Not Found' : 'Bad Request',
+          message: result.message,
+        });
+        return;
+      }
+
+      await logSecurityEvent(req, {
+        eventType: 'ASSET_VIDEO_CHAPTERS_CREATED',
+        userId: actorId,
+        status: 'SUCCESS',
+        details: `Generated ${result.chapters.length} chapters and ${input.summary_type} summary for asset ${assetId}`,
+      });
+
+      res.status(201).json({
+        status: 201,
+        message: 'Capítulos y resumen estructurado de video generados exitosamente.',
+        data: {
+          chapters: result.chapters,
+          summary: result.summary,
+        },
+      });
+    } catch (err: any) {
+      console.error('Create video chapters error:', err);
+      res.status(500).json({
+        status: 500,
+        error: 'Internal Server Error',
+        message: 'Error al generar los capítulos y resumen de video.',
+      });
+    }
+  },
+);
+
+/**
+ * GET /api/v1/assets/:id/video-chapters
+ * Lists all chapters for a video asset (FC 034, OWASP A01/A04/A09).
+ */
+router.get(
+  '/:id/video-chapters',
+  videoChapterRateLimiter,
+  requireAuth,
+  validate(listVideoChaptersQuerySchema, 'query'),
+  async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+    try {
+      const tenantId = Number(req.user!.tenantId);
+      const actorId = Number(req.user!.userId);
+      const assetId = parseInt(String(req.params.id), 10);
+      const actor: AclActor = { id: actorId, role: String(req.user!.role), tenantId };
+
+      if (isNaN(assetId) || assetId <= 0) {
+        res.status(400).json({ status: 400, error: 'Bad Request', message: 'ID de activo inválido.' });
+        return;
+      }
+
+      // Verify asset exists in tenant
+      const assetRows = (await query(
+        `SELECT id FROM assets WHERE id = ? AND tenant_id = ? LIMIT 1`,
+        [assetId, tenantId],
+      )) as any[];
+
+      if (!assetRows || assetRows.length === 0) {
+        res.status(404).json({ status: 404, error: 'Not Found', message: 'Activo digital no encontrado.' });
+        return;
+      }
+
+      // ACL check: VIEW permission required
+      const evalResult = await evaluateAclPermission(actor, 'ASSET', assetId, 'VIEW');
+      if (!evalResult.allowed) {
+        res.status(403).json({
+          status: 403,
+          error: 'Forbidden',
+          message: 'Acceso denegado por política de control de acceso (ACL) para consultar capítulos.',
+        });
+        return;
+      }
+
+      const { limit, offset } = req.query as any;
+      const chapters = await listAssetVideoChapters(
+        tenantId,
+        assetId,
+        Number(limit),
+        Number(offset),
+      );
+
+      res.status(200).json({
+        status: 200,
+        message: 'Capítulos de video recuperados exitosamente.',
+        data: chapters,
+      });
+    } catch (err: any) {
+      console.error('List video chapters error:', err);
+      res.status(500).json({
+        status: 500,
+        error: 'Internal Server Error',
+        message: 'Error al listar los capítulos de video del activo.',
+      });
+    }
+  },
+);
+
+/**
+ * GET /api/v1/assets/:id/video-summary
+ * Gets structured summary for a video asset (FC 034, OWASP A01/A04/A09).
+ */
+router.get(
+  '/:id/video-summary',
+  videoChapterRateLimiter,
+  requireAuth,
+  validate(getVideoSummaryQuerySchema, 'query'),
+  async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+    try {
+      const tenantId = Number(req.user!.tenantId);
+      const actorId = Number(req.user!.userId);
+      const assetId = parseInt(String(req.params.id), 10);
+      const actor: AclActor = { id: actorId, role: String(req.user!.role), tenantId };
+
+      if (isNaN(assetId) || assetId <= 0) {
+        res.status(400).json({ status: 400, error: 'Bad Request', message: 'ID de activo inválido.' });
+        return;
+      }
+
+      // Verify asset exists in tenant
+      const assetRows = (await query(
+        `SELECT id FROM assets WHERE id = ? AND tenant_id = ? LIMIT 1`,
+        [assetId, tenantId],
+      )) as any[];
+
+      if (!assetRows || assetRows.length === 0) {
+        res.status(404).json({ status: 404, error: 'Not Found', message: 'Activo digital no encontrado.' });
+        return;
+      }
+
+      // ACL check: VIEW permission required
+      const evalResult = await evaluateAclPermission(actor, 'ASSET', assetId, 'VIEW');
+      if (!evalResult.allowed) {
+        res.status(403).json({
+          status: 403,
+          error: 'Forbidden',
+          message: 'Acceso denegado por política de control de acceso (ACL) para consultar el resumen.',
+        });
+        return;
+      }
+
+      const { summary_type } = req.query as any;
+      const summary = await getAssetVideoSummary(tenantId, assetId, summary_type);
+
+      if (!summary) {
+        res.status(404).json({ status: 404, error: 'Not Found', message: 'Resumen de video no encontrado.' });
+        return;
+      }
+
+      res.status(200).json({
+        status: 200,
+        message: 'Resumen estructurado de video recuperado exitosamente.',
+        data: summary,
+      });
+    } catch (err: any) {
+      console.error('Get video summary error:', err);
+      res.status(500).json({
+        status: 500,
+        error: 'Internal Server Error',
+        message: 'Error al consultar el resumen estructurado de video.',
+      });
+    }
+  },
+);
+
+/**
+ * PUT /api/v1/assets/:id/video-chapters/:chapterId
+ * Manually updates a chapter title, description, or timestamps (FC 034, OWASP A01/A04/A09).
+ */
+router.put(
+  '/:id/video-chapters/:chapterId',
+  videoChapterRateLimiter,
+  requireAuth,
+  validate(updateVideoChapterBodySchema, 'body'),
+  async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+    try {
+      const tenantId = Number(req.user!.tenantId);
+      const actorId = Number(req.user!.userId);
+      const assetId = parseInt(String(req.params.id), 10);
+      const chapterId = parseInt(String(req.params.chapterId), 10);
+      const actor: AclActor = { id: actorId, role: String(req.user!.role), tenantId };
+
+      if (isNaN(assetId) || assetId <= 0 || isNaN(chapterId) || chapterId <= 0) {
+        res.status(400).json({ status: 400, error: 'Bad Request', message: 'Parámetros inválidos.' });
+        return;
+      }
+
+      // ACL check: EDIT permission required
+      const evalResult = await evaluateAclPermission(actor, 'ASSET', assetId, 'EDIT');
+      if (!evalResult.allowed) {
+        res.status(403).json({
+          status: 403,
+          error: 'Forbidden',
+          message: 'Acceso denegado por política de control de acceso (ACL) para actualizar el capítulo.',
+        });
+        return;
+      }
+
+      const updated = await updateAssetVideoChapter(tenantId, assetId, chapterId, req.body);
+      if (!updated) {
+        res.status(404).json({ status: 404, error: 'Not Found', message: 'Capítulo de video no encontrado.' });
+        return;
+      }
+
+      await logSecurityEvent(req, {
+        eventType: 'ASSET_VIDEO_CHAPTER_UPDATED',
+        userId: actorId,
+        status: 'SUCCESS',
+        details: `Updated video chapter ID ${chapterId} for asset ${assetId}`,
+      });
+
+      res.status(200).json({
+        status: 200,
+        message: 'Capítulo de video actualizado exitosamente.',
+        data: updated,
+      });
+    } catch (err: any) {
+      console.error('Update video chapter error:', err);
+      res.status(500).json({
+        status: 500,
+        error: 'Internal Server Error',
+        message: 'Error al actualizar el capítulo de video.',
+      });
+    }
+  },
+);
+
+/**
+ * DELETE /api/v1/assets/:id/video-chapters
+ * Deletes all chapters and summaries for an asset (FC 034, OWASP A01/A04/A09).
+ */
+router.delete(
+  '/:id/video-chapters',
+  videoChapterRateLimiter,
+  requireAuth,
+  async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+    try {
+      const tenantId = Number(req.user!.tenantId);
+      const actorId = Number(req.user!.userId);
+      const assetId = parseInt(String(req.params.id), 10);
+      const actor: AclActor = { id: actorId, role: String(req.user!.role), tenantId };
+
+      if (isNaN(assetId) || assetId <= 0) {
+        res.status(400).json({ status: 400, error: 'Bad Request', message: 'ID de activo inválido.' });
+        return;
+      }
+
+      // ACL check: EDIT permission required
+      const evalResult = await evaluateAclPermission(actor, 'ASSET', assetId, 'EDIT');
+      if (!evalResult.allowed) {
+        res.status(403).json({
+          status: 403,
+          error: 'Forbidden',
+          message: 'Acceso denegado por política de control de acceso (ACL) para eliminar capítulos.',
+        });
+        return;
+      }
+
+      const deleted = await deleteAssetVideoChapters(tenantId, assetId);
+      if (!deleted) {
+        res.status(404).json({ status: 404, error: 'Not Found', message: 'No se encontraron capítulos ni resúmenes para eliminar.' });
+        return;
+      }
+
+      await logSecurityEvent(req, {
+        eventType: 'ASSET_VIDEO_CHAPTERS_DELETED',
+        userId: actorId,
+        status: 'SUCCESS',
+        details: `Deleted all chapters and summaries for asset ${assetId}`,
+      });
+
+      res.status(200).json({
+        status: 200,
+        message: 'Capítulos y resúmenes de video eliminados exitosamente.',
+      });
+    } catch (err: any) {
+      console.error('Delete video chapters error:', err);
+      res.status(500).json({
+        status: 500,
+        error: 'Internal Server Error',
+        message: 'Error al eliminar los capítulos de video.',
+      });
+    }
+  },
+);
+
 
 
 
