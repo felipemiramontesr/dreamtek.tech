@@ -139,8 +139,6 @@ export function partitionTranscriptIntoChapters(
 
   for (let i = 0; i < numChapters; i++) {
     const chunk = transcriptSegments.slice(i * segmentsPerChapter, (i + 1) * segmentsPerChapter);
-    if (chunk.length === 0) break;
-
     const isLast = i === numChapters - 1 || (i + 1) * segmentsPerChapter >= totalSegments;
     const chunkText = chunk.map((s) => s.text.trim()).join(' ');
     const chunkEnd = isLast
@@ -279,7 +277,7 @@ export async function createAssetVideoChapters(
   }
 
   const transcriptData = transcriptRows[0];
-  const fullTranscript = String(transcriptData.full_transcript || '');
+  const fullTranscript = String(transcriptData.full_transcript);
   let segments: Array<{ start_time: number; end_time: number; text: string }> = [];
 
   try {
