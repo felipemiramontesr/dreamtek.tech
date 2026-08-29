@@ -226,24 +226,33 @@ describe('DAM AI Dynamic Video Watermarking & Forensic Tracking (FC 036)', () =>
       expect(smallPoints[0].y).toBe(20);
     });
 
-    it('generates deterministic HMAC forensic payload', () => {
+    it('generates deterministic HMAC forensic payload with and without secret', () => {
       const res1 = generateForensicPayload(100, 10, 1, 'felipe@dreamtek.tech', { leak_id: 'L1' });
       expect(res1.payload.tenant_id).toBe(100);
       expect(res1.payload.user_identifier).toBe('felipe@dreamtek.tech');
       expect(res1.hmac_signature).toBeDefined();
       expect(res1.verification_digest).toHaveLength(16);
 
-      // Without userIdentifier fallback
+      // Without userIdentifier and customPayload fallback
       const res2 = generateForensicPayload(100, 10, 1);
       expect(res2.payload.user_identifier).toBe('tenant-user-100');
+      expect(res2.payload.custom_tracking).toEqual({});
+
+      // Without process.env.JWT_SECRET fallback
+      const prevSecret = process.env.JWT_SECRET;
+      delete process.env.JWT_SECRET;
+      const res3 = generateForensicPayload(100, 10, 1);
+      expect(res3.hmac_signature).toBeDefined();
+      process.env.JWT_SECRET = prevSecret;
     });
 
-    it('resolves video watermark parameters with defaults and overrides', () => {
+    it('resolves video watermark parameters with all combinations of defaults and overrides', () => {
       const resDefault = resolveVideoWatermarkParameters(100, 5, 1, {});
       expect(resDefault.watermark_type).toBe('DYNAMIC_OVERLAY');
       expect(resDefault.position_strategy).toBe('STATIC_CORNER');
       expect(resDefault.text_overlay).toBe('DREAMTEK WATERMARK #5');
       expect(resDefault.font_color).toBe('#FFFFFF');
+      expect(resDefault.tracking_payload).toBeNull();
 
       const resUser = resolveVideoWatermarkParameters(100, 5, 1, {
         user_identifier: 'user123',
@@ -267,9 +276,15 @@ describe('DAM AI Dynamic Video Watermarking & Forensic Tracking (FC 036)', () =>
       expect(resCustom.interval_seconds).toBe(20);
       expect(resCustom.metadata.forensic_signature).toBeDefined();
       expect(resCustom.tracking_payload).toBeDefined();
+
+      const resNonStegoWithPayload = resolveVideoWatermarkParameters(100, 5, 1, {
+        watermark_type: 'DYNAMIC_OVERLAY',
+        tracking_payload: { test: true },
+      });
+      expect(resNonStegoWithPayload.tracking_payload).toEqual({ test: true });
     });
 
-    it('generates SVG validation card with escaped content', () => {
+    it('generates SVG validation card with escaped content and trajectory point fallback', () => {
       const resolved = resolveVideoWatermarkParameters(100, 5, 1, {
         text_overlay: 'Test <SVG> "Card"',
         user_identifier: 'test & <user>',
@@ -279,6 +294,16 @@ describe('DAM AI Dynamic Video Watermarking & Forensic Tracking (FC 036)', () =>
       expect(svg).toContain('Test &lt;SVG&gt; &quot;Card&quot;');
       expect(svg).toContain('test &amp; &lt;user&gt;');
       expect(svg).toContain('Verification Digest: [');
+
+      // Empty trajectory points and null user identifier fallback
+      const emptyMeta = {
+        ...resolved.metadata,
+        user_identifier: null,
+        trajectory_points: [],
+      };
+      const svgFallback = generateForensicValidationCardSvg(100, 5, 1, emptyMeta);
+      expect(svgFallback).toContain('User Identifier: None');
+      expect(svgFallback).toContain('x="100" y="100"');
     });
   });
 
@@ -501,6 +526,58 @@ describe('DAM AI Dynamic Video Watermarking & Forensic Tracking (FC 036)', () =>
 
       const del3 = await deleteAssetVideoWatermark(100, 10, 6);
       expect(del3).toBe(true);
+
+      // Found case with derivative path but file already missing on disk
+      vi.mocked(db.query)
+        .mockResolvedValueOnce([
+          {
+            id: 7,
+            tenant_id: 100,
+            asset_id: 10,
+            version_id: 1,
+            watermark_type: 'DYNAMIC_OVERLAY',
+            position_strategy: 'STATIC_CORNER',
+            opacity: 0.5,
+            user_identifier: null,
+            tracking_payload: null,
+            output_derivative_path: path.join(
+              STORAGE_ROOT,
+              'derivatives',
+              '100',
+              'video_watermarks',
+              'nonexistent_wm.webp',
+            ),
+            watermark_metadata: {},
+          },
+        ])
+        .mockResolvedValueOnce({ affectedRows: 1 });
+
+      const del4 = await deleteAssetVideoWatermark(100, 10, 7);
+      expect(del4).toBe(true);
+    });
+
+    it('handles createOrUpdate when existing row has null output_derivative_path', async () => {
+      vi.mocked(db.query)
+        .mockResolvedValueOnce([{ id: 1, output_derivative_path: null }]) // existing check with null path
+        .mockResolvedValueOnce({ affectedRows: 1 }) // update
+        .mockResolvedValueOnce([
+          {
+            id: 1,
+            tenant_id: 100,
+            asset_id: 10,
+            version_id: 1,
+            watermark_type: 'DYNAMIC_OVERLAY',
+            position_strategy: 'STATIC_CORNER',
+            opacity: 0.5,
+            user_identifier: null,
+            tracking_payload: null,
+            output_derivative_path: '/tmp/wm.webp',
+            watermark_metadata: {},
+          },
+        ]);
+
+      const record = await createOrUpdateVideoWatermark(100, 10, 1, {});
+      expect(record.id).toBe(1);
     });
   });
 
@@ -569,7 +646,7 @@ describe('DAM AI Dynamic Video Watermarking & Forensic Tracking (FC 036)', () =>
         expect(res.body.message).toContain('Activo digital no encontrado');
       });
 
-      it('returns 400 if asset mime_type is not video/*', async () => {
+      it('returns 400 if asset mime_type is not video/* or null', async () => {
         vi.mocked(db.query).mockResolvedValueOnce([{ id: 10, mime_type: 'image/png' }]);
 
         const res = await supertest(app)
@@ -579,6 +656,16 @@ describe('DAM AI Dynamic Video Watermarking & Forensic Tracking (FC 036)', () =>
           .send({});
         expect(res.status).toBe(400);
         expect(res.body.message).toContain('se requiere MIME type video/*');
+
+        // Case when mime_type is null
+        vi.mocked(db.query).mockResolvedValueOnce([{ id: 10, mime_type: null }]);
+        const resNull = await supertest(app)
+          .post('/api/v1/assets/10/video-watermark')
+          .set('Authorization', `Bearer ${adminToken}`)
+          .set('X-Forwarded-For', getNextIp())
+          .send({});
+        expect(resNull.status).toBe(400);
+        expect(resNull.body.message).toContain('se requiere MIME type video/*');
       });
 
       it('returns 403 if ACL EDIT permission is denied', async () => {
@@ -758,6 +845,35 @@ describe('DAM AI Dynamic Video Watermarking & Forensic Tracking (FC 036)', () =>
         expect(res.status).toBe(200);
         expect(res.body.data.length).toBe(1);
         expect(res.body.meta.limit).toBe(10);
+      });
+
+      it('returns 200 OK and list of watermarks without query filtering (defaults)', async () => {
+        vi.mocked(db.query)
+          .mockResolvedValueOnce([{ id: 10 }])
+          .mockResolvedValueOnce([
+            {
+              id: 1,
+              tenant_id: 100,
+              asset_id: 10,
+              version_id: 1,
+              watermark_type: 'DYNAMIC_OVERLAY',
+              position_strategy: 'STATIC_CORNER',
+              opacity: 0.5,
+              user_identifier: null,
+              tracking_payload: JSON.stringify({ test: 1 }),
+              output_derivative_path: null,
+              watermark_metadata: { verification_digest: 'ABC' },
+            },
+          ]);
+
+        const res = await supertest(app)
+          .get('/api/v1/assets/10/video-watermarks')
+          .set('Authorization', `Bearer ${adminToken}`)
+          .set('X-Forwarded-For', getNextIp());
+
+        expect(res.status).toBe(200);
+        expect(res.body.data.length).toBe(1);
+        expect(res.body.meta.limit).toBe(50);
       });
 
       it('handles server exceptions gracefully (500)', async () => {
