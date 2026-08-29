@@ -33,6 +33,7 @@ import {
   videoThumbnailRateLimiter,
   videoChapterRateLimiter,
   audioSpectralRateLimiter,
+  videoWatermarkRateLimiter,
 } from '../middleware/rateLimiter';
 import { validate } from '../middleware/validate';
 import { createShareSchema } from '../schemas/share.schema';
@@ -254,6 +255,17 @@ import {
   getAssetAudioSpectralProfileById,
   deleteAssetAudioSpectralProfile,
 } from '../utils/audioSpectralEngine';
+import {
+  createVideoWatermarkBodySchema,
+  listVideoWatermarkQuerySchema,
+  videoWatermarkParamSchema,
+} from '../schemas/videoWatermark.schema';
+import {
+  createOrUpdateVideoWatermark,
+  listAssetVideoWatermarks,
+  getAssetVideoWatermarkById,
+  deleteAssetVideoWatermark,
+} from '../utils/videoWatermarkEngine';
 import { dispatchWorkflowsForEvent } from '../utils/workflowEngine';
 import { recordAnalyticsEvent } from '../utils/analyticsEngine';
 import {
@@ -5960,6 +5972,293 @@ router.delete(
         status: 500,
         error: 'Internal Server Error',
         message: 'Error al eliminar el perfil espectral de audio.',
+      });
+    }
+  },
+);
+
+/**
+ * POST /api/v1/assets/:id/video-watermark
+ * Creates or updates a dynamic video watermark & forensic tracking profile (FC 036, OWASP A01/A03/A04/A07/A09).
+ */
+router.post(
+  '/:id/video-watermark',
+  videoWatermarkRateLimiter,
+  requireAuth,
+  validate(createVideoWatermarkBodySchema, 'body'),
+  async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+    try {
+      const tenantId = Number(req.user!.tenantId);
+      const actorId = Number(req.user!.userId);
+      const assetId = parseInt(String(req.params.id), 10);
+
+      if (isNaN(assetId) || assetId <= 0) {
+        res.status(400).json({ status: 400, error: 'Bad Request', message: 'ID de activo digital inválido.' });
+        return;
+      }
+
+      const actor: AclActor = { id: actorId, role: String(req.user!.role), tenantId };
+
+      // Verify asset exists and belongs to tenant
+      const assetRows = (await query(
+        `SELECT id, current_version_id, mime_type FROM assets WHERE id = ? AND tenant_id = ? AND deleted_at IS NULL LIMIT 1`,
+        [assetId, tenantId],
+      )) as any[];
+
+      if (!assetRows || assetRows.length === 0) {
+        res.status(404).json({ status: 404, error: 'Not Found', message: 'Activo digital no encontrado.' });
+        return;
+      }
+
+      // Check MIME type is video
+      if (!assetRows[0].mime_type || !String(assetRows[0].mime_type).startsWith('video/')) {
+        res.status(400).json({
+          status: 400,
+          error: 'Bad Request',
+          message: 'El activo digital no es un video válido (se requiere MIME type video/*).',
+        });
+        return;
+      }
+
+      // ACL check: EDIT permission required
+      const evalResult = await evaluateAclPermission(actor, 'ASSET', assetId, 'EDIT');
+      if (!evalResult.allowed) {
+        res.status(403).json({
+          status: 403,
+          error: 'Forbidden',
+          message: 'Acceso denegado por política de control de acceso (ACL) para configurar marcas de agua de video.',
+        });
+        return;
+      }
+
+      const versionId = Number(assetRows[0].current_version_id) || 1;
+      const watermark = await createOrUpdateVideoWatermark(tenantId, assetId, versionId, req.body);
+
+      await logSecurityEvent(req, {
+        eventType: 'ASSET_VIDEO_WATERMARK_CREATED',
+        userId: actorId,
+        status: 'SUCCESS',
+        details: `Created/Updated video watermark ${watermark.id} (${watermark.watermark_type}) for asset ${assetId}`,
+      });
+
+      res.status(201).json({
+        status: 201,
+        message: 'Marca de agua dinámica y trazabilidad forense configurada exitosamente.',
+        data: watermark,
+      });
+    } catch (err: any) {
+      console.error('Create video watermark error:', err);
+      res.status(500).json({
+        status: 500,
+        error: 'Internal Server Error',
+        message: 'Error al configurar la marca de agua dinámica de video.',
+      });
+    }
+  },
+);
+
+/**
+ * GET /api/v1/assets/:id/video-watermarks
+ * Lists all dynamic video watermark configurations for an asset (FC 036, OWASP A01/A03/A04/A07).
+ */
+router.get(
+  '/:id/video-watermarks',
+  videoWatermarkRateLimiter,
+  requireAuth,
+  validate(listVideoWatermarkQuerySchema, 'query'),
+  async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+    try {
+      const tenantId = Number(req.user!.tenantId);
+      const actorId = Number(req.user!.userId);
+      const assetId = parseInt(String(req.params.id), 10);
+
+      if (isNaN(assetId) || assetId <= 0) {
+        res.status(400).json({ status: 400, error: 'Bad Request', message: 'ID de activo digital inválido.' });
+        return;
+      }
+
+      const actor: AclActor = { id: actorId, role: String(req.user!.role), tenantId };
+
+      // Verify asset exists in tenant
+      const assetRows = (await query(
+        `SELECT id FROM assets WHERE id = ? AND tenant_id = ? AND deleted_at IS NULL LIMIT 1`,
+        [assetId, tenantId],
+      )) as any[];
+
+      if (!assetRows || assetRows.length === 0) {
+        res.status(404).json({ status: 404, error: 'Not Found', message: 'Activo digital no encontrado.' });
+        return;
+      }
+
+      // ACL check: VIEW permission required
+      const evalResult = await evaluateAclPermission(actor, 'ASSET', assetId, 'VIEW');
+      if (!evalResult.allowed) {
+        res.status(403).json({
+          status: 403,
+          error: 'Forbidden',
+          message: 'Acceso denegado por política de control de acceso (ACL) para consultar marcas de agua de video.',
+        });
+        return;
+      }
+
+      const limit = Number(req.query.limit);
+      const offset = Number(req.query.offset);
+      const watermarkType = req.query.watermark_type ? String(req.query.watermark_type) : undefined;
+
+      const watermarks = await listAssetVideoWatermarks(tenantId, assetId, limit, offset, watermarkType);
+
+      res.status(200).json({
+        status: 200,
+        data: watermarks,
+        meta: {
+          total: watermarks.length,
+          limit,
+          offset,
+        },
+      });
+    } catch (err: any) {
+      console.error('List video watermarks error:', err);
+      res.status(500).json({
+        status: 500,
+        error: 'Internal Server Error',
+        message: 'Error al listar las marcas de agua de video.',
+      });
+    }
+  },
+);
+
+/**
+ * GET /api/v1/assets/:id/video-watermarks/:watermarkId
+ * Gets details of a single video watermark configuration (FC 036, OWASP A01/A03/A04/A07).
+ */
+router.get(
+  '/:id/video-watermarks/:watermarkId',
+  videoWatermarkRateLimiter,
+  requireAuth,
+  validate(videoWatermarkParamSchema, 'params'),
+  async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+    try {
+      const tenantId = Number(req.user!.tenantId);
+      const actorId = Number(req.user!.userId);
+      const assetId = parseInt(String(req.params.id), 10);
+      const watermarkId = parseInt(String(req.params.watermarkId), 10);
+      const actor: AclActor = { id: actorId, role: String(req.user!.role), tenantId };
+
+      // Verify asset exists in tenant
+      const assetRows = (await query(
+        `SELECT id FROM assets WHERE id = ? AND tenant_id = ? AND deleted_at IS NULL LIMIT 1`,
+        [assetId, tenantId],
+      )) as any[];
+
+      if (!assetRows || assetRows.length === 0) {
+        res.status(404).json({ status: 404, error: 'Not Found', message: 'Activo digital no encontrado.' });
+        return;
+      }
+
+      // ACL check: VIEW permission required
+      const evalResult = await evaluateAclPermission(actor, 'ASSET', assetId, 'VIEW');
+      if (!evalResult.allowed) {
+        res.status(403).json({
+          status: 403,
+          error: 'Forbidden',
+          message: 'Acceso denegado por política de control de acceso (ACL) para consultar esta marca de agua.',
+        });
+        return;
+      }
+
+      const watermark = await getAssetVideoWatermarkById(tenantId, assetId, watermarkId);
+
+      if (!watermark) {
+        res.status(404).json({
+          status: 404,
+          error: 'Not Found',
+          message: 'Configuración de marca de agua no encontrada.',
+        });
+        return;
+      }
+
+      res.status(200).json({
+        status: 200,
+        data: watermark,
+      });
+    } catch (err: any) {
+      console.error('Get video watermark error:', err);
+      res.status(500).json({
+        status: 500,
+        error: 'Internal Server Error',
+        message: 'Error al consultar la configuración de marca de agua.',
+      });
+    }
+  },
+);
+
+/**
+ * DELETE /api/v1/assets/:id/video-watermarks/:watermarkId
+ * Deletes a video watermark configuration and unlinks physical validation derivative (FC 036, OWASP A01/A03/A04/A09).
+ */
+router.delete(
+  '/:id/video-watermarks/:watermarkId',
+  videoWatermarkRateLimiter,
+  requireAuth,
+  validate(videoWatermarkParamSchema, 'params'),
+  async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+    try {
+      const tenantId = Number(req.user!.tenantId);
+      const actorId = Number(req.user!.userId);
+      const assetId = parseInt(String(req.params.id), 10);
+      const watermarkId = parseInt(String(req.params.watermarkId), 10);
+      const actor: AclActor = { id: actorId, role: String(req.user!.role), tenantId };
+
+      // Verify asset exists in tenant
+      const assetRows = (await query(
+        `SELECT id FROM assets WHERE id = ? AND tenant_id = ? AND deleted_at IS NULL LIMIT 1`,
+        [assetId, tenantId],
+      )) as any[];
+
+      if (!assetRows || assetRows.length === 0) {
+        res.status(404).json({ status: 404, error: 'Not Found', message: 'Activo digital no encontrado.' });
+        return;
+      }
+
+      // ACL check: EDIT permission required
+      const evalResult = await evaluateAclPermission(actor, 'ASSET', assetId, 'EDIT');
+      if (!evalResult.allowed) {
+        res.status(403).json({
+          status: 403,
+          error: 'Forbidden',
+          message: 'Acceso denegado por política de control de acceso (ACL) para eliminar esta marca de agua.',
+        });
+        return;
+      }
+
+      const deleted = await deleteAssetVideoWatermark(tenantId, assetId, watermarkId);
+
+      if (!deleted) {
+        res.status(404).json({
+          status: 404,
+          error: 'Not Found',
+          message: 'Configuración de marca de agua no encontrada para eliminar.',
+        });
+        return;
+      }
+
+      await logSecurityEvent(req, {
+        eventType: 'ASSET_VIDEO_WATERMARK_DELETED',
+        userId: actorId,
+        status: 'SUCCESS',
+        details: `Deleted video watermark ${watermarkId} for asset ${assetId}`,
+      });
+
+      res.status(200).json({
+        status: 200,
+        message: 'Marca de agua dinámica de video eliminada exitosamente.',
+      });
+    } catch (err: any) {
+      console.error('Delete video watermark error:', err);
+      res.status(500).json({
+        status: 500,
+        error: 'Internal Server Error',
+        message: 'Error al eliminar la marca de agua dinámica de video.',
       });
     }
   },
