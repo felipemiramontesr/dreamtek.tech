@@ -400,9 +400,7 @@ export async function createOrUpdateVideoWatermark(
     String(tenantId),
     'video_watermarks',
   );
-  if (!fs.existsSync(derivativeDir)) {
-    fs.mkdirSync(derivativeDir, { recursive: true });
-  }
+  fs.mkdirSync(derivativeDir, { recursive: true });
 
   const derivativeFilename = `watermark_${assetId}_v${versionId}_${Date.now()}.webp`;
   const derivativePath = path.join(derivativeDir, derivativeFilename);
@@ -420,13 +418,14 @@ export async function createOrUpdateVideoWatermark(
     .toFile(derivativePath);
 
   // Check if existing record exists for this type
-  const existingRows: any[] = await db.query(
+  const rawExisting: any = await db.query(
     `SELECT id, output_derivative_path FROM dam_asset_video_watermarks
      WHERE tenant_id = ? AND asset_id = ? AND version_id = ? AND watermark_type = ?`,
     [tenantId, assetId, versionId, resolved.watermark_type],
   );
+  const existingRows: any[] = rawExisting || [];
 
-  if (existingRows && existingRows.length > 0) {
+  if (existingRows.length > 0) {
     safeUnlink(existingRows[0].output_derivative_path);
 
     await db.query(
@@ -572,7 +571,7 @@ export async function getAssetVideoWatermarkById(
   assetId: number,
   watermarkId: number,
 ): Promise<VideoWatermarkRecord | null> {
-  const rows: any[] = await db.query(
+  const rawRows: any = await db.query(
     `SELECT id, tenant_id, asset_id, version_id, watermark_type, position_strategy,
             opacity, user_identifier, tracking_payload, output_derivative_path,
             watermark_metadata, created_at, updated_at
@@ -580,8 +579,9 @@ export async function getAssetVideoWatermarkById(
      WHERE tenant_id = ? AND asset_id = ? AND id = ?`,
     [tenantId, assetId, watermarkId],
   );
+  const rows: any[] = rawRows || [];
 
-  if (!rows || rows.length === 0) {
+  if (rows.length === 0) {
     return null;
   }
 
