@@ -466,6 +466,30 @@ describe('DAM AI Dynamic Video Watermarking & Forensic Tracking (FC 036)', () =>
       });
     });
 
+    it('updates existing record when old output_derivative_path is null', async () => {
+      vi.mocked(db.query)
+        .mockResolvedValueOnce([{ id: 1, output_derivative_path: null }]) // existing check with null oldPath
+        .mockResolvedValueOnce({ affectedRows: 1 }) // update
+        .mockResolvedValueOnce([
+          {
+            id: 1,
+            tenant_id: 100,
+            asset_id: 10,
+            version_id: 1,
+            watermark_type: 'DYNAMIC_OVERLAY',
+            position_strategy: 'STATIC_CORNER',
+            opacity: 0.5,
+            user_identifier: null,
+            tracking_payload: null,
+            output_derivative_path: '/tmp/wm.webp',
+            watermark_metadata: {},
+          },
+        ]);
+
+      const record = await createOrUpdateVideoWatermark(100, 10, 1, {});
+      expect(record.id).toBe(1);
+    });
+
     it('lists video watermark records with and without filters', async () => {
       vi.mocked(db.query).mockResolvedValueOnce([
         {
