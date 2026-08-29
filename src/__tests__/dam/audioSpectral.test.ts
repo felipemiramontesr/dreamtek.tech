@@ -856,6 +856,46 @@ describe('DAM AI Audio Spectral Noise Profiling & De-humming (FC 035)', () => {
         expect(res.body.data.base_frequency_hz).toBe(50);
       });
 
+      it('returns 201 Created on success with truthy current_version_id', async () => {
+        vi.mocked(db.query)
+          .mockResolvedValueOnce([{ id: 10, current_version_id: 3, mime_type: 'audio/wav' }])
+          .mockResolvedValueOnce([])
+          .mockResolvedValueOnce({ insertId: 2 })
+          .mockResolvedValueOnce([
+            {
+              id: 2,
+              tenant_id: 100,
+              asset_id: 10,
+              version_id: 3,
+              profile_type: 'CUSTOM',
+              base_frequency_hz: 100,
+              harmonic_count: 2,
+              attenuation_db: 10,
+              spectral_noise_floor_db: -60,
+              q_factor: 10,
+              output_derivative_path: null,
+              spectral_metadata: JSON.stringify({
+                harmonics_detected: [100, 200],
+                bandwidth_hz: 10,
+                snr_improvement_db: 7.5,
+                filter_type: 'NOTCH_CASCADE',
+                fft_bins: 2048,
+                spectrogram_width: 800,
+                spectrogram_height: 300,
+              }),
+            },
+          ]);
+
+        const res = await supertest(app)
+          .post('/api/v1/assets/10/audio-spectral-profile')
+          .set('Authorization', `Bearer ${adminToken}`)
+          .set('X-Forwarded-For', getNextIp())
+          .send({ profile_type: 'CUSTOM', base_frequency_hz: 100 });
+
+        expect(res.status).toBe(201);
+        expect(res.body.data.version_id).toBe(3);
+      });
+
       it('handles server exceptions gracefully (500)', async () => {
         vi.mocked(db.query).mockRejectedValueOnce(new Error('DB crash'));
 

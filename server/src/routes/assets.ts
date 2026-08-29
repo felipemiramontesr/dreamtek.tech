@@ -5807,8 +5807,8 @@ router.get(
         return;
       }
 
-      const limit = Number(req.query.limit) || 50;
-      const offset = Number(req.query.offset) || 0;
+      const limit = Number(req.query.limit);
+      const offset = Number(req.query.offset);
       const profileType = req.query.profile_type ? String(req.query.profile_type) : undefined;
 
       const profiles = await listAssetAudioSpectralProfiles(tenantId, assetId, limit, offset, profileType);
