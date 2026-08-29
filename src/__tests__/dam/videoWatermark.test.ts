@@ -14,6 +14,7 @@ import {
 import {
   escapeXml,
   computeWatermarkTrajectory,
+  getForensicHmacSecret,
   generateForensicPayload,
   resolveVideoWatermarkParameters,
   generateForensicValidationCardSvg,
@@ -243,6 +244,27 @@ describe('DAM AI Dynamic Video Watermarking & Forensic Tracking (FC 036)', () =>
       delete process.env.JWT_SECRET;
       const res3 = generateForensicPayload(100, 10, 1);
       expect(res3.hmac_signature).toBeDefined();
+      process.env.JWT_SECRET = prevSecret;
+    });
+
+    it('tests getForensicHmacSecret behavior in dev and production', () => {
+      const prevEnv = process.env.NODE_ENV;
+      const prevSecret = process.env.JWT_SECRET;
+
+      // With secret
+      process.env.JWT_SECRET = 'my_secret';
+      expect(getForensicHmacSecret()).toBe('my_secret');
+
+      // Without secret in dev
+      delete process.env.JWT_SECRET;
+      process.env.NODE_ENV = 'development';
+      expect(getForensicHmacSecret()).toBe('dreamtek_dev_jwt_secret_key_2026');
+
+      // Without secret in production (throws FATAL error)
+      process.env.NODE_ENV = 'production';
+      expect(() => getForensicHmacSecret()).toThrow('FATAL SECURITY ERROR');
+
+      process.env.NODE_ENV = prevEnv;
       process.env.JWT_SECRET = prevSecret;
     });
 

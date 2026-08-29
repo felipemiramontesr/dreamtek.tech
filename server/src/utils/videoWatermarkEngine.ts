@@ -152,6 +152,18 @@ export function computeWatermarkTrajectory(
 }
 
 /**
+ * Gets the HMAC secret for forensic watermark signatures, throwing in production if missing.
+ */
+export function getForensicHmacSecret(): string {
+  if (process.env.NODE_ENV === 'production' && !process.env.JWT_SECRET) {
+    throw new Error(
+      'FATAL SECURITY ERROR: JWT_SECRET environment variable is missing in production.',
+    );
+  }
+  return process.env.JWT_SECRET || 'dreamtek_dev_jwt_secret_key_2026';
+}
+
+/**
  * Generates deterministic HMAC forensic payload for tracking leak sources.
  */
 export function generateForensicPayload(
@@ -174,7 +186,7 @@ export function generateForensicPayload(
     custom_tracking: customPayload || {},
   };
 
-  const secret = process.env.JWT_SECRET || 'dreamtek_forensic_watermark_secret';
+  const secret = getForensicHmacSecret();
   const serialized = JSON.stringify(payload);
   const hmac_signature = crypto
     .createHmac('sha256', secret)
@@ -214,7 +226,7 @@ export function resolveVideoWatermarkParameters(
     input.watermark_type || 'DYNAMIC_OVERLAY';
   const position_strategy: VideoWatermarkPositionStrategy =
     input.position_strategy || 'STATIC_CORNER';
-  const opacity = Math.max(0.05, Math.min(1.0, Number(input.opacity ?? 0.5)));
+  const opacity = Number(input.opacity ?? 0.5);
   const user_identifier = input.user_identifier
     ? String(input.user_identifier).trim()
     : null;
@@ -223,14 +235,11 @@ export function resolveVideoWatermarkParameters(
     : user_identifier
       ? `CONFIDENTIAL - ${user_identifier}`
       : `DREAMTEK WATERMARK #${assetId}`;
-  const font_size = Math.max(10, Math.min(120, Number(input.font_size ?? 24)));
+  const font_size = Number(input.font_size ?? 24);
   const font_color = input.font_color || '#FFFFFF';
-  const interval_seconds = Math.max(
-    1,
-    Math.min(300, Number(input.interval_seconds ?? 10)),
-  );
-  const card_width = Math.max(128, Math.min(3840, Number(input.width ?? 1280)));
-  const card_height = Math.max(72, Math.min(2160, Number(input.height ?? 720)));
+  const interval_seconds = Number(input.interval_seconds ?? 10);
+  const card_width = Number(input.width ?? 1280);
+  const card_height = Number(input.height ?? 720);
 
   const trajectory_points = computeWatermarkTrajectory(
     position_strategy,
