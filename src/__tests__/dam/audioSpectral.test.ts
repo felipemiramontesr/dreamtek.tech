@@ -64,6 +64,11 @@ function makeToken(payload: { userId: number; role: string; tenantId: number }):
   );
 }
 
+let ipCounter = 1;
+function getNextIp(): string {
+  return `10.99.1.${ipCounter++}`;
+}
+
 describe('DAM AI Audio Spectral Noise Profiling & De-humming (FC 035)', () => {
   const adminToken = makeToken({ userId: 1, role: 'ADMIN', tenantId: 100 });
   const clientToken = makeToken({ userId: 2, role: 'CLIENT', tenantId: 100 });
@@ -78,6 +83,7 @@ describe('DAM AI Audio Spectral Noise Profiling & De-humming (FC 035)', () => {
     });
     vi.mocked(dispatchWebhookEvent).mockResolvedValue(undefined);
     app = express();
+    app.set('trust proxy', true);
     app.use(express.json());
     app.use('/api/v1/assets', assetsRouter);
   });
@@ -722,14 +728,28 @@ describe('DAM AI Audio Spectral Noise Profiling & De-humming (FC 035)', () => {
 
   describe('4. REST Endpoints Integration (assets.ts)', () => {
     describe('POST /api/v1/assets/:id/audio-spectral-profile', () => {
-      it('returns 400 if asset ID is invalid', async () => {
-        const res = await supertest(app)
+      it('returns 400 if asset ID is invalid or <= 0', async () => {
+        const res1 = await supertest(app)
           .post('/api/v1/assets/invalid/audio-spectral-profile')
           .set('Authorization', `Bearer ${adminToken}`)
+          .set('X-Forwarded-For', getNextIp())
           .send({});
+        expect(res1.status).toBe(400);
+        expect(res1.body.message).toContain('ID de activo inválido');
 
-        expect(res.status).toBe(400);
-        expect(res.body.message).toContain('ID de activo inválido');
+        const res2 = await supertest(app)
+          .post('/api/v1/assets/0/audio-spectral-profile')
+          .set('Authorization', `Bearer ${adminToken}`)
+          .set('X-Forwarded-For', getNextIp())
+          .send({});
+        expect(res2.status).toBe(400);
+
+        const res3 = await supertest(app)
+          .post('/api/v1/assets/-5/audio-spectral-profile')
+          .set('Authorization', `Bearer ${adminToken}`)
+          .set('X-Forwarded-For', getNextIp())
+          .send({});
+        expect(res3.status).toBe(400);
       });
 
       it('returns 404 if asset does not exist in tenant', async () => {
@@ -738,24 +758,41 @@ describe('DAM AI Audio Spectral Noise Profiling & De-humming (FC 035)', () => {
         const res = await supertest(app)
           .post('/api/v1/assets/999/audio-spectral-profile')
           .set('Authorization', `Bearer ${adminToken}`)
+          .set('X-Forwarded-For', getNextIp())
           .send({});
 
         expect(res.status).toBe(404);
         expect(res.body.message).toContain('Activo digital no encontrado');
       });
 
-      it('returns 400 if asset is not audio or video', async () => {
+      it('returns 400 if asset is not audio or video, or mime_type is empty', async () => {
+        // 1. image/png
         vi.mocked(db.query).mockResolvedValueOnce([
           { id: 10, current_version_id: 1, mime_type: 'image/png' },
         ]);
 
-        const res = await supertest(app)
+        const res1 = await supertest(app)
           .post('/api/v1/assets/10/audio-spectral-profile')
           .set('Authorization', `Bearer ${adminToken}`)
+          .set('X-Forwarded-For', getNextIp())
           .send({});
 
-        expect(res.status).toBe(400);
-        expect(res.body.message).toContain('Solo activos de audio o video');
+        expect(res1.status).toBe(400);
+        expect(res1.body.message).toContain('Solo activos de audio o video');
+
+        // 2. null mime_type
+        vi.mocked(db.query).mockResolvedValueOnce([
+          { id: 10, current_version_id: 1, mime_type: null },
+        ]);
+
+        const res2 = await supertest(app)
+          .post('/api/v1/assets/10/audio-spectral-profile')
+          .set('Authorization', `Bearer ${adminToken}`)
+          .set('X-Forwarded-For', getNextIp())
+          .send({});
+
+        expect(res2.status).toBe(400);
+        expect(res2.body.message).toContain('Solo activos de audio o video');
       });
 
       it('returns 403 if ACL denies EDIT permission', async () => {
@@ -770,15 +807,16 @@ describe('DAM AI Audio Spectral Noise Profiling & De-humming (FC 035)', () => {
         const res = await supertest(app)
           .post('/api/v1/assets/10/audio-spectral-profile')
           .set('Authorization', `Bearer ${clientToken}`)
+          .set('X-Forwarded-For', getNextIp())
           .send({});
 
         expect(res.status).toBe(403);
         expect(res.body.error).toBe('Forbidden');
       });
 
-      it('returns 201 Created and profile data on success (for audio/wav and video/mp4)', async () => {
+      it('returns 201 Created and profile data on success for video/mp4 and null current_version_id fallback', async () => {
         vi.mocked(db.query)
-          .mockResolvedValueOnce([{ id: 10, current_version_id: 1, mime_type: 'audio/wav' }]) // asset check
+          .mockResolvedValueOnce([{ id: 10, current_version_id: null, mime_type: 'video/mp4' }]) // asset check (current_version_id null -> fallback to 1)
           .mockResolvedValueOnce([]) // check existing
           .mockResolvedValueOnce({ insertId: 1 }) // insert
           .mockResolvedValueOnce([
@@ -809,6 +847,7 @@ describe('DAM AI Audio Spectral Noise Profiling & De-humming (FC 035)', () => {
         const res = await supertest(app)
           .post('/api/v1/assets/10/audio-spectral-profile')
           .set('Authorization', `Bearer ${adminToken}`)
+          .set('X-Forwarded-For', getNextIp())
           .send({ profile_type: 'MAINS_HUM_50HZ' });
 
         expect(res.status).toBe(201);
@@ -823,6 +862,7 @@ describe('DAM AI Audio Spectral Noise Profiling & De-humming (FC 035)', () => {
         const res = await supertest(app)
           .post('/api/v1/assets/10/audio-spectral-profile')
           .set('Authorization', `Bearer ${adminToken}`)
+          .set('X-Forwarded-For', getNextIp())
           .send({});
 
         expect(res.status).toBe(500);
@@ -831,12 +871,18 @@ describe('DAM AI Audio Spectral Noise Profiling & De-humming (FC 035)', () => {
     });
 
     describe('GET /api/v1/assets/:id/audio-spectral-profiles', () => {
-      it('returns 400 on invalid asset ID', async () => {
-        const res = await supertest(app)
+      it('returns 400 on invalid or <= 0 asset ID', async () => {
+        const res1 = await supertest(app)
           .get('/api/v1/assets/abc/audio-spectral-profiles')
-          .set('Authorization', `Bearer ${adminToken}`);
+          .set('Authorization', `Bearer ${adminToken}`)
+          .set('X-Forwarded-For', getNextIp());
+        expect(res1.status).toBe(400);
 
-        expect(res.status).toBe(400);
+        const res2 = await supertest(app)
+          .get('/api/v1/assets/0/audio-spectral-profiles')
+          .set('Authorization', `Bearer ${adminToken}`)
+          .set('X-Forwarded-For', getNextIp());
+        expect(res2.status).toBe(400);
       });
 
       it('returns 404 if asset not found', async () => {
@@ -844,7 +890,8 @@ describe('DAM AI Audio Spectral Noise Profiling & De-humming (FC 035)', () => {
 
         const res = await supertest(app)
           .get('/api/v1/assets/999/audio-spectral-profiles')
-          .set('Authorization', `Bearer ${adminToken}`);
+          .set('Authorization', `Bearer ${adminToken}`)
+          .set('X-Forwarded-For', getNextIp());
 
         expect(res.status).toBe(404);
       });
@@ -858,12 +905,14 @@ describe('DAM AI Audio Spectral Noise Profiling & De-humming (FC 035)', () => {
 
         const res = await supertest(app)
           .get('/api/v1/assets/10/audio-spectral-profiles')
-          .set('Authorization', `Bearer ${clientToken}`);
+          .set('Authorization', `Bearer ${clientToken}`)
+          .set('X-Forwarded-For', getNextIp());
 
         expect(res.status).toBe(403);
       });
 
-      it('returns 200 OK and list of profiles', async () => {
+      it('returns 200 OK and list of profiles with and without query filter', async () => {
+        // 1. With filter
         vi.mocked(db.query)
           .mockResolvedValueOnce([{ id: 10 }]) // asset exists
           .mockResolvedValueOnce([
@@ -891,13 +940,28 @@ describe('DAM AI Audio Spectral Noise Profiling & De-humming (FC 035)', () => {
             },
           ]);
 
-        const res = await supertest(app)
-          .get('/api/v1/assets/10/audio-spectral-profiles?profile_type=MAINS_HUM_60HZ')
-          .set('Authorization', `Bearer ${adminToken}`);
+        const res1 = await supertest(app)
+          .get(
+            '/api/v1/assets/10/audio-spectral-profiles?profile_type=MAINS_HUM_60HZ&limit=25&offset=5',
+          )
+          .set('Authorization', `Bearer ${adminToken}`)
+          .set('X-Forwarded-For', getNextIp());
 
-        expect(res.status).toBe(200);
-        expect(res.body.data.length).toBe(1);
-        expect(res.body.data[0].profile_type).toBe('MAINS_HUM_60HZ');
+        expect(res1.status).toBe(200);
+        expect(res1.body.data.length).toBe(1);
+
+        // 2. Without filter (defaults)
+        vi.mocked(db.query)
+          .mockResolvedValueOnce([{ id: 10 }])
+          .mockResolvedValueOnce([]);
+
+        const res2 = await supertest(app)
+          .get('/api/v1/assets/10/audio-spectral-profiles')
+          .set('Authorization', `Bearer ${adminToken}`)
+          .set('X-Forwarded-For', getNextIp());
+
+        expect(res2.status).toBe(200);
+        expect(res2.body.data.length).toBe(0);
       });
 
       it('handles server exceptions gracefully (500)', async () => {
@@ -905,19 +969,38 @@ describe('DAM AI Audio Spectral Noise Profiling & De-humming (FC 035)', () => {
 
         const res = await supertest(app)
           .get('/api/v1/assets/10/audio-spectral-profiles')
-          .set('Authorization', `Bearer ${adminToken}`);
+          .set('Authorization', `Bearer ${adminToken}`)
+          .set('X-Forwarded-For', getNextIp());
 
         expect(res.status).toBe(500);
       });
     });
 
     describe('GET /api/v1/assets/:id/audio-spectral-profiles/:profileId', () => {
-      it('returns 400 on invalid params', async () => {
-        const res = await supertest(app)
+      it('returns 400 on invalid or <= 0 params', async () => {
+        const res1 = await supertest(app)
           .get('/api/v1/assets/10/audio-spectral-profiles/invalid')
-          .set('Authorization', `Bearer ${adminToken}`);
+          .set('Authorization', `Bearer ${adminToken}`)
+          .set('X-Forwarded-For', getNextIp());
+        expect(res1.status).toBe(400);
 
-        expect(res.status).toBe(400);
+        const res2 = await supertest(app)
+          .get('/api/v1/assets/0/audio-spectral-profiles/1')
+          .set('Authorization', `Bearer ${adminToken}`)
+          .set('X-Forwarded-For', getNextIp());
+        expect(res2.status).toBe(400);
+
+        const res3 = await supertest(app)
+          .get('/api/v1/assets/10/audio-spectral-profiles/0')
+          .set('Authorization', `Bearer ${adminToken}`)
+          .set('X-Forwarded-For', getNextIp());
+        expect(res3.status).toBe(400);
+
+        const res4 = await supertest(app)
+          .get('/api/v1/assets/-1/audio-spectral-profiles/-2')
+          .set('Authorization', `Bearer ${adminToken}`)
+          .set('X-Forwarded-For', getNextIp());
+        expect(res4.status).toBe(400);
       });
 
       it('returns 404 if asset not found', async () => {
@@ -925,7 +1008,8 @@ describe('DAM AI Audio Spectral Noise Profiling & De-humming (FC 035)', () => {
 
         const res = await supertest(app)
           .get('/api/v1/assets/999/audio-spectral-profiles/1')
-          .set('Authorization', `Bearer ${adminToken}`);
+          .set('Authorization', `Bearer ${adminToken}`)
+          .set('X-Forwarded-For', getNextIp());
 
         expect(res.status).toBe(404);
       });
@@ -939,7 +1023,8 @@ describe('DAM AI Audio Spectral Noise Profiling & De-humming (FC 035)', () => {
 
         const res = await supertest(app)
           .get('/api/v1/assets/10/audio-spectral-profiles/1')
-          .set('Authorization', `Bearer ${clientToken}`);
+          .set('Authorization', `Bearer ${clientToken}`)
+          .set('X-Forwarded-For', getNextIp());
 
         expect(res.status).toBe(403);
       });
@@ -951,7 +1036,8 @@ describe('DAM AI Audio Spectral Noise Profiling & De-humming (FC 035)', () => {
 
         const res = await supertest(app)
           .get('/api/v1/assets/10/audio-spectral-profiles/999')
-          .set('Authorization', `Bearer ${adminToken}`);
+          .set('Authorization', `Bearer ${adminToken}`)
+          .set('X-Forwarded-For', getNextIp());
 
         expect(res.status).toBe(404);
         expect(res.body.message).toContain('Perfil espectral no encontrado');
@@ -987,7 +1073,8 @@ describe('DAM AI Audio Spectral Noise Profiling & De-humming (FC 035)', () => {
 
         const res = await supertest(app)
           .get('/api/v1/assets/10/audio-spectral-profiles/1')
-          .set('Authorization', `Bearer ${adminToken}`);
+          .set('Authorization', `Bearer ${adminToken}`)
+          .set('X-Forwarded-For', getNextIp());
 
         expect(res.status).toBe(200);
         expect(res.body.data.profile_type).toBe('GROUND_LOOP');
@@ -998,19 +1085,38 @@ describe('DAM AI Audio Spectral Noise Profiling & De-humming (FC 035)', () => {
 
         const res = await supertest(app)
           .get('/api/v1/assets/10/audio-spectral-profiles/1')
-          .set('Authorization', `Bearer ${adminToken}`);
+          .set('Authorization', `Bearer ${adminToken}`)
+          .set('X-Forwarded-For', getNextIp());
 
         expect(res.status).toBe(500);
       });
     });
 
     describe('DELETE /api/v1/assets/:id/audio-spectral-profiles/:profileId', () => {
-      it('returns 400 on invalid params', async () => {
-        const res = await supertest(app)
+      it('returns 400 on invalid or <= 0 params', async () => {
+        const res1 = await supertest(app)
           .delete('/api/v1/assets/invalid/audio-spectral-profiles/1')
-          .set('Authorization', `Bearer ${adminToken}`);
+          .set('Authorization', `Bearer ${adminToken}`)
+          .set('X-Forwarded-For', getNextIp());
+        expect(res1.status).toBe(400);
 
-        expect(res.status).toBe(400);
+        const res2 = await supertest(app)
+          .delete('/api/v1/assets/0/audio-spectral-profiles/1')
+          .set('Authorization', `Bearer ${adminToken}`)
+          .set('X-Forwarded-For', getNextIp());
+        expect(res2.status).toBe(400);
+
+        const res3 = await supertest(app)
+          .delete('/api/v1/assets/10/audio-spectral-profiles/0')
+          .set('Authorization', `Bearer ${adminToken}`)
+          .set('X-Forwarded-For', getNextIp());
+        expect(res3.status).toBe(400);
+
+        const res4 = await supertest(app)
+          .delete('/api/v1/assets/-2/audio-spectral-profiles/-3')
+          .set('Authorization', `Bearer ${adminToken}`)
+          .set('X-Forwarded-For', getNextIp());
+        expect(res4.status).toBe(400);
       });
 
       it('returns 404 if asset not found', async () => {
@@ -1018,7 +1124,8 @@ describe('DAM AI Audio Spectral Noise Profiling & De-humming (FC 035)', () => {
 
         const res = await supertest(app)
           .delete('/api/v1/assets/999/audio-spectral-profiles/1')
-          .set('Authorization', `Bearer ${adminToken}`);
+          .set('Authorization', `Bearer ${adminToken}`)
+          .set('X-Forwarded-For', getNextIp());
 
         expect(res.status).toBe(404);
       });
@@ -1032,7 +1139,8 @@ describe('DAM AI Audio Spectral Noise Profiling & De-humming (FC 035)', () => {
 
         const res = await supertest(app)
           .delete('/api/v1/assets/10/audio-spectral-profiles/1')
-          .set('Authorization', `Bearer ${clientToken}`);
+          .set('Authorization', `Bearer ${clientToken}`)
+          .set('X-Forwarded-For', getNextIp());
 
         expect(res.status).toBe(403);
       });
@@ -1044,7 +1152,8 @@ describe('DAM AI Audio Spectral Noise Profiling & De-humming (FC 035)', () => {
 
         const res = await supertest(app)
           .delete('/api/v1/assets/10/audio-spectral-profiles/999')
-          .set('Authorization', `Bearer ${adminToken}`);
+          .set('Authorization', `Bearer ${adminToken}`)
+          .set('X-Forwarded-For', getNextIp());
 
         expect(res.status).toBe(404);
         expect(res.body.message).toContain('Perfil espectral no encontrado para eliminar');
@@ -1081,7 +1190,8 @@ describe('DAM AI Audio Spectral Noise Profiling & De-humming (FC 035)', () => {
 
         const res = await supertest(app)
           .delete('/api/v1/assets/10/audio-spectral-profiles/1')
-          .set('Authorization', `Bearer ${adminToken}`);
+          .set('Authorization', `Bearer ${adminToken}`)
+          .set('X-Forwarded-For', getNextIp());
 
         expect(res.status).toBe(200);
         expect(res.body.message).toContain('Perfil espectral de audio eliminado exitosamente');
@@ -1092,7 +1202,8 @@ describe('DAM AI Audio Spectral Noise Profiling & De-humming (FC 035)', () => {
 
         const res = await supertest(app)
           .delete('/api/v1/assets/10/audio-spectral-profiles/1')
-          .set('Authorization', `Bearer ${adminToken}`);
+          .set('Authorization', `Bearer ${adminToken}`)
+          .set('X-Forwarded-For', getNextIp());
 
         expect(res.status).toBe(500);
       });
