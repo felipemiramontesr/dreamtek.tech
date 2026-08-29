@@ -429,6 +429,43 @@ describe('DAM AI Dynamic Video Watermarking & Forensic Tracking (FC 036)', () =>
       expect(fs.existsSync(oldFile)).toBe(false);
     });
 
+    it('updates existing record when old derivative file does not exist on disk', async () => {
+      const nonExistentOldFile = path.join(
+        STORAGE_ROOT,
+        'derivatives',
+        '100',
+        'video_watermarks',
+        'missing_old_wm.webp',
+      );
+
+      vi.mocked(db.query)
+        .mockResolvedValueOnce([{ id: 1, output_derivative_path: nonExistentOldFile }]) // existing check
+        .mockResolvedValueOnce({ affectedRows: 1 }) // update
+        .mockResolvedValueOnce([
+          {
+            id: 1,
+            tenant_id: 100,
+            asset_id: 10,
+            version_id: 1,
+            watermark_type: 'DYNAMIC_OVERLAY',
+            position_strategy: 'STATIC_CORNER',
+            opacity: 0.5,
+            user_identifier: null,
+            tracking_payload: { already_parsed: true }, // object side
+            output_derivative_path: '/tmp/wm.webp',
+            watermark_metadata: { already_parsed: true, verification_digest: 'TEST' }, // object side
+          },
+        ]);
+
+      const record = await createOrUpdateVideoWatermark(100, 10, 1, {});
+      expect(record.id).toBe(1);
+      expect(record.tracking_payload).toEqual({ already_parsed: true });
+      expect(record.watermark_metadata).toEqual({
+        already_parsed: true,
+        verification_digest: 'TEST',
+      });
+    });
+
     it('lists video watermark records with and without filters', async () => {
       vi.mocked(db.query).mockResolvedValueOnce([
         {
@@ -452,6 +489,28 @@ describe('DAM AI Dynamic Video Watermarking & Forensic Tracking (FC 036)', () =>
       const list = await listAssetVideoWatermarks(100, 10, 20, 0, 'DYNAMIC_OVERLAY');
       expect(list.length).toBe(1);
       expect(list[0].watermark_type).toBe('DYNAMIC_OVERLAY');
+
+      // Without filter and with string tracking_payload and object watermark_metadata
+      vi.mocked(db.query).mockResolvedValueOnce([
+        {
+          id: 2,
+          tenant_id: 100,
+          asset_id: 10,
+          version_id: 1,
+          watermark_type: 'DYNAMIC_OVERLAY',
+          position_strategy: 'STATIC_CORNER',
+          opacity: 0.5,
+          user_identifier: null,
+          tracking_payload: JSON.stringify({ string_payload: true }),
+          output_derivative_path: null,
+          watermark_metadata: { verification_digest: 'DEF' },
+        },
+      ]);
+
+      const list2 = await listAssetVideoWatermarks(100, 10);
+      expect(list2.length).toBe(1);
+      expect(list2[0].tracking_payload).toEqual({ string_payload: true });
+      expect(list2[0].watermark_metadata).toEqual({ verification_digest: 'DEF' });
     });
 
     it('retrieves single video watermark record by ID or returns null', async () => {
@@ -482,6 +541,34 @@ describe('DAM AI Dynamic Video Watermarking & Forensic Tracking (FC 036)', () =>
       const found = await getAssetVideoWatermarkById(100, 10, 2);
       expect(found).not.toBeNull();
       expect(found?.user_identifier).toBe('agent@dreamtek.tech');
+
+      // Test with stringified JSON payload and metadata
+      vi.mocked(db.query).mockResolvedValueOnce([
+        {
+          id: 3,
+          tenant_id: 100,
+          asset_id: 10,
+          version_id: 1,
+          watermark_type: 'USER_IDENTIFIER_STAMP',
+          position_strategy: 'CENTER_TILED',
+          opacity: 0.6,
+          user_identifier: 'agent@dreamtek.tech',
+          tracking_payload: JSON.stringify({ payload_str: true }),
+          output_derivative_path: null,
+          watermark_metadata: JSON.stringify({
+            watermark_type: 'USER_IDENTIFIER_STAMP',
+            verification_digest: 'XYZ_STR',
+          }),
+        },
+      ]);
+
+      const foundStr = await getAssetVideoWatermarkById(100, 10, 3);
+      expect(foundStr).not.toBeNull();
+      expect(foundStr?.tracking_payload).toEqual({ payload_str: true });
+      expect(foundStr?.watermark_metadata).toEqual({
+        watermark_type: 'USER_IDENTIFIER_STAMP',
+        verification_digest: 'XYZ_STR',
+      });
     });
 
     it('deletes video watermark record and unlinks derivative file', async () => {

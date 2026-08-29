@@ -413,7 +413,7 @@ export async function createOrUpdateVideoWatermark(
 
   if (existingRows && existingRows.length > 0) {
     const oldPath = existingRows[0].output_derivative_path;
-    if (oldPath && oldPath !== derivativePath) {
+    if (oldPath) {
       assertPathContained(oldPath);
       if (fs.existsSync(oldPath)) {
         fs.unlinkSync(oldPath);
