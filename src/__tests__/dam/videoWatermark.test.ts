@@ -18,6 +18,7 @@ import {
   generateForensicPayload,
   resolveVideoWatermarkParameters,
   generateForensicValidationCardSvg,
+  safeUnlink,
   createOrUpdateVideoWatermark,
   listAssetVideoWatermarks,
   getAssetVideoWatermarkById,
@@ -326,6 +327,33 @@ describe('DAM AI Dynamic Video Watermarking & Forensic Tracking (FC 036)', () =>
       const svgFallback = generateForensicValidationCardSvg(100, 5, 1, emptyMeta);
       expect(svgFallback).toContain('User Identifier: None');
       expect(svgFallback).toContain('x="100" y="100"');
+    });
+
+    it('tests safeUnlink with null, non-existent, and existing files', () => {
+      // Null / undefined inputs
+      expect(() => safeUnlink(null)).not.toThrow();
+      expect(() => safeUnlink(undefined)).not.toThrow();
+      expect(() => safeUnlink('')).not.toThrow();
+
+      // Existing file
+      const tempTestFile = path.join(
+        STORAGE_ROOT,
+        'derivatives',
+        '100',
+        'video_watermarks',
+        'safe_unlink_test.webp',
+      );
+      const dir = path.dirname(tempTestFile);
+      if (!fs.existsSync(dir)) {
+        fs.mkdirSync(dir, { recursive: true });
+      }
+      fs.writeFileSync(tempTestFile, 'safe-unlink-data');
+      expect(fs.existsSync(tempTestFile)).toBe(true);
+      expect(() => safeUnlink(tempTestFile)).not.toThrow();
+      expect(fs.existsSync(tempTestFile)).toBe(false);
+
+      // Non-existent file (catches ENOENT)
+      expect(() => safeUnlink(tempTestFile)).not.toThrow();
     });
   });
 

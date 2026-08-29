@@ -364,7 +364,22 @@ export function generateForensicValidationCardSvg(
 }
 
 /**
- * Creates or updates a video watermark record, writes the validation card derivative to storage, and dispatches webhooks.
+ * Safely unlinks a derivative file if present, asserting containment and ignoring ENOENT.
+ */
+export function safeUnlink(filePath: string | null | undefined): void {
+  if (!filePath) {
+    return;
+  }
+  assertPathContained(filePath);
+  try {
+    fs.unlinkSync(filePath);
+  } catch {
+    // Ignore ENOENT / missing file
+  }
+}
+
+/**
+ * Persists or updates a video watermark record in MySQL and generates the Sharp WebP card.
  */
 export async function createOrUpdateVideoWatermark(
   tenantId: number,
@@ -412,13 +427,7 @@ export async function createOrUpdateVideoWatermark(
   );
 
   if (existingRows && existingRows.length > 0) {
-    const oldPath = existingRows[0].output_derivative_path;
-    if (oldPath) {
-      assertPathContained(oldPath);
-      if (fs.existsSync(oldPath)) {
-        fs.unlinkSync(oldPath);
-      }
-    }
+    safeUnlink(existingRows[0].output_derivative_path);
 
     await db.query(
       `UPDATE dam_asset_video_watermarks
@@ -613,12 +622,7 @@ export async function deleteAssetVideoWatermark(
     return false;
   }
 
-  if (record.output_derivative_path) {
-    assertPathContained(record.output_derivative_path);
-    if (fs.existsSync(record.output_derivative_path)) {
-      fs.unlinkSync(record.output_derivative_path);
-    }
-  }
+  safeUnlink(record.output_derivative_path);
 
   await db.query(
     'DELETE FROM dam_asset_video_watermarks WHERE tenant_id = ? AND asset_id = ? AND id = ?',
