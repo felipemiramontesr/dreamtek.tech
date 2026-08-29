@@ -32,6 +32,7 @@ import {
   videoTranscodingRateLimiter,
   videoThumbnailRateLimiter,
   videoChapterRateLimiter,
+  audioSpectralRateLimiter,
 } from '../middleware/rateLimiter';
 import { validate } from '../middleware/validate';
 import { createShareSchema } from '../schemas/share.schema';
@@ -242,6 +243,17 @@ import {
   updateAssetVideoChapter,
   deleteAssetVideoChapters,
 } from '../utils/videoChapterEngine';
+import {
+  createAudioSpectralBodySchema,
+  listAudioSpectralQuerySchema,
+  audioSpectralParamSchema,
+} from '../schemas/audioSpectral.schema';
+import {
+  createAssetAudioSpectralProfile,
+  listAssetAudioSpectralProfiles,
+  getAssetAudioSpectralProfileById,
+  deleteAssetAudioSpectralProfile,
+} from '../utils/audioSpectralEngine';
 import { dispatchWorkflowsForEvent } from '../utils/workflowEngine';
 import { recordAnalyticsEvent } from '../utils/analyticsEngine';
 import {
@@ -5671,17 +5683,300 @@ router.delete(
   },
 );
 
+/**
+ * POST /api/v1/assets/:id/audio-spectral-profile
+ * Creates or updates an audio spectral profile and generates spectrogram visualization derivative (FC 035, OWASP A01/A03/A04/A09).
+ */
+router.post(
+  '/:id/audio-spectral-profile',
+  audioSpectralRateLimiter,
+  requireAuth,
+  validate(createAudioSpectralBodySchema, 'body'),
+  async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+    try {
+      const tenantId = Number(req.user!.tenantId);
+      const actorId = Number(req.user!.userId);
+      const assetId = parseInt(String(req.params.id), 10);
+      const actor: AclActor = { id: actorId, role: String(req.user!.role), tenantId };
 
+      if (isNaN(assetId) || assetId <= 0) {
+        res.status(400).json({ status: 400, error: 'Bad Request', message: 'ID de activo inválido.' });
+        return;
+      }
 
+      // Verify asset exists in tenant
+      const assetRows = (await query(
+        `SELECT id, current_version_id, mime_type FROM assets WHERE id = ? AND tenant_id = ? AND deleted_at IS NULL LIMIT 1`,
+        [assetId, tenantId],
+      )) as any[];
 
+      if (!assetRows || assetRows.length === 0) {
+        res.status(404).json({ status: 404, error: 'Not Found', message: 'Activo digital no encontrado.' });
+        return;
+      }
 
+      const mimeType = String(assetRows[0].mime_type || '');
+      if (!mimeType.startsWith('audio/') && !mimeType.startsWith('video/')) {
+        res.status(400).json({
+          status: 400,
+          error: 'Bad Request',
+          message: 'Solo activos de audio o video pueden ser perfilados espectralmente.',
+        });
+        return;
+      }
 
+      // ACL check: EDIT permission required
+      const evalResult = await evaluateAclPermission(actor, 'ASSET', assetId, 'EDIT');
+      if (!evalResult.allowed) {
+        res.status(403).json({
+          status: 403,
+          error: 'Forbidden',
+          message: 'Acceso denegado por política de control de acceso (ACL) para generar perfiles espectrales de este activo.',
+        });
+        return;
+      }
 
+      const versionId = Number(assetRows[0].current_version_id) || 1;
+      const input = req.body;
 
+      const profile = await createAssetAudioSpectralProfile(tenantId, assetId, versionId, input);
+
+      await logSecurityEvent(req, {
+        eventType: 'ASSET_AUDIO_SPECTRAL_PROFILE_CREATED',
+        userId: actorId,
+        status: 'SUCCESS',
+        details: `Created audio spectral profile ${profile.profile_type} (${profile.base_frequency_hz}Hz) for asset ${assetId}`,
+      });
+
+      res.status(201).json({
+        status: 201,
+        message: 'Perfil espectral de audio generado exitosamente.',
+        data: profile,
+      });
+    } catch (err: any) {
+      console.error('Create audio spectral profile error:', err);
+      res.status(500).json({
+        status: 500,
+        error: 'Internal Server Error',
+        message: 'Error al generar el perfil espectral de audio.',
+      });
+    }
+  },
+);
+
+/**
+ * GET /api/v1/assets/:id/audio-spectral-profiles
+ * Lists all audio spectral profiles for an asset (FC 035, OWASP A01/A03/A04).
+ */
+router.get(
+  '/:id/audio-spectral-profiles',
+  audioSpectralRateLimiter,
+  requireAuth,
+  validate(listAudioSpectralQuerySchema, 'query'),
+  async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+    try {
+      const tenantId = Number(req.user!.tenantId);
+      const actorId = Number(req.user!.userId);
+      const assetId = parseInt(String(req.params.id), 10);
+      const actor: AclActor = { id: actorId, role: String(req.user!.role), tenantId };
+
+      if (isNaN(assetId) || assetId <= 0) {
+        res.status(400).json({ status: 400, error: 'Bad Request', message: 'ID de activo inválido.' });
+        return;
+      }
+
+      // Verify asset exists in tenant
+      const assetRows = (await query(
+        `SELECT id FROM assets WHERE id = ? AND tenant_id = ? AND deleted_at IS NULL LIMIT 1`,
+        [assetId, tenantId],
+      )) as any[];
+
+      if (!assetRows || assetRows.length === 0) {
+        res.status(404).json({ status: 404, error: 'Not Found', message: 'Activo digital no encontrado.' });
+        return;
+      }
+
+      // ACL check: VIEW permission required
+      const evalResult = await evaluateAclPermission(actor, 'ASSET', assetId, 'VIEW');
+      if (!evalResult.allowed) {
+        res.status(403).json({
+          status: 403,
+          error: 'Forbidden',
+          message: 'Acceso denegado por política de control de acceso (ACL) para consultar perfiles espectrales de este activo.',
+        });
+        return;
+      }
+
+      const limit = Number(req.query.limit) || 50;
+      const offset = Number(req.query.offset) || 0;
+      const profileType = req.query.profile_type ? String(req.query.profile_type) : undefined;
+
+      const profiles = await listAssetAudioSpectralProfiles(tenantId, assetId, limit, offset, profileType);
+
+      res.status(200).json({
+        status: 200,
+        data: profiles,
+      });
+    } catch (err: any) {
+      console.error('List audio spectral profiles error:', err);
+      res.status(500).json({
+        status: 500,
+        error: 'Internal Server Error',
+        message: 'Error al listar los perfiles espectrales de audio.',
+      });
+    }
+  },
+);
+
+/**
+ * GET /api/v1/assets/:id/audio-spectral-profiles/:profileId
+ * Gets details of a specific audio spectral profile (FC 035, OWASP A01/A03/A04).
+ */
+router.get(
+  '/:id/audio-spectral-profiles/:profileId',
+  audioSpectralRateLimiter,
+  requireAuth,
+  validate(audioSpectralParamSchema, 'params'),
+  async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+    try {
+      const tenantId = Number(req.user!.tenantId);
+      const actorId = Number(req.user!.userId);
+      const assetId = parseInt(String(req.params.id), 10);
+      const profileId = parseInt(String(req.params.profileId), 10);
+      const actor: AclActor = { id: actorId, role: String(req.user!.role), tenantId };
+
+      if (isNaN(assetId) || assetId <= 0 || isNaN(profileId) || profileId <= 0) {
+        res.status(400).json({ status: 400, error: 'Bad Request', message: 'Parámetros inválidos.' });
+        return;
+      }
+
+      // Verify asset exists in tenant
+      const assetRows = (await query(
+        `SELECT id FROM assets WHERE id = ? AND tenant_id = ? AND deleted_at IS NULL LIMIT 1`,
+        [assetId, tenantId],
+      )) as any[];
+
+      if (!assetRows || assetRows.length === 0) {
+        res.status(404).json({ status: 404, error: 'Not Found', message: 'Activo digital no encontrado.' });
+        return;
+      }
+
+      // ACL check: VIEW permission required
+      const evalResult = await evaluateAclPermission(actor, 'ASSET', assetId, 'VIEW');
+      if (!evalResult.allowed) {
+        res.status(403).json({
+          status: 403,
+          error: 'Forbidden',
+          message: 'Acceso denegado por política de control de acceso (ACL) para consultar este perfil espectral.',
+        });
+        return;
+      }
+
+      const profile = await getAssetAudioSpectralProfileById(tenantId, assetId, profileId);
+
+      if (!profile) {
+        res.status(404).json({
+          status: 404,
+          error: 'Not Found',
+          message: 'Perfil espectral no encontrado.',
+        });
+        return;
+      }
+
+      res.status(200).json({
+        status: 200,
+        data: profile,
+      });
+    } catch (err: any) {
+      console.error('Get audio spectral profile error:', err);
+      res.status(500).json({
+        status: 500,
+        error: 'Internal Server Error',
+        message: 'Error al consultar el perfil espectral de audio.',
+      });
+    }
+  },
+);
+
+/**
+ * DELETE /api/v1/assets/:id/audio-spectral-profiles/:profileId
+ * Deletes an audio spectral profile and removes physical derivative (FC 035, OWASP A01/A03/A04/A09).
+ */
+router.delete(
+  '/:id/audio-spectral-profiles/:profileId',
+  audioSpectralRateLimiter,
+  requireAuth,
+  validate(audioSpectralParamSchema, 'params'),
+  async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+    try {
+      const tenantId = Number(req.user!.tenantId);
+      const actorId = Number(req.user!.userId);
+      const assetId = parseInt(String(req.params.id), 10);
+      const profileId = parseInt(String(req.params.profileId), 10);
+      const actor: AclActor = { id: actorId, role: String(req.user!.role), tenantId };
+
+      if (isNaN(assetId) || assetId <= 0 || isNaN(profileId) || profileId <= 0) {
+        res.status(400).json({ status: 400, error: 'Bad Request', message: 'Parámetros inválidos.' });
+        return;
+      }
+
+      // Verify asset exists in tenant
+      const assetRows = (await query(
+        `SELECT id FROM assets WHERE id = ? AND tenant_id = ? AND deleted_at IS NULL LIMIT 1`,
+        [assetId, tenantId],
+      )) as any[];
+
+      if (!assetRows || assetRows.length === 0) {
+        res.status(404).json({ status: 404, error: 'Not Found', message: 'Activo digital no encontrado.' });
+        return;
+      }
+
+      // ACL check: EDIT permission required
+      const evalResult = await evaluateAclPermission(actor, 'ASSET', assetId, 'EDIT');
+      if (!evalResult.allowed) {
+        res.status(403).json({
+          status: 403,
+          error: 'Forbidden',
+          message: 'Acceso denegado por política de control de acceso (ACL) para eliminar este perfil espectral.',
+        });
+        return;
+      }
+
+      const deleted = await deleteAssetAudioSpectralProfile(tenantId, assetId, profileId);
+
+      if (!deleted) {
+        res.status(404).json({
+          status: 404,
+          error: 'Not Found',
+          message: 'Perfil espectral no encontrado para eliminar.',
+        });
+        return;
+      }
+
+      await logSecurityEvent(req, {
+        eventType: 'ASSET_AUDIO_SPECTRAL_PROFILE_DELETED',
+        userId: actorId,
+        status: 'SUCCESS',
+        details: `Deleted audio spectral profile ${profileId} for asset ${assetId}`,
+      });
+
+      res.status(200).json({
+        status: 200,
+        message: 'Perfil espectral de audio eliminado exitosamente.',
+      });
+    } catch (err: any) {
+      console.error('Delete audio spectral profile error:', err);
+      res.status(500).json({
+        status: 500,
+        error: 'Internal Server Error',
+        message: 'Error al eliminar el perfil espectral de audio.',
+      });
+    }
+  },
+);
 
 /**
  * GET /api/v1/assets/:id
-
  * Get asset metadata & versions with Anti-IDOR verification.
  */
 router.get('/:id', requireAuth, async (req: AuthenticatedRequest, res: Response): Promise<void> => {
