@@ -5845,11 +5845,6 @@ router.get(
       const profileId = parseInt(String(req.params.profileId), 10);
       const actor: AclActor = { id: actorId, role: String(req.user!.role), tenantId };
 
-      if (isNaN(assetId) || assetId <= 0 || isNaN(profileId) || profileId <= 0) {
-        res.status(400).json({ status: 400, error: 'Bad Request', message: 'Parámetros inválidos.' });
-        return;
-      }
-
       // Verify asset exists in tenant
       const assetRows = (await query(
         `SELECT id FROM assets WHERE id = ? AND tenant_id = ? AND deleted_at IS NULL LIMIT 1`,
@@ -5914,11 +5909,6 @@ router.delete(
       const assetId = parseInt(String(req.params.id), 10);
       const profileId = parseInt(String(req.params.profileId), 10);
       const actor: AclActor = { id: actorId, role: String(req.user!.role), tenantId };
-
-      if (isNaN(assetId) || assetId <= 0 || isNaN(profileId) || profileId <= 0) {
-        res.status(400).json({ status: 400, error: 'Bad Request', message: 'Parámetros inválidos.' });
-        return;
-      }
 
       // Verify asset exists in tenant
       const assetRows = (await query(
