@@ -538,7 +538,8 @@ export async function listAssetVideoWatermarks(
   sql += ' ORDER BY created_at DESC LIMIT ? OFFSET ?';
   params.push(Number(limit), Number(offset));
 
-  const rows: any[] = await db.query(sql, params);
+  const rawRows: any = await db.query(sql, params);
+  const rows: any[] = rawRows || [];
 
   return rows.map((r) => ({
     id: Number(r.id),

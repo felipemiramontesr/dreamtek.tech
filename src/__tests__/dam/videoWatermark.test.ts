@@ -518,7 +518,31 @@ describe('DAM AI Dynamic Video Watermarking & Forensic Tracking (FC 036)', () =>
       expect(record.id).toBe(1);
     });
 
-    it('lists video watermark records with and without filters', async () => {
+    it('handles createOrUpdate when existing check returns null from DB', async () => {
+      vi.mocked(db.query)
+        .mockResolvedValueOnce(null) // existing check returns null (falsy rawExisting)
+        .mockResolvedValueOnce({ insertId: 10 }) // insert
+        .mockResolvedValueOnce([
+          {
+            id: 10,
+            tenant_id: 100,
+            asset_id: 10,
+            version_id: 1,
+            watermark_type: 'DYNAMIC_OVERLAY',
+            position_strategy: 'STATIC_CORNER',
+            opacity: 0.5,
+            user_identifier: null,
+            tracking_payload: null,
+            output_derivative_path: '/tmp/wm10.webp',
+            watermark_metadata: {},
+          },
+        ]);
+
+      const record = await createOrUpdateVideoWatermark(100, 10, 1, {});
+      expect(record.id).toBe(10);
+    });
+
+    it('lists video watermark records with and without filters, and when DB returns null', async () => {
       vi.mocked(db.query).mockResolvedValueOnce([
         {
           id: 1,
@@ -563,9 +587,14 @@ describe('DAM AI Dynamic Video Watermarking & Forensic Tracking (FC 036)', () =>
       expect(list2.length).toBe(1);
       expect(list2[0].tracking_payload).toEqual({ string_payload: true });
       expect(list2[0].watermark_metadata).toEqual({ verification_digest: 'DEF' });
+
+      // When DB query returns null (falsy rawRows)
+      vi.mocked(db.query).mockResolvedValueOnce(null);
+      const listNull = await listAssetVideoWatermarks(100, 10);
+      expect(listNull).toEqual([]);
     });
 
-    it('retrieves single video watermark record by ID or returns null', async () => {
+    it('retrieves single video watermark record by ID or returns null on empty or null DB query', async () => {
       vi.mocked(db.query)
         .mockResolvedValueOnce([])
         .mockResolvedValueOnce([
@@ -621,6 +650,11 @@ describe('DAM AI Dynamic Video Watermarking & Forensic Tracking (FC 036)', () =>
         watermark_type: 'USER_IDENTIFIER_STAMP',
         verification_digest: 'XYZ_STR',
       });
+
+      // When DB query returns null (falsy rawRows)
+      vi.mocked(db.query).mockResolvedValueOnce(null);
+      const foundNull = await getAssetVideoWatermarkById(100, 10, 9999);
+      expect(foundNull).toBeNull();
     });
 
     it('deletes video watermark record and unlinks derivative file', async () => {
