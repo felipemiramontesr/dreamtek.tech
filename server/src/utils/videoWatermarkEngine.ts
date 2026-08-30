@@ -49,19 +49,16 @@ export interface VideoWatermarkRecord {
   updated_at?: string;
 }
 
-const XML_ENTITIES: Record<string, string> = {
-  '<': '&lt;',
-  '>': '&gt;',
-  '&': '&amp;',
-  "'": '&apos;',
-  '"': '&quot;',
-};
-
 /**
  * Escapes XML/SVG special characters to prevent injection attacks (OWASP A03/Anti-XSS).
  */
 export function escapeXml(unsafe: string): string {
-  return unsafe.replace(/[<>&'"]/g, (c) => XML_ENTITIES[c]);
+  return unsafe
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&apos;');
 }
 
 /**
