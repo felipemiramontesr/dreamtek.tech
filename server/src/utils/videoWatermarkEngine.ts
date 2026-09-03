@@ -124,7 +124,6 @@ export function computeWatermarkTrajectory(
     }
 
     case 'CENTER_TILED':
-    default:
       points.push(
         {
           time_seconds: 0,
