@@ -421,6 +421,10 @@ export async function createOrUpdateVideoWatermark(
   );
   const existingRows: any[] = rawExisting || [];
 
+  const serializedPayload = resolved.tracking_payload
+    ? JSON.stringify(resolved.tracking_payload)
+    : null;
+
   if (existingRows.length > 0) {
     safeUnlink(existingRows[0].output_derivative_path);
 
@@ -433,9 +437,7 @@ export async function createOrUpdateVideoWatermark(
         resolved.position_strategy,
         resolved.opacity,
         resolved.user_identifier,
-        resolved.tracking_payload
-          ? JSON.stringify(resolved.tracking_payload)
-          : null,
+        serializedPayload,
         derivativePath,
         JSON.stringify(resolved.metadata),
         existingRows[0].id,
@@ -456,9 +458,7 @@ export async function createOrUpdateVideoWatermark(
         resolved.position_strategy,
         resolved.opacity,
         resolved.user_identifier,
-        resolved.tracking_payload
-          ? JSON.stringify(resolved.tracking_payload)
-          : null,
+        serializedPayload,
         derivativePath,
         JSON.stringify(resolved.metadata),
       ],

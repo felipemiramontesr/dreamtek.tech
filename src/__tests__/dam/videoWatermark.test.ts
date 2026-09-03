@@ -397,6 +397,13 @@ describe('DAM AI Dynamic Video Watermarking & Forensic Tracking (FC 036)', () =>
       expect(record.watermark_type).toBe('DYNAMIC_OVERLAY');
       expect(record.watermark_metadata.text_overlay).toBe('DREAMTEK WATERMARK #10');
       expect(dispatchWebhookEvent).toHaveBeenCalled();
+
+      // Check insert query call params specifically for null serializedPayload
+      expect(vi.mocked(db.query)).toHaveBeenNthCalledWith(
+        2,
+        expect.stringContaining('INSERT INTO dam_asset_video_watermarks'),
+        expect.arrayContaining([null]),
+      );
     });
 
     it('updates existing record and deletes old derivative file if present', async () => {
