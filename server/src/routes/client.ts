@@ -41,6 +41,29 @@ clientRouter.get('/dashboard', async (req: AuthenticatedRequest, res: Response):
       sites = [];
     }
 
+    // Query real client subscriptions without hardcoded mocks
+    let services: any[] = [];
+    try {
+      const subRows = await query<any[]>(
+        'SELECT id, plan_id, billing_cycle, status, amount, renews_at FROM subscriptions WHERE user_id = ? AND status = "active"',
+        [userId],
+      );
+      services = (subRows || []).map((sub) => ({
+        id: String(sub.id),
+        name:
+          sub.plan_id === 'starterkit' || sub.plan_id.includes('escolta')
+            ? 'Escolta WEB — Posicionamiento'
+            : sub.plan_id,
+        status: sub.status,
+        billing_cycle: sub.billing_cycle,
+        amount: sub.amount,
+        renews_at: sub.renews_at,
+      }));
+    } catch (subErr: any) {
+      console.error('⚠️ subscriptions DB query warning:', subErr?.message || subErr);
+      services = [];
+    }
+
     res.json({
       status: 'success',
       profile: {
@@ -50,14 +73,7 @@ clientRouter.get('/dashboard', async (req: AuthenticatedRequest, res: Response):
         role: user.role,
         created_at: user.created_at,
       },
-      services: [
-        {
-          id: 'srv-1',
-          name: 'Escolta WEB — Posicionamiento',
-          status: 'active',
-          billing_cycle: 'annual',
-        },
-      ],
+      services,
       sites,
     });
   } catch (err: any) {
