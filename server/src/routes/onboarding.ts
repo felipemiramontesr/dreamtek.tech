@@ -101,7 +101,7 @@ onboardingRouter.post(
 
       // Perform soft DNS resolution check (if domain resolves A/NS records, it is taken)
       let isAvailable = true;
-      if (process.env.NODE_ENV !== 'test') {
+      if (process.env.ENABLE_DNS_CHECK === 'true' || (process.env.NODE_ENV !== 'test' && !process.env.VITEST)) {
         try {
           const dns = await import('node:dns/promises');
           await dns.resolve(cleanDomain);
@@ -117,6 +117,7 @@ onboardingRouter.post(
         available: isAvailable,
         domain: cleanDomain,
         check_type: 'DNS_SOFT_CHECK',
+        notice: 'Comprobación suave basada en zonas DNS. Dreamtek no es registrador ICANN.',
       });
     } catch (err: any) {
       res.status(500).json({

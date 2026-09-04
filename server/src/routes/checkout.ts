@@ -1,6 +1,8 @@
 import { Router, Request, Response } from 'express';
 import Stripe from 'stripe';
 import jwt from 'jsonwebtoken';
+import crypto from 'crypto';
+import bcrypt from 'bcryptjs';
 import { query } from '../db.js';
 import { getJwtSecret } from './auth.js';
 
@@ -30,7 +32,7 @@ checkoutRouter.post('/session', async (req: Request, res: Response): Promise<voi
     }
 
     const priceMonthly = parseInt(process.env.PRICE_ESCOLTA_MONTHLY || '2899', 10);
-    const priceAnnual = parseInt(process.env.PRICE_ESCOLTA_ANNUAL || '2599', 10);
+    const priceAnnual = parseInt(process.env.PRICE_ESCOLTA_ANNUAL || '31188', 10);
     const priceBase = billing_cycle === 'annual' ? priceAnnual : priceMonthly;
     const currentKey = process.env.STRIPE_SECRET_KEY || 'sk_test_mock';
     const userObj = (req as any).user;
@@ -68,6 +70,9 @@ checkoutRouter.post('/session', async (req: Request, res: Response): Promise<voi
               description: `Plantilla: ${template_id || 'corporate'} | Dominio: ${domain_name || 'Pendiente'}`,
             },
             unit_amount: priceBase * 100,
+            recurring: {
+              interval: billing_cycle === 'annual' ? 'year' : 'month',
+            },
           },
           quantity: 1,
         },
@@ -99,25 +104,8 @@ checkoutRouter.post('/webhook', async (req: Request, res: Response): Promise<voi
 
     let event: Stripe.Event;
 
-    if (
-      sig &&
-      (webhookSecret !== 'whsec_mock_secret_key' || testStripe?.webhooks?.constructEvent)
-    ) {
-      const stripeInstance = getStripe(process.env.STRIPE_SECRET_KEY || 'sk_test_mock');
-      try {
-        event = stripeInstance.webhooks.constructEvent(
-          req.body as any,
-          sig as string,
-          webhookSecret,
-        );
-      } catch (err: any) {
-        res
-          .status(400)
-          .json({ status: 'error', message: `Firma webhook inválida: ${err.message}` });
-        return;
-      }
-    } else {
-      if (!sig && process.env.NODE_ENV !== 'test') {
+    if (!sig) {
+      if (process.env.NODE_ENV !== 'test') {
         res.status(400).json({ status: 'error', message: 'Firma stripe-signature requerida.' });
         return;
       }
@@ -125,6 +113,31 @@ checkoutRouter.post('/webhook', async (req: Request, res: Response): Promise<voi
         ? req.body.toString('utf-8')
         : JSON.stringify(req.body);
       event = JSON.parse(rawBody);
+    } else {
+      if (
+        process.env.NODE_ENV !== 'test' ||
+        testStripe?.webhooks?.constructEvent ||
+        webhookSecret !== 'whsec_mock_secret_key'
+      ) {
+        const stripeInstance = getStripe(process.env.STRIPE_SECRET_KEY || 'sk_test_mock');
+        try {
+          event = stripeInstance.webhooks.constructEvent(
+            req.body as any,
+            sig as string,
+            webhookSecret,
+          );
+        } catch (err: any) {
+          res
+            .status(400)
+            .json({ status: 'error', message: `Firma webhook inválida: ${err.message}` });
+          return;
+        }
+      } else {
+        const rawBody = Buffer.isBuffer(req.body)
+          ? req.body.toString('utf-8')
+          : JSON.stringify(req.body);
+        event = JSON.parse(rawBody);
+      }
     }
 
     if (!event || !event.type) {
@@ -155,8 +168,9 @@ checkoutRouter.post('/webhook', async (req: Request, res: Response): Promise<voi
             // Explicit test case for unknown user rejecting association
             userId = null;
           } else {
-            // Auto-create user for checkout
-            const tempPassHash = '$2a$10$EixZaYVK1fsbw1ZfbX3OXePaWxn96p36WQmG6eE/P/gXmGzHw4u2K'; // bcrypt dummy
+            // Generate unique high-entropy random password hash
+            const randomEntropy = crypto.randomBytes(32).toString('hex');
+            const tempPassHash = await bcrypt.hash(randomEntropy, 10);
             const fullName = session.customer_details?.name || email.split('@')[0];
             const insertUserResult: any = await query(
               'INSERT INTO users (email, password_hash, full_name, role) VALUES (?, ?, ?, "CLIENT")',
@@ -195,48 +209,70 @@ checkoutRouter.post('/webhook', async (req: Request, res: Response): Promise<voi
       const renewsDays = billingCycle === 'annual' ? 365 : 30;
       const renewsAt = new Date(Date.now() + renewsDays * 24 * 60 * 60 * 1000);
 
-      // Execute order & subscription inserts
-      await query(
-        'INSERT INTO orders (user_id, status, amount, payment_gateway_id) VALUES (?, ?, ?, ?)',
-        [userId, 'paid', totalAmount, session.id],
-      );
-
-      const subId =
-        typeof session.subscription === 'string' ? session.subscription : String(session.id);
-
-      await query(
-        'INSERT INTO subscriptions (user_id, plan_id, billing_cycle, amount, status, renews_at) VALUES (?, ?, ?, ?, ?, ?)',
-        [userId, subId, billingCycle, totalAmount, 'active', renewsAt],
-      );
-
-      // Auto-provision tenant & workspace if needed
-      let tenantId = Number(userId);
+      // Execute order, subscription, tenant and client_sites within a transaction
+      await query('START TRANSACTION');
       try {
-        const workspaceRows: any = await query(
-          'SELECT tenant_id FROM workspaces WHERE tenant_id = ? LIMIT 1',
-          [tenantId],
+        await query(
+          'INSERT INTO orders (user_id, status, amount, payment_gateway_id) VALUES (?, ?, ?, ?)',
+          [userId, 'paid', totalAmount, session.id],
         );
-        if (!workspaceRows || workspaceRows.length === 0) {
-          await query('INSERT INTO workspaces (tenant_id, name) VALUES (?, "Default Workspace")', [
-            tenantId,
-          ]);
-        }
-      } catch (_wsErr) {
-        // Soft fallback if workspaces table is isolated
-      }
 
-      // Auto-provision client_sites record (Condition C-037)
-      if (domainName) {
+        const subId =
+          typeof session.subscription === 'string' ? session.subscription : String(session.id);
+
+        await query(
+          'INSERT INTO subscriptions (user_id, plan_id, billing_cycle, amount, status, renews_at) VALUES (?, ?, ?, ?, ?, ?)',
+          [userId, subId, billingCycle, totalAmount, 'active', renewsAt],
+        );
+
+        // Auto-provision tenant
+        let tenantId: number | string = userId;
         try {
+          const tenantRows: any = await query('SELECT id FROM tenants WHERE owner_user_id = ? LIMIT 1', [userId]);
+          if (tenantRows && tenantRows.length > 0) {
+            tenantId = tenantRows[0].id;
+          } else {
+            const tenantRes: any = await query('INSERT INTO tenants (name, owner_user_id) VALUES (?, ?)', [
+              `Tenant ${session.customer_details?.name || email || userId}`,
+              userId,
+            ]);
+            if (tenantRes?.insertId) {
+              tenantId = tenantRes.insertId;
+            }
+          }
+        } catch (_tErr) {
+          // Soft fallback if tenants table not available
+        }
+
+        // Auto-provision workspace if needed
+        try {
+          const workspaceRows: any = await query(
+            'SELECT tenant_id FROM workspaces WHERE tenant_id = ? LIMIT 1',
+            [tenantId],
+          );
+          if (!workspaceRows || workspaceRows.length === 0) {
+            await query('INSERT INTO workspaces (tenant_id, name) VALUES (?, "Default Workspace")', [
+              tenantId,
+            ]);
+          }
+        } catch (_wsErr) {
+          // Soft fallback
+        }
+
+        // Auto-provision client_sites record (Condition C-037)
+        if (domainName) {
           await query(
             `INSERT INTO client_sites (tenant_id, user_id, domain, template_id, status, ssl, stripe_session_id)
              VALUES (?, ?, ?, ?, 'PENDING_SETUP', 'PENDING', ?)
              ON DUPLICATE KEY UPDATE status = 'PENDING_SETUP', template_id = VALUES(template_id), stripe_session_id = VALUES(stripe_session_id)`,
             [tenantId, userId, domainName, templateId, session.id],
           );
-        } catch (siteErr) {
-          console.warn('⚠️ Webhook client_sites provisioning warning:', siteErr);
         }
+
+        await query('COMMIT');
+      } catch (txErr) {
+        await query('ROLLBACK');
+        throw txErr;
       }
     } else if (event.type === 'customer.subscription.updated') {
       const sub = event.data.object as Stripe.Subscription;
@@ -277,7 +313,16 @@ checkoutRouter.get('/verify', async (req: Request, res: Response): Promise<void>
       return;
     }
 
+    // Prohibit test/mock backdoor in non-test environments
     if (session_id === 'mock' || String(session_id).startsWith('cs_test_mock_')) {
+      if (process.env.NODE_ENV !== 'test') {
+        res.status(400).json({
+          status: 'error',
+          verified: false,
+          message: 'Identificador de sesión inválido.',
+        });
+        return;
+      }
       const mockToken = jwt.sign(
         {
           userId: 1,
@@ -300,56 +345,51 @@ checkoutRouter.get('/verify', async (req: Request, res: Response): Promise<void>
       return;
     }
 
-    try {
-      const orderRows: any = await query(
-        'SELECT status FROM orders WHERE payment_gateway_id = ? LIMIT 1',
-        [session_id],
-      );
-      const isPaid = orderRows && orderRows.length > 0 && orderRows[0].status === 'paid';
+    const orderRows: any = await query(
+      'SELECT status FROM orders WHERE payment_gateway_id = ? LIMIT 1',
+      [session_id],
+    );
+    const isPaid = orderRows && orderRows.length > 0 && orderRows[0].status === 'paid';
 
-      let token: string | undefined = undefined;
-      if (isPaid) {
-        try {
-          const userRows: any = await query(
-            'SELECT u.id, u.email, u.full_name, u.role FROM users u JOIN orders o ON o.user_id = u.id WHERE o.payment_gateway_id = ? LIMIT 1',
-            [session_id],
+    let token: string | undefined = undefined;
+    if (isPaid) {
+      try {
+        const userRows: any = await query(
+          'SELECT u.id, u.email, u.full_name, u.role FROM users u JOIN orders o ON o.user_id = u.id WHERE o.payment_gateway_id = ? LIMIT 1',
+          [session_id],
+        );
+        if (userRows && userRows.length > 0) {
+          const u = userRows[0];
+          token = jwt.sign(
+            {
+              userId: u.id,
+              uid: u.id,
+              email: u.email,
+              role: (u.role || 'CLIENT').toUpperCase(),
+              name: u.full_name,
+            },
+            getJwtSecret(),
+            { algorithm: 'HS512', expiresIn: '24h' },
           );
-          if (userRows && userRows.length > 0) {
-            const u = userRows[0];
-            token = jwt.sign(
-              {
-                userId: u.id,
-                uid: u.id,
-                email: u.email,
-                role: (u.role || 'CLIENT').toUpperCase(),
-                name: u.full_name,
-              },
-              getJwtSecret(),
-              { algorithm: 'HS512', expiresIn: '24h' },
-            );
-          }
-        } catch (_jwtErr) {
-          // Soft ignore if joins/tables are mocked loosely
         }
+      } catch (_jwtErr) {
+        // Soft ignore if joins/tables are mocked loosely
       }
-
-      res.json({
-        status: isPaid ? 'success' : 'error',
-        verified: isPaid,
-        session_id,
-        ...(token ? { token } : {}),
-        message: isPaid ? 'Pago validado con éxito.' : 'Sesión de pago no verificada o pendiente.',
-      });
-    } catch (_dbErr) {
-      // Fallback para entornos donde la base de datos no tenga la orden persistida aún
-      res.json({
-        status: 'success',
-        verified: true,
-        session_id,
-        message: 'Pago validado con éxito.',
-      });
     }
+
+    res.json({
+      status: isPaid ? 'success' : 'error',
+      verified: isPaid,
+      session_id,
+      ...(token ? { token } : {}),
+      message: isPaid ? 'Pago validado con éxito.' : 'Sesión de pago no verificada o pendiente.',
+    });
   } catch (err: any) {
-    res.status(500).json({ status: 'error', verified: false, message: err.message });
+    // Fail-closed verification
+    res.status(500).json({
+      status: 'error',
+      verified: false,
+      message: err.message || 'Error interno verificando la sesión de pago.',
+    });
   }
 });

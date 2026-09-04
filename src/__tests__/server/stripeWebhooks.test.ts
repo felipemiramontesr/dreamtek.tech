@@ -564,10 +564,10 @@ describe('Stripe Webhooks & Subscription Engine (Comprehensive Suite)', () => {
     expect(resPending.status).toBe(200);
     expect(resPending.body.verified).toBe(false);
 
-    // 4. DB error in verify (fallback to success)
+    // 4. DB error in verify (fail-closed)
     vi.mocked(db.query).mockRejectedValueOnce(new Error('DB verify fail'));
     const resFallback = await request(app).get('/api/v1/checkout/verify?session_id=cs_db_fail');
-    expect(resFallback.status).toBe(200);
-    expect(resFallback.body.verified).toBe(true);
+    expect(resFallback.status).toBe(500);
+    expect(resFallback.body.verified).toBe(false);
   });
 });

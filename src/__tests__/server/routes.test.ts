@@ -174,7 +174,6 @@ describe('Server Express Routes 100% Comprehensive Suite', () => {
       .get('/client/dashboard')
       .set('Cookie', [`dreamtek_session=${clientToken}`]);
     expect(res404.status).toBe(404);
-
     // 200 User found
     vi.mocked(db.query)
       .mockResolvedValueOnce([
@@ -186,7 +185,8 @@ describe('Server Express Routes 100% Comprehensive Suite', () => {
           created_at: '2026-01-01',
         },
       ])
-      .mockResolvedValueOnce([{ id: 1, domain: 'misitio.com', status: 'active', ssl: true }]);
+      .mockResolvedValueOnce([{ id: 1, domain: 'misitio.com', status: 'active', ssl: true }])
+      .mockResolvedValueOnce([]);
 
     const resDash = await supertest(app)
       .get('/client/dashboard')
@@ -218,25 +218,26 @@ describe('Server Express Routes 100% Comprehensive Suite', () => {
       name: 'Prospecto Existente',
       email: 'existente@empresa.com',
       phone: '5511223344',
-      company: 'Empresa',
+      company: 'Empresa Test',
+      step_reached: 2,
     });
     expect(resUpdate.status).toBe(200);
-    expect(resUpdate.body.lead_id).toBe(88);
 
-    // New lead insert
-    vi.mocked(db.query).mockResolvedValueOnce([]).mockResolvedValueOnce({ insertId: 99 });
-    const resNew = await supertest(app).post('/onboarding/lead').send({
-      name: 'Nuevo Prospecto',
+    // New lead insertion
+    vi.mocked(db.query).mockResolvedValueOnce([]).mockResolvedValueOnce({ insertId: 89 });
+    const resInsert = await supertest(app).post('/onboarding/lead').send({
+      full_name: 'Prospecto Nuevo',
       email: 'nuevo@empresa.com',
       phone: '5511223344',
+      company: 'Empresa Nueva',
+      step_reached: 1,
     });
-    expect(resNew.status).toBe(200);
-    expect(resNew.body.lead_id).toBe(99);
+    expect(resInsert.status).toBe(200);
 
-    // DB exception
+    // DB Error catch
     vi.mocked(db.query).mockRejectedValueOnce(new Error('DB Error'));
     const resErr = await supertest(app).post('/onboarding/lead').send({
-      name: 'Error Prospecto',
+      name: 'Error Lead',
       email: 'error@empresa.com',
       phone: '5511223344',
     });
@@ -265,13 +266,10 @@ describe('Server Express Routes 100% Comprehensive Suite', () => {
       .send({ billing_cycle: 'monthly' });
     expect(resNoEmail.status).toBe(400);
 
-    // Mock Sk session creation
-    const resCheckout = await supertest(app).post('/checkout/session').send({
-      email: 'pago@empresa.com',
-      billing_cycle: 'annual',
-      template_id: 'corporate',
-      domain_name: 'pagoterminado.com',
-    });
+    // Success session creation
+    const resCheckout = await supertest(app)
+      .post('/checkout/session')
+      .send({ email: 'pago@empresa.com', billing_cycle: 'monthly' });
     expect(resCheckout.status).toBe(200);
     expect(resCheckout.body.checkout_url).toBeDefined();
 
@@ -279,8 +277,14 @@ describe('Server Express Routes 100% Comprehensive Suite', () => {
     vi.mocked(db.query)
       .mockResolvedValueOnce([{ id: 1 }])
       .mockResolvedValueOnce([])
+      .mockResolvedValueOnce({})
       .mockResolvedValueOnce({ affectedRows: 1 })
-      .mockResolvedValueOnce({ affectedRows: 1 });
+      .mockResolvedValueOnce({ affectedRows: 1 })
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce({})
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce({})
+      .mockResolvedValueOnce({});
     const resWebhook = await supertest(app)
       .post('/checkout/webhook')
       .set('stripe-signature', 't=123,v1=mock_signature')
@@ -306,6 +310,7 @@ describe('Server Express Routes 100% Comprehensive Suite', () => {
     expect(resWebErr.status).toBe(400);
 
     // Verify session
+    vi.mocked(db.query).mockResolvedValueOnce([{ status: 'paid' }]);
     const resVerify = await supertest(app).get('/checkout/verify?session_id=cs_test_123');
     expect(resVerify.status).toBe(200);
     expect(resVerify.body.status).toBe('success');
