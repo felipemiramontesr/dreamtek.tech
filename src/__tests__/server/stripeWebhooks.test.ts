@@ -5,8 +5,8 @@ import app from '../../../server/src/index';
 import { setStripeForTest, checkoutRouter } from '../../../server/src/routes/checkout';
 import * as db from '../../../server/src/db';
 
-vi.mock('../../../server/src/db', () => ({
-  query: vi.fn().mockImplementation((sql: string) => {
+vi.mock('../../../server/src/db', () => {
+  const mockQuery = vi.fn().mockImplementation((sql: string) => {
     if (sql.includes('SELECT id FROM users')) {
       return Promise.resolve([{ id: 1 }]);
     }
@@ -17,11 +17,22 @@ vi.mock('../../../server/src/db', () => ({
       return Promise.resolve([{ status: 'paid' }]);
     }
     return Promise.resolve({ affectedRows: 1, insertId: 1 });
-  }),
-  pool: {
-    execute: vi.fn().mockResolvedValue([{ affectedRows: 1 }]),
-  },
-}));
+  });
+
+  return {
+    query: mockQuery,
+    withTransaction: vi
+      .fn()
+      .mockImplementation(
+        async (callback: (tx: { query: typeof mockQuery }) => Promise<unknown>) => {
+          return callback({ query: mockQuery });
+        },
+      ),
+    pool: {
+      execute: vi.fn().mockResolvedValue([{ affectedRows: 1 }]),
+    },
+  };
+});
 
 interface MockStripe {
   checkout: {

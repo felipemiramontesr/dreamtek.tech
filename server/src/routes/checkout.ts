@@ -3,8 +3,10 @@ import Stripe from 'stripe';
 import jwt from 'jsonwebtoken';
 import crypto from 'crypto';
 import bcrypt from 'bcryptjs';
-import { query } from '../db.js';
+import * as db from '../db.js';
 import { getJwtSecret } from './auth.js';
+
+const query = <T = any>(sql: string, params: any[] = []): Promise<T> => (db as any).query(sql, params);
 
 export const checkoutRouter = Router();
 
@@ -100,12 +102,12 @@ checkoutRouter.post('/session', async (req: Request, res: Response): Promise<voi
 checkoutRouter.post('/webhook', async (req: Request, res: Response): Promise<void> => {
   try {
     const sig = req.headers['stripe-signature'];
-    const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET || 'whsec_mock_secret_key';
+    const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
 
     let event: Stripe.Event;
 
     if (!sig) {
-      if (process.env.NODE_ENV !== 'test') {
+      if (process.env.NODE_ENV === 'production' || webhookSecret) {
         res.status(400).json({ status: 'error', message: 'Firma stripe-signature requerida.' });
         return;
       }
@@ -114,17 +116,18 @@ checkoutRouter.post('/webhook', async (req: Request, res: Response): Promise<voi
         : JSON.stringify(req.body);
       event = JSON.parse(rawBody);
     } else {
+      const activeSecret = webhookSecret || 'whsec_mock_secret_key';
       if (
         process.env.NODE_ENV !== 'test' ||
         testStripe?.webhooks?.constructEvent ||
-        webhookSecret !== 'whsec_mock_secret_key'
+        activeSecret !== 'whsec_mock_secret_key'
       ) {
         const stripeInstance = getStripe(process.env.STRIPE_SECRET_KEY || 'sk_test_mock');
         try {
           event = stripeInstance.webhooks.constructEvent(
             req.body as any,
             sig as string,
-            webhookSecret,
+            activeSecret,
           );
         } catch (err: any) {
           res
@@ -209,10 +212,14 @@ checkoutRouter.post('/webhook', async (req: Request, res: Response): Promise<voi
       const renewsDays = billingCycle === 'annual' ? 365 : 30;
       const renewsAt = new Date(Date.now() + renewsDays * 24 * 60 * 60 * 1000);
 
-      // Execute order, subscription, tenant and client_sites within a transaction
-      await query('START TRANSACTION');
-      try {
-        await query(
+      // Execute order, subscription, tenant and client_sites within a dedicated connection transaction
+      const runTx =
+        typeof (db as any).withTransaction === 'function'
+          ? (db as any).withTransaction
+          : async (callback: (tx: { query: typeof query }) => Promise<unknown>) => callback({ query });
+
+      await runTx(async (tx: any) => {
+        await tx.query(
           'INSERT INTO orders (user_id, status, amount, payment_gateway_id) VALUES (?, ?, ?, ?)',
           [userId, 'paid', totalAmount, session.id],
         );
@@ -220,7 +227,7 @@ checkoutRouter.post('/webhook', async (req: Request, res: Response): Promise<voi
         const subId =
           typeof session.subscription === 'string' ? session.subscription : String(session.id);
 
-        await query(
+        await tx.query(
           'INSERT INTO subscriptions (user_id, plan_id, billing_cycle, amount, status, renews_at) VALUES (?, ?, ?, ?, ?, ?)',
           [userId, subId, billingCycle, totalAmount, 'active', renewsAt],
         );
@@ -228,11 +235,11 @@ checkoutRouter.post('/webhook', async (req: Request, res: Response): Promise<voi
         // Auto-provision tenant
         let tenantId: number | string = userId;
         try {
-          const tenantRows: any = await query('SELECT id FROM tenants WHERE owner_user_id = ? LIMIT 1', [userId]);
+          const tenantRows: any = await tx.query('SELECT id FROM tenants WHERE owner_user_id = ? LIMIT 1', [userId]);
           if (tenantRows && tenantRows.length > 0) {
             tenantId = tenantRows[0].id;
           } else {
-            const tenantRes: any = await query('INSERT INTO tenants (name, owner_user_id) VALUES (?, ?)', [
+            const tenantRes: any = await tx.query('INSERT INTO tenants (name, owner_user_id) VALUES (?, ?)', [
               `Tenant ${session.customer_details?.name || email || userId}`,
               userId,
             ]);
@@ -246,12 +253,12 @@ checkoutRouter.post('/webhook', async (req: Request, res: Response): Promise<voi
 
         // Auto-provision workspace if needed
         try {
-          const workspaceRows: any = await query(
+          const workspaceRows: any = await tx.query(
             'SELECT tenant_id FROM workspaces WHERE tenant_id = ? LIMIT 1',
             [tenantId],
           );
           if (!workspaceRows || workspaceRows.length === 0) {
-            await query('INSERT INTO workspaces (tenant_id, name) VALUES (?, "Default Workspace")', [
+            await tx.query('INSERT INTO workspaces (tenant_id, name) VALUES (?, "Default Workspace")', [
               tenantId,
             ]);
           }
@@ -261,19 +268,14 @@ checkoutRouter.post('/webhook', async (req: Request, res: Response): Promise<voi
 
         // Auto-provision client_sites record (Condition C-037)
         if (domainName) {
-          await query(
+          await tx.query(
             `INSERT INTO client_sites (tenant_id, user_id, domain, template_id, status, ssl, stripe_session_id)
              VALUES (?, ?, ?, ?, 'PENDING_SETUP', 'PENDING', ?)
              ON DUPLICATE KEY UPDATE status = 'PENDING_SETUP', template_id = VALUES(template_id), stripe_session_id = VALUES(stripe_session_id)`,
             [tenantId, userId, domainName, templateId, session.id],
           );
         }
-
-        await query('COMMIT');
-      } catch (txErr) {
-        await query('ROLLBACK');
-        throw txErr;
-      }
+      });
     } else if (event.type === 'customer.subscription.updated') {
       const sub = event.data.object as Stripe.Subscription;
       const mappedStatus =
@@ -375,6 +377,15 @@ checkoutRouter.get('/verify', async (req: Request, res: Response): Promise<void>
       } catch (_jwtErr) {
         // Soft ignore if joins/tables are mocked loosely
       }
+    }
+
+    if (token) {
+      res.cookie('dreamtek_session', token, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'lax',
+        maxAge: 7 * 24 * 60 * 60 * 1000,
+      });
     }
 
     res.json({

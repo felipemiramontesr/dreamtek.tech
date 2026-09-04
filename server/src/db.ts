@@ -29,3 +29,38 @@ export async function query<T = any>(sql: string, params: any[] = []): Promise<T
   const [rows] = await pool.execute(sql, params);
   return rows as T;
 }
+
+export interface DBConnection {
+  query: <T = any>(sql: string, params?: any[]) => Promise<T>;
+}
+
+/**
+ * Executes a callback within a single dedicated connection transaction (ACID compliant).
+ * Ensures beginTransaction, commit, rollback, and release occur on the exact same connection.
+ */
+export async function withTransaction<T>(
+  callback: (conn: DBConnection) => Promise<T>,
+): Promise<T> {
+  if (!pool || typeof pool.getConnection !== 'function') {
+    return callback({ query });
+  }
+  const connection = await pool.getConnection();
+  try {
+    await connection.beginTransaction();
+    const conn: DBConnection = {
+      query: async <R = any>(sql: string, params: any[] = []): Promise<R> => {
+        const [rows] = await connection.execute(sql, params);
+        return rows as R;
+      },
+    };
+    const result = await callback(conn);
+    await connection.commit();
+    return result;
+  } catch (err) {
+    await connection.rollback();
+    throw err;
+  } finally {
+    connection.release();
+  }
+}
+

@@ -28,12 +28,22 @@ import { onboardingRouter } from '../../../server/src/routes/onboarding';
 import { checkoutRouter } from '../../../server/src/routes/checkout';
 import { authRouter } from '../../../server/src/routes/auth';
 
-vi.mock('../../../server/src/db', () => ({
-  query: vi.fn(),
-  pool: {
-    execute: vi.fn().mockResolvedValue([{ affectedRows: 1 }]),
-  },
-}));
+vi.mock('../../../server/src/db', () => {
+  const mockQuery = vi.fn();
+  return {
+    query: mockQuery,
+    withTransaction: vi
+      .fn()
+      .mockImplementation(
+        async (callback: (tx: { query: typeof mockQuery }) => Promise<unknown>) => {
+          return callback({ query: mockQuery });
+        },
+      ),
+    pool: {
+      execute: vi.fn().mockResolvedValue([{ affectedRows: 1 }]),
+    },
+  };
+});
 
 const TEST_SECRET = 'dreamtek_dev_jwt_secret_key_2026';
 
@@ -274,17 +284,20 @@ describe('Server Express Routes 100% Comprehensive Suite', () => {
     expect(resCheckout.body.checkout_url).toBeDefined();
 
     // Webhook event
-    vi.mocked(db.query)
-      .mockResolvedValueOnce([{ id: 1 }])
-      .mockResolvedValueOnce([])
-      .mockResolvedValueOnce({})
-      .mockResolvedValueOnce({ affectedRows: 1 })
-      .mockResolvedValueOnce({ affectedRows: 1 })
-      .mockResolvedValueOnce([])
-      .mockResolvedValueOnce({})
-      .mockResolvedValueOnce([])
-      .mockResolvedValueOnce({})
-      .mockResolvedValueOnce({});
+    vi.mocked(db.query).mockImplementation((sql: string) => {
+      if (sql.includes('SELECT id FROM users')) return Promise.resolve([{ id: 1 }]);
+      if (sql.includes('SELECT id FROM orders WHERE payment_gateway_id'))
+        return Promise.resolve([]);
+      if (sql.includes('SELECT id FROM tenants')) return Promise.resolve([{ id: 1 }]);
+      if (sql.includes('SELECT tenant_id FROM workspaces'))
+        return Promise.resolve([{ tenant_id: 1 }]);
+      if (sql.includes('SELECT status FROM orders')) return Promise.resolve([{ status: 'paid' }]);
+      if (sql.includes('SELECT u.id, u.email'))
+        return Promise.resolve([
+          { id: 1, email: 'pago@empresa.com', full_name: 'Pago Test', role: 'CLIENT' },
+        ]);
+      return Promise.resolve({ affectedRows: 1 });
+    });
     const resWebhook = await supertest(app)
       .post('/checkout/webhook')
       .set('stripe-signature', 't=123,v1=mock_signature')
@@ -297,7 +310,9 @@ describe('Server Express Routes 100% Comprehensive Suite', () => {
     expect(resWebhook.status).toBe(200);
 
     // Webhook error catch
-    vi.mocked(db.query).mockRejectedValueOnce(new Error('Webhook DB Error'));
+    vi.mocked(db.withTransaction).mockImplementationOnce(async () => {
+      throw new Error('Webhook DB Error');
+    });
     const resWebErr = await supertest(app)
       .post('/checkout/webhook')
       .set('stripe-signature', 't=123,v1=mock_signature')
@@ -310,7 +325,6 @@ describe('Server Express Routes 100% Comprehensive Suite', () => {
     expect(resWebErr.status).toBe(400);
 
     // Verify session
-    vi.mocked(db.query).mockResolvedValueOnce([{ status: 'paid' }]);
     const resVerify = await supertest(app).get('/checkout/verify?session_id=cs_test_123');
     expect(resVerify.status).toBe(200);
     expect(resVerify.body.status).toBe('success');

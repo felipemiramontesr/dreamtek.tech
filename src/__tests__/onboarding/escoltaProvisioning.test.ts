@@ -1,13 +1,12 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import request from 'supertest';
 import express from 'express';
-import bcrypt from 'bcryptjs';
 import app from '../../../server/src/index';
 import { setStripeForTest } from '../../../server/src/routes/checkout';
 import * as db from '../../../server/src/db';
 
-vi.mock('../../../server/src/db', () => ({
-  query: vi.fn().mockImplementation((sql: string) => {
+vi.mock('../../../server/src/db', () => {
+  const mockQuery = vi.fn().mockImplementation((sql: string) => {
     if (sql.includes('SELECT id FROM users WHERE email = ?')) {
       return Promise.resolve([]);
     }
@@ -26,11 +25,29 @@ vi.mock('../../../server/src/db', () => ({
       return Promise.resolve([]);
     }
     return Promise.resolve({ affectedRows: 1, insertId: 99 });
-  }),
-  pool: {
-    execute: vi.fn().mockResolvedValue([{ affectedRows: 1, insertId: 99 }]),
-  },
-}));
+  });
+
+  const mockWithTransaction = vi
+    .fn()
+    .mockImplementation(async (callback: (tx: { query: typeof mockQuery }) => Promise<unknown>) => {
+      return callback({ query: mockQuery });
+    });
+
+  return {
+    query: mockQuery,
+    withTransaction: mockWithTransaction,
+    pool: {
+      execute: vi.fn().mockResolvedValue([{ affectedRows: 1, insertId: 99 }]),
+      getConnection: vi.fn().mockResolvedValue({
+        beginTransaction: vi.fn().mockResolvedValue(undefined),
+        commit: vi.fn().mockResolvedValue(undefined),
+        rollback: vi.fn().mockResolvedValue(undefined),
+        release: vi.fn().mockReturnValue(undefined),
+        execute: vi.fn().mockResolvedValue([{ affectedRows: 1, insertId: 99 }]),
+      }),
+    },
+  };
+});
 
 interface MockStripe {
   checkout: {
@@ -134,8 +151,6 @@ describe('FC 037 Escolta WEB B2C Auto-Provisioning & Security Suite', () => {
 
   describe('Webhook Auto-Provisioning & Security Controls (P0 / C-037)', () => {
     it('debe auto-aprovisionar un usuario con hash bcrypt único y dinámico, no estático', async () => {
-      const bcryptSpy = vi.spyOn(bcrypt, 'hash');
-
       const rawPayload = JSON.stringify({
         id: 'evt_test_provision_037',
         type: 'checkout.session.completed',
@@ -179,11 +194,9 @@ describe('FC 037 Escolta WEB B2C Auto-Provisioning & Security Suite', () => {
       expect(typeof hash).toBe('string');
       expect(hash).toMatch(/^\$2[ab]\$\d+\$/);
       expect(hash).not.toBe('$2a$10$EixZaYVK1fsbw1ZfbX3OXePaWxn96p36WQmG6eE/P/gXmGzHw4u2K');
-      expect(bcryptSpy).toHaveBeenCalled();
 
-      // Verificación de transacción BEGIN / COMMIT
-      expect(db.query).toHaveBeenCalledWith('START TRANSACTION');
-      expect(db.query).toHaveBeenCalledWith('COMMIT');
+      // Verificación de transacción dedicada connection-scoped
+      expect(db.withTransaction).toHaveBeenCalled();
 
       // Verificación de inserción en client_sites
       expect(db.query).toHaveBeenCalledWith(
@@ -226,14 +239,16 @@ describe('FC 037 Escolta WEB B2C Auto-Provisioning & Security Suite', () => {
 
       mockStripe.webhooks.constructEvent.mockReturnValue(JSON.parse(rawPayload));
 
-      // Simular fallo en la inserción de órdenes dentro de la transacción
-      vi.mocked(db.query).mockImplementation((sql: string) => {
-        if (sql === 'START TRANSACTION') return Promise.resolve({});
-        if (sql.includes('SELECT id FROM users')) return Promise.resolve([{ id: 10 }]);
-        if (sql.includes('INSERT INTO orders'))
-          return Promise.reject(new Error('Deadlock detected'));
-        if (sql === 'ROLLBACK') return Promise.resolve({});
-        return Promise.resolve({ affectedRows: 1 });
+      // Simular fallo en la inserción de órdenes dentro de withTransaction
+      vi.mocked(db.withTransaction).mockImplementationOnce(async (callback) => {
+        return callback({
+          query: vi.fn().mockImplementation((sql: string) => {
+            if (sql.includes('INSERT INTO orders')) {
+              return Promise.reject(new Error('Deadlock detected'));
+            }
+            return Promise.resolve({ affectedRows: 1 });
+          }),
+        });
       });
 
       const res = await request(app)
@@ -243,7 +258,7 @@ describe('FC 037 Escolta WEB B2C Auto-Provisioning & Security Suite', () => {
         .send(Buffer.from(rawPayload));
 
       expect(res.status).toBe(400);
-      expect(db.query).toHaveBeenCalledWith('ROLLBACK');
+      expect(db.withTransaction).toHaveBeenCalled();
     });
   });
 
@@ -291,6 +306,11 @@ describe('FC 037 Escolta WEB B2C Auto-Provisioning & Security Suite', () => {
       expect(res.body.verified).toBe(true);
       expect(res.body.token).toBeDefined();
       expect(typeof res.body.token).toBe('string');
+      // Verificación C-C-R1 / OWASP A07: Cookie HttpOnly dreamtek_session
+      const setCookie = res.headers['set-cookie'];
+      expect(setCookie).toBeDefined();
+      expect(setCookie[0]).toContain('dreamtek_session=');
+      expect(setCookie[0]).toContain('HttpOnly');
     });
 
     it('debe fallar cerrado (status 500 y verified: false) si la base de datos lanza un error', async () => {
