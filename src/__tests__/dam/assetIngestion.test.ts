@@ -132,6 +132,24 @@ describe('FC 003 — DAM Asset Ingestion & Storage Suite', () => {
         const safePath = path.join(STORAGE_ROOT, 'tenants', '1', 'assets', '10', 'v1_sample.png');
         const resolved = assertPathContained(safePath);
         expect(resolved).toBe(path.resolve(safePath));
+
+        const maliciousPath = path.join(STORAGE_ROOT, '..', '..', 'etc', 'passwd');
+        expect(() => assertPathContained(maliciousPath)).toThrow(/Path traversal attempt/);
+      } finally {
+        Object.defineProperty(process, 'platform', { value: origPlatform });
+      }
+    });
+
+    it('should validate containment on win32 platform explicitly', () => {
+      const origPlatform = process.platform;
+      try {
+        Object.defineProperty(process, 'platform', { value: 'win32' });
+        const safePath = path.join(STORAGE_ROOT, 'tenants', '1', 'assets', '10', 'v1_sample.png');
+        const resolved = assertPathContained(safePath);
+        expect(resolved).toBe(path.resolve(safePath));
+
+        const maliciousPath = path.join(STORAGE_ROOT, '..', '..', 'etc', 'passwd');
+        expect(() => assertPathContained(maliciousPath)).toThrow(/Path traversal attempt/);
       } finally {
         Object.defineProperty(process, 'platform', { value: origPlatform });
       }
