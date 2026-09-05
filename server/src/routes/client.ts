@@ -48,7 +48,7 @@ clientRouter.get('/dashboard', async (req: AuthenticatedRequest, res: Response):
         'SELECT id, plan_id, billing_cycle, status, amount, renews_at FROM subscriptions WHERE user_id = ? AND status = "active"',
         [userId],
       );
-      services = (subRows || []).map((sub) => ({
+      services = subRows.map((sub) => ({
         id: String(sub.id),
         name:
           sub.plan_id === 'starterkit' || sub.plan_id.includes('escolta')

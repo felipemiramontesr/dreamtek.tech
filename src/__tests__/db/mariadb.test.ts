@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { describe, it, expect } from 'vitest';
 import fs from 'fs';
 import path from 'path';
@@ -61,6 +62,72 @@ describe('MariaDB Schema & Host Model Verification (FC 001a & ADR 005)', () => {
       [1],
     );
     expect(result).toEqual(mockRows);
+  });
+
+  it('debe ejecutar withTransaction exitosamente con commit y release (ACID)', async () => {
+    const { withTransaction, pool } = await import('../../../server/src/db');
+    const mockConn = {
+      beginTransaction: vi.fn().mockResolvedValue(undefined),
+      execute: vi.fn().mockResolvedValue([[{ affectedRows: 1 }], []]),
+      commit: vi.fn().mockResolvedValue(undefined),
+      rollback: vi.fn().mockResolvedValue(undefined),
+      release: vi.fn().mockReturnValue(undefined),
+    };
+    vi.spyOn(pool, 'getConnection').mockResolvedValueOnce(mockConn as any);
+
+    const result = await withTransaction(async (conn) => {
+      const rows = await conn.query('UPDATE accounts SET balance = 100 WHERE id = ?', [1]);
+      return { success: true, rows };
+    });
+
+    expect(mockConn.beginTransaction).toHaveBeenCalled();
+    expect(mockConn.execute).toHaveBeenCalledWith(
+      'UPDATE accounts SET balance = 100 WHERE id = ?',
+      [1],
+    );
+    expect(mockConn.commit).toHaveBeenCalled();
+    expect(mockConn.rollback).not.toHaveBeenCalled();
+    expect(mockConn.release).toHaveBeenCalled();
+    expect(result.success).toBe(true);
+  });
+
+  it('debe ejecutar withTransaction y hacer rollback ante error en callback', async () => {
+    const { withTransaction, pool } = await import('../../../server/src/db');
+    const mockConn = {
+      beginTransaction: vi.fn().mockResolvedValue(undefined),
+      execute: vi.fn(),
+      commit: vi.fn(),
+      rollback: vi.fn().mockResolvedValue(undefined),
+      release: vi.fn().mockReturnValue(undefined),
+    };
+    vi.spyOn(pool, 'getConnection').mockResolvedValueOnce(mockConn as any);
+
+    await expect(
+      withTransaction(async () => {
+        throw new Error('Simulated transaction failure');
+      }),
+    ).rejects.toThrow('Simulated transaction failure');
+
+    expect(mockConn.beginTransaction).toHaveBeenCalled();
+    expect(mockConn.commit).not.toHaveBeenCalled();
+    expect(mockConn.rollback).toHaveBeenCalled();
+    expect(mockConn.release).toHaveBeenCalled();
+  });
+
+  it('debe hacer fallback en withTransaction si pool.getConnection no existe', async () => {
+    const { withTransaction, pool } = await import('../../../server/src/db');
+    const origGetConn = pool.getConnection;
+    (pool as any).getConnection = undefined;
+
+    try {
+      const result = await withTransaction(async (conn) => {
+        return { fallback: true, hasQuery: typeof conn.query === 'function' };
+      });
+      expect(result.fallback).toBe(true);
+      expect(result.hasQuery).toBe(true);
+    } finally {
+      (pool as any).getConnection = origGetConn;
+    }
   });
 
   it('debe validar la congruencia de los tipos de entidad TypeScript', () => {

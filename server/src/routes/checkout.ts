@@ -3,10 +3,8 @@ import Stripe from 'stripe';
 import jwt from 'jsonwebtoken';
 import crypto from 'crypto';
 import bcrypt from 'bcryptjs';
-import * as db from '../db.js';
+import { query, withTransaction } from '../db.js';
 import { getJwtSecret } from './auth.js';
-
-const query = <T = any>(sql: string, params: any[] = []): Promise<T> => (db as any).query(sql, params);
 
 export const checkoutRouter = Router();
 
@@ -213,12 +211,7 @@ checkoutRouter.post('/webhook', async (req: Request, res: Response): Promise<voi
       const renewsAt = new Date(Date.now() + renewsDays * 24 * 60 * 60 * 1000);
 
       // Execute order, subscription, tenant and client_sites within a dedicated connection transaction
-      const runTx =
-        typeof (db as any).withTransaction === 'function'
-          ? (db as any).withTransaction
-          : async (callback: (tx: { query: typeof query }) => Promise<unknown>) => callback({ query });
-
-      await runTx(async (tx: any) => {
+      await withTransaction(async (tx: any) => {
         await tx.query(
           'INSERT INTO orders (user_id, status, amount, payment_gateway_id) VALUES (?, ?, ?, ?)',
           [userId, 'paid', totalAmount, session.id],

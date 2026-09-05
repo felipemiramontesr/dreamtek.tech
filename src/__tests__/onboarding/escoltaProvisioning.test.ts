@@ -5,6 +5,15 @@ import app from '../../../server/src/index';
 import { setStripeForTest } from '../../../server/src/routes/checkout';
 import * as db from '../../../server/src/db';
 
+vi.mock('node:dns/promises', () => ({
+  resolve: vi.fn().mockImplementation((domain: string) => {
+    if (domain.includes('inexistente') || domain.includes('no-existe')) {
+      return Promise.reject(new Error('ENOTFOUND'));
+    }
+    return Promise.resolve(['192.0.2.1']);
+  }),
+}));
+
 vi.mock('../../../server/src/db', () => {
   const mockQuery = vi.fn().mockImplementation((sql: string) => {
     if (sql.includes('SELECT id FROM users WHERE email = ?')) {
@@ -322,6 +331,21 @@ describe('FC 037 Escolta WEB B2C Auto-Provisioning & Security Suite', () => {
       expect(res.body.verified).toBe(false);
       expect(res.body.token).toBeUndefined();
     });
+
+    it('debe retornar status error y verified: false si la orden no está pagada en /verify', async () => {
+      vi.mocked(db.query).mockImplementation((sql: string) => {
+        if (sql.includes('SELECT status FROM orders')) {
+          return Promise.resolve([{ status: 'pending' }]);
+        }
+        return Promise.resolve([]);
+      });
+
+      const res = await request(app).get('/api/v1/checkout/verify?session_id=cs_unpaid_123');
+      expect(res.status).toBe(200);
+      expect(res.body.status).toBe('error');
+      expect(res.body.verified).toBe(false);
+      expect(res.body.message).toContain('Sesión de pago no verificada o pendiente.');
+    });
   });
 
   describe('Client Dashboard & DNS Soft Check Honesty (FC 037)', () => {
@@ -499,6 +523,40 @@ describe('FC 037 Escolta WEB B2C Auto-Provisioning & Security Suite', () => {
       expect(res.status).toBe(200);
       expect(res.body.services).toEqual([]);
       expect(res.body.sites).toEqual([]);
+
+      // Tolerancia con errores string (para cubrir ramas fallback de subErr?.message || subErr)
+      vi.mocked(db.query).mockImplementation((sql: string) => {
+        if (sql.includes('SELECT id, full_name, email, role, created_at FROM users')) {
+          return Promise.resolve([
+            {
+              id: 55,
+              full_name: 'Resilient Client',
+              email: 'resilient@dreamtek.tech',
+              role: 'CLIENT',
+              created_at: new Date(),
+            },
+          ]);
+        }
+        if (sql.includes('SELECT id, domain, status, ssl FROM client_sites')) {
+          return Promise.reject('Raw string sites error');
+        }
+        if (
+          sql.includes(
+            'SELECT id, plan_id, billing_cycle, status, amount, renews_at FROM subscriptions',
+          )
+        ) {
+          return Promise.reject('Raw string subs error');
+        }
+        return Promise.resolve([]);
+      });
+
+      const resStr = await request(app)
+        .get('/api/v1/client/dashboard')
+        .set('Cookie', [`dreamtek_session=${clientToken}`]);
+
+      expect(resStr.status).toBe(200);
+      expect(resStr.body.services).toEqual([]);
+      expect(resStr.body.sites).toEqual([]);
     });
 
     it('debe cubrir branches adicionales de webhook: existing tenant/workspace, missing domain, y subscription lifecycle', async () => {
@@ -624,6 +682,7 @@ describe('FC 037 Escolta WEB B2C Auto-Provisioning & Security Suite', () => {
 
       expect(resLive.status).toBe(200);
       expect(resLive.body.check_type).toBe('DNS_SOFT_CHECK');
+      expect(resLive.body.available).toBe(false);
 
       // 2. Dominio inexistente que dispara catch (_dnsErr)
       const resNotFound = await request(onboardingApp)
@@ -634,6 +693,65 @@ describe('FC 037 Escolta WEB B2C Auto-Provisioning & Security Suite', () => {
       expect(resNotFound.body.available).toBe(true);
 
       delete process.env.ENABLE_DNS_CHECK;
+    });
+
+    it('debe manejar error inesperado en /onboarding/domain con status 500', async () => {
+      const { onboardingRouter } = await import('../../../server/src/routes/onboarding');
+      type RouteLayer = {
+        route?: {
+          path?: string;
+          stack?: Array<{ handle?: (req: unknown, res: unknown) => Promise<void> }>;
+        };
+      };
+      const domainLayer = (onboardingRouter.stack as unknown as RouteLayer[]).find(
+        (s) => s.route?.path === '/domain',
+      );
+      const domainHandler = domainLayer?.route?.stack?.[domainLayer.route.stack.length - 1]?.handle;
+      const mockRes = {
+        status: vi.fn().mockReturnThis(),
+        json: vi.fn(),
+      };
+      await domainHandler?.(
+        {
+          get body() {
+            throw new Error('Exploding domain body');
+          },
+        },
+        mockRes,
+      );
+      expect(mockRes.status).toHaveBeenCalledWith(500);
+    });
+
+    it('debe manejar fallo en consulta de usuario durante webhook y responder 400', async () => {
+      vi.mocked(db.query).mockImplementation((sql: string) => {
+        if (sql.includes('SELECT id FROM users WHERE email = ?')) {
+          return Promise.reject(new Error('DB user lookup error'));
+        }
+        return Promise.resolve([]);
+      });
+
+      const payload = JSON.stringify({
+        id: 'evt_user_lookup_err',
+        type: 'checkout.session.completed',
+        data: {
+          object: {
+            id: 'cs_user_lookup_err',
+            customer_email: 'lookup_err@dreamtek.tech',
+            amount_total: 289900,
+          },
+        },
+      });
+
+      mockStripe.webhooks.constructEvent.mockReturnValue(JSON.parse(payload));
+
+      const res = await request(app)
+        .post('/api/v1/checkout/webhook')
+        .set('stripe-signature', 't=123,v1=valid_sig')
+        .set('Content-Type', 'application/json')
+        .send(Buffer.from(payload));
+
+      expect(res.status).toBe(400);
+      expect(res.body.message).toContain('No se pudo asociar el pago');
     });
 
     it('debe cubrir branches de fallback en checkout: email fallback name, subId string, y verify sin token', async () => {
