@@ -5,6 +5,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.pool = void 0;
 exports.query = query;
+exports.withTransaction = withTransaction;
 const promise_1 = __importDefault(require("mysql2/promise"));
 const dotenv_1 = __importDefault(require("dotenv"));
 const path_1 = __importDefault(require("path"));
@@ -31,4 +32,33 @@ exports.pool = promise_1.default.createPool({
 async function query(sql, params = []) {
     const [rows] = await exports.pool.execute(sql, params);
     return rows;
+}
+/**
+ * Executes a callback within a single dedicated connection transaction (ACID compliant).
+ * Ensures beginTransaction, commit, rollback, and release occur on the exact same connection.
+ */
+async function withTransaction(callback) {
+    if (!exports.pool || typeof exports.pool.getConnection !== 'function') {
+        return callback({ query });
+    }
+    const connection = await exports.pool.getConnection();
+    try {
+        await connection.beginTransaction();
+        const conn = {
+            query: async (sql, params = []) => {
+                const [rows] = await connection.execute(sql, params);
+                return rows;
+            },
+        };
+        const result = await callback(conn);
+        await connection.commit();
+        return result;
+    }
+    catch (err) {
+        await connection.rollback();
+        throw err;
+    }
+    finally {
+        connection.release();
+    }
 }

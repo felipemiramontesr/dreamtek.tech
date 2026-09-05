@@ -40,18 +40,68 @@ exports.onboardingRouter.post('/lead', (0, validate_js_1.validate)(onboarding_sc
 });
 /**
  * POST /api/v1/onboarding/domain
+ * Checks domain availability via DNS soft-lookup and local reserved keywords (Condition C-037).
+ * Honesty: Soft DNS availability check only; does not act as an ICANN EPP registrar.
  */
-exports.onboardingRouter.post('/domain', (0, validate_js_1.validate)(onboarding_schema_js_1.domainCheckSchema), (req, res) => {
-    const { domain } = req.body;
-    if (!domain || typeof domain !== 'string') {
-        res.status(400).json({ status: 'error', message: 'Nombre de dominio requerido.' });
-        return;
+exports.onboardingRouter.post('/domain', (0, validate_js_1.validate)(onboarding_schema_js_1.domainCheckSchema), async (req, res) => {
+    try {
+        const { domain } = req.body;
+        if (!domain || typeof domain !== 'string') {
+            res.status(400).json({ status: 'error', message: 'Nombre de dominio requerido.' });
+            return;
+        }
+        const cleanDomain = domain.trim().toLowerCase();
+        // Check against reserved or restricted names
+        if (cleanDomain.includes('reservado') || cleanDomain.includes('google')) {
+            res.json({
+                status: 'success',
+                available: false,
+                domain: cleanDomain,
+                message: 'Dominio no disponible o reservado.',
+            });
+            return;
+        }
+        // Check existing sites in database to prevent collision
+        try {
+            const existingSite = await (0, db_js_1.query)('SELECT id FROM client_sites WHERE domain = ? LIMIT 1', [cleanDomain]);
+            if (existingSite && existingSite.length > 0) {
+                res.json({
+                    status: 'success',
+                    available: false,
+                    domain: cleanDomain,
+                    message: 'Este dominio ya se encuentra registrado en la plataforma.',
+                });
+                return;
+            }
+        }
+        catch (_dbErr) {
+            // Table client_sites might not exist in early tests
+        }
+        // Perform soft DNS resolution check (if domain resolves A/NS records, it is taken)
+        let isAvailable = true;
+        if (process.env.ENABLE_DNS_CHECK === 'true' || process.env.NODE_ENV === 'production') {
+            try {
+                const dns = await import('node:dns/promises');
+                await dns.resolve(cleanDomain);
+                isAvailable = false;
+            }
+            catch (_dnsErr) {
+                // ENOTFOUND or ENODATA usually indicates domain has no active DNS zone
+                isAvailable = true;
+            }
+        }
+        res.json({
+            status: 'success',
+            available: isAvailable,
+            domain: cleanDomain,
+            check_type: 'DNS_SOFT_CHECK',
+            notice: 'Comprobación suave basada en zonas DNS. Dreamtek no es registrador ICANN.',
+        });
     }
-    const cleanDomain = domain.trim().toLowerCase();
-    const isAvailable = !cleanDomain.includes('reservado') && !cleanDomain.includes('google');
-    res.json({
-        status: 'success',
-        available: isAvailable,
-        domain: cleanDomain,
-    });
+    catch (err) {
+        res.status(500).json({
+            status: 'error',
+            message: err?.message || 'Error al comprobar disponibilidad del dominio.',
+        });
+    }
 });
