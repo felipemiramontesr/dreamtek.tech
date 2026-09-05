@@ -3,7 +3,7 @@ import { describe, it, expect, vi, beforeEach, afterAll } from 'vitest';
 import fs from 'fs';
 import path from 'path';
 import sharp from 'sharp';
-import express, { Request, Response } from 'express';
+import express from 'express';
 import request from 'supertest';
 import * as db from '../../../server/src/db';
 import assetsRouter from '../../../server/src/routes/assets';
@@ -26,8 +26,6 @@ import {
   listAssetBackgroundReplacements,
   getAssetBackgroundReplacementById,
   deleteAssetBackgroundReplacement,
-  ALLOWED_RASTER_MIMES,
-  PRESET_DEFAULTS,
 } from '../../../server/src/utils/backgroundReplacementEngine';
 import { backgroundReplacementRateLimiter } from '../../../server/src/middleware/rateLimiter';
 
@@ -878,7 +876,7 @@ describe('FC 026: DAM AI Background Replacement & Inpainting Suite (100% 4x100)'
         vi.mocked(db.query).mockResolvedValueOnce([]);
         vi.mocked(db.query).mockResolvedValueOnce({ insertId: 111 });
 
-        const resInpaint = await request(app)
+        const _resInpaint = await request(app)
           .post(`/api/v1/assets/${testAssetId}/background-replace`)
           .send({
             mode: 'MASK_INPAINT',

@@ -29,7 +29,6 @@ import {
   deleteAssetVideoTranscoding,
   getTranscodingStreamFilePath,
   ALLOWED_VIDEO_MIMES,
-  MAX_VIDEO_DURATION_SECONDS,
   PROFILE_RENDITIONS_MAP,
   ExecFileFunction,
 } from '../../../server/src/utils/videoTranscodingEngine';

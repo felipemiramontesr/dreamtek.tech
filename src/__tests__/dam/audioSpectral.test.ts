@@ -1,9 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import supertest from 'supertest';
-import express, { Request, Response } from 'express';
-import jwt from 'jsonwebtoken';
+import express from 'express';
 import {
   AudioSpectralProfileTypeEnum,
   createAudioSpectralBodySchema,

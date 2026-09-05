@@ -28,7 +28,6 @@ import {
   getAssetWatermarkById,
   deleteAssetWatermark,
   ALLOWED_RASTER_MIMES,
-  MAX_INPUT_PIXELS,
 } from '../../../server/src/utils/watermarkEngine';
 import { watermarkRateLimiter } from '../../../server/src/middleware/rateLimiter';
 

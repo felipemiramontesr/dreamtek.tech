@@ -29,8 +29,6 @@ import {
   getAssetBannerAdaptationById,
   deleteAssetBannerAdaptation,
   ALLOWED_RASTER_MIMES,
-  MAX_INPUT_PIXELS,
-  MAX_OUTPUT_PIXELS,
 } from '../../../server/src/utils/bannerAdaptationEngine';
 import { bannerAdaptationRateLimiter } from '../../../server/src/middleware/rateLimiter';
 

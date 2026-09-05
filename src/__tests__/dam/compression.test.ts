@@ -27,7 +27,6 @@ import {
   getAssetCompressionById,
   deleteAssetCompression,
   ALLOWED_RASTER_MIMES,
-  MAX_INPUT_PIXELS,
   PRESET_DEFAULTS,
 } from '../../../server/src/utils/compressionEngine';
 import { compressionRateLimiter } from '../../../server/src/middleware/rateLimiter';

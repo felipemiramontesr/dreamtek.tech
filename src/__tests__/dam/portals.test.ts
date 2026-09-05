@@ -7,7 +7,6 @@ import jwt from 'jsonwebtoken';
 import fs from 'node:fs';
 import * as db from '../../../server/src/db';
 import * as portalEngine from '../../../server/src/utils/portalEngine';
-import * as analyticsEngine from '../../../server/src/utils/analyticsEngine';
 import {
   portalsRateLimiter,
   publicPortalsRateLimiter,
