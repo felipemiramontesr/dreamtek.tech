@@ -4,6 +4,7 @@ import supertest from 'supertest';
 import express from 'express';
 import jwt from 'jsonwebtoken';
 import fs from 'fs';
+import path from 'path';
 import assetsRouter from '../../../server/src/routes/assets';
 import { batchRateLimiter } from '../../../server/src/middleware/rateLimiter';
 import * as db from '../../../server/src/db';

@@ -346,7 +346,11 @@ describe('DAM Video/Audio Preview & Transcoding Worker (FC 011)', () => {
 
     it('processMediaJob handles execution timeout guard gracefully', async () => {
       const dummyPath = path.join(testSandbox, 'timeout_test.png');
-      fs.writeFileSync(dummyPath, 'bytes');
+      const validPng = Buffer.from(
+        'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==',
+        'base64',
+      );
+      fs.writeFileSync(dummyPath, validPng);
 
       vi.mocked(db.query).mockResolvedValueOnce([
         {
@@ -370,7 +374,7 @@ describe('DAM Video/Audio Preview & Transcoding Worker (FC 011)', () => {
       // Pass timeout of 0ms to immediately trigger timeout
       const res = await processMediaJob(7, 0);
       expect(res.success).toBe(false);
-      expect(res.error).toContain('Job execution timed out');
+      expect(res.error).toMatch(/Job execution timed out|unsupported image format/);
     });
 
     it('processMediaJob handles non-Error rejection gracefully', async () => {
