@@ -313,9 +313,8 @@ describe('FC 037 Escolta WEB B2C Auto-Provisioning & Security Suite', () => {
 
       expect(res.status).toBe(200);
       expect(res.body.verified).toBe(true);
-      expect(res.body.token).toBeDefined();
-      expect(typeof res.body.token).toBe('string');
-      // Verificación C-C-R1 / OWASP A07: Cookie HttpOnly dreamtek_session
+      expect(res.body.token).toBeUndefined();
+      // Verificación C-C-R1 / OWASP A07: Cookie HttpOnly dreamtek_session exclusiva
       const setCookie = res.headers['set-cookie'];
       expect(setCookie).toBeDefined();
       expect(setCookie[0]).toContain('dreamtek_session=');
@@ -714,12 +713,17 @@ describe('FC 037 Escolta WEB B2C Auto-Provisioning & Security Suite', () => {
       await domainHandler?.(
         {
           get body() {
-            throw new Error('Exploding domain body');
+            throw 'String domain error';
           },
         },
         mockRes,
       );
       expect(mockRes.status).toHaveBeenCalledWith(500);
+      expect(mockRes.json).toHaveBeenCalledWith(
+        expect.objectContaining({
+          message: 'Error al comprobar disponibilidad del dominio.',
+        }),
+      );
     });
 
     it('debe manejar fallo en consulta de usuario durante webhook y responder 400', async () => {
@@ -859,6 +863,173 @@ describe('FC 037 Escolta WEB B2C Auto-Provisioning & Security Suite', () => {
         mockRes,
       );
       expect(mockRes.status).toHaveBeenCalledWith(500);
+    });
+
+    it('debe procesar webhook cuando el body es un objeto JSON parsed en lugar de Buffer (rama 137)', async () => {
+      setStripeForTest(null);
+      const prevSecret = process.env.STRIPE_WEBHOOK_SECRET;
+      delete process.env.STRIPE_WEBHOOK_SECRET;
+
+      const payloadObj = {
+        id: 'evt_json_body_test',
+        type: 'checkout.session.completed',
+        data: {
+          object: {
+            id: 'cs_json_body_123',
+            customer_email: 'json_body@dreamtek.tech',
+            amount_total: 289900,
+            metadata: {
+              template_id: 'services',
+              domain_name: 'jsonbody.mx',
+            },
+          },
+        },
+      };
+
+      vi.mocked(db.query).mockImplementation((sql: string) => {
+        if (sql.includes('SELECT id FROM users')) return Promise.resolve([{ id: 88 }]);
+        if (sql.includes('SELECT id FROM tenants')) return Promise.resolve([{ id: 88 }]);
+        if (sql.includes('SELECT tenant_id FROM workspaces'))
+          return Promise.resolve([{ tenant_id: 88 }]);
+        return Promise.resolve({ affectedRows: 1 });
+      });
+
+      const res = await request(app)
+        .post('/api/v1/checkout/webhook')
+        .set('stripe-signature', 't=123,v1=test')
+        .send(payloadObj);
+
+      expect(res.status).toBe(200);
+      expect(res.body.received).toBe(true);
+
+      process.env.STRIPE_WEBHOOK_SECRET = prevSecret;
+      setStripeForTest(mockStripe);
+    });
+
+    it('debe auto-aprovisionar tenant cuando no existe y probar fallbacks de nombre (ramas 236-239)', async () => {
+      const payloadObj = {
+        id: 'evt_tenant_insert_test',
+        type: 'checkout.session.completed',
+        data: {
+          object: {
+            id: 'cs_tenant_fallback_123',
+            client_reference_id: '999',
+            amount_total: 289900,
+            metadata: {},
+          },
+        },
+      };
+
+      mockStripe.webhooks.constructEvent.mockReturnValue(payloadObj);
+
+      vi.mocked(db.query).mockImplementation((sql: string) => {
+        if (sql.includes('SELECT id FROM orders')) return Promise.resolve([]);
+        if (sql.includes('SELECT id FROM tenants')) return Promise.resolve([]);
+        if (sql.includes('INSERT INTO tenants')) return Promise.resolve({ affectedRows: 1 });
+        if (sql.includes('SELECT tenant_id FROM workspaces')) return Promise.resolve([]);
+        return Promise.resolve({ affectedRows: 1 });
+      });
+
+      const res = await request(app)
+        .post('/api/v1/checkout/webhook')
+        .set('stripe-signature', 't=123,v1=valid_sig')
+        .set('Content-Type', 'application/json')
+        .send(Buffer.from(JSON.stringify(payloadObj)));
+
+      expect(res.status).toBe(200);
+      expect(res.body.received).toBe(true);
+    });
+
+    it('debe asignar rol CLIENT por defecto cuando el usuario no tiene rol en /verify (rama 363)', async () => {
+      vi.mocked(db.query).mockImplementation((sql: string) => {
+        if (sql.includes('SELECT status FROM orders')) {
+          return Promise.resolve([{ status: 'paid' }]);
+        }
+        if (sql.includes('SELECT u.id, u.email, u.full_name, u.role FROM users u')) {
+          return Promise.resolve([
+            { id: 42, email: 'norole@dreamtek.tech', full_name: 'No Role User', role: null },
+          ]);
+        }
+        return Promise.resolve([]);
+      });
+
+      const res = await request(app).get('/api/v1/checkout/verify?session_id=cs_paid_norole_123');
+      expect(res.status).toBe(200);
+      expect(res.body.verified).toBe(true);
+      expect(res.headers['set-cookie']).toBeDefined();
+    });
+
+    it('debe usar mensaje de error por defecto si la excepción en /verify no tiene message (rama 396)', async () => {
+      vi.mocked(db.query).mockImplementationOnce(() => {
+        return Promise.reject('Excepción string sin propiedad message');
+      });
+
+      const res = await request(app).get('/api/v1/checkout/verify?session_id=cs_string_error');
+      expect(res.status).toBe(500);
+      expect(res.body.verified).toBe(false);
+      expect(res.body.message).toBe('Error interno verificando la sesión de pago.');
+    });
+
+    it('debe registrar un lead nuevo sin company ni step_reached usando valores por defecto (rama 41)', async () => {
+      const { onboardingRouter } = await import('../../../server/src/routes/onboarding');
+      const testOnboardingApp = express();
+      testOnboardingApp.use(express.json());
+      testOnboardingApp.use('/onboarding', onboardingRouter);
+
+      vi.mocked(db.query).mockImplementation((sql: string) => {
+        if (sql.includes('SELECT id FROM leads')) return Promise.resolve([]);
+        return Promise.resolve({ insertId: 555 });
+      });
+
+      const res = await request(testOnboardingApp).post('/onboarding/lead').send({
+        full_name: 'Lead Sin Opcionales',
+        email: 'sin_opcionales@dreamtek.tech',
+        phone: '5500112233',
+      });
+
+      expect(res.status).toBe(200);
+      expect(res.body.status).toBe('success');
+      expect(res.body.lead_id).toBe(555);
+    });
+
+    it('debe ejecutar chequeo DNS con ENABLE_DNS_CHECK activado y desactivado en la app principal (ramas 104-125)', async () => {
+      const { onboardingRouter } = await import('../../../server/src/routes/onboarding');
+      const testOnboardingApp = express();
+      testOnboardingApp.use(express.json());
+      testOnboardingApp.use('/onboarding', onboardingRouter);
+
+      // 1. Con ENABLE_DNS_CHECK=true y dominio que resuelve (isAvailable = false)
+      process.env.ENABLE_DNS_CHECK = 'true';
+      const resTaken = await request(testOnboardingApp)
+        .post('/onboarding/domain')
+        .send({ domain: 'sitio-existente-dns.com' });
+      expect(resTaken.status).toBe(200);
+      expect(resTaken.body.available).toBe(false);
+
+      // 2. Con ENABLE_DNS_CHECK=true y dominio que falla DNS (isAvailable = true)
+      const resAvail = await request(testOnboardingApp)
+        .post('/onboarding/domain')
+        .send({ domain: 'dominio-no-existe-en-dns.com' });
+      expect(resAvail.status).toBe(200);
+      expect(resAvail.body.available).toBe(true);
+
+      // 3. Sin ENABLE_DNS_CHECK (bloque DNS saltado en test)
+      delete process.env.ENABLE_DNS_CHECK;
+      const resSkipped = await request(testOnboardingApp)
+        .post('/onboarding/domain')
+        .send({ domain: 'dominio-sin-dns.com' });
+      expect(resSkipped.status).toBe(200);
+      expect(resSkipped.body.available).toBe(true);
+
+      // 4. Con NODE_ENV = 'production' (bloque DNS habilitado por entorno productivo)
+      const prevEnv = process.env.NODE_ENV;
+      process.env.NODE_ENV = 'production';
+      const resProd = await request(testOnboardingApp)
+        .post('/onboarding/domain')
+        .send({ domain: 'sitio-existente-dns.com' });
+      expect(resProd.status).toBe(200);
+      expect(resProd.body.available).toBe(false);
+      process.env.NODE_ENV = prevEnv;
     });
   });
 });

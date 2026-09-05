@@ -101,7 +101,7 @@ onboardingRouter.post(
 
       // Perform soft DNS resolution check (if domain resolves A/NS records, it is taken)
       let isAvailable = true;
-      if (process.env.ENABLE_DNS_CHECK === 'true' || (process.env.NODE_ENV !== 'test' && !process.env.VITEST)) {
+      if (process.env.ENABLE_DNS_CHECK === 'true' || process.env.NODE_ENV === 'production') {
         try {
           const dns = await import('node:dns/promises');
           await dns.resolve(cleanDomain);

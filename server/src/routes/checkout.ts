@@ -330,11 +330,17 @@ checkoutRouter.get('/verify', async (req: Request, res: Response): Promise<void>
         { algorithm: 'HS512', expiresIn: '24h' },
       );
 
+      res.cookie('dreamtek_session', mockToken, {
+        httpOnly: true,
+        secure: false,
+        sameSite: 'lax',
+        maxAge: 7 * 24 * 60 * 60 * 1000,
+      });
+
       res.json({
         status: 'success',
         verified: true,
         session_id,
-        token: mockToken,
         message: 'Pago validado con éxito.',
       });
       return;
@@ -385,7 +391,6 @@ checkoutRouter.get('/verify', async (req: Request, res: Response): Promise<void>
       status: isPaid ? 'success' : 'error',
       verified: isPaid,
       session_id,
-      ...(token ? { token } : {}),
       message: isPaid ? 'Pago validado con éxito.' : 'Sesión de pago no verificada o pendiente.',
     });
   } catch (err: any) {
