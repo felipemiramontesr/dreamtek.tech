@@ -106,3 +106,94 @@ export async function getCurrentUser(): Promise<AuthResponse> {
 
   return data;
 }
+
+export interface ClientDashboardData {
+  status: string;
+  profile: {
+    id: number;
+    username?: string | null;
+    full_name: string;
+    email: string;
+    role: string;
+    created_at: string;
+  };
+  services: Array<{
+    id: string;
+    name: string;
+    status: string;
+    billing_cycle: string;
+    amount: number;
+    renews_at: string;
+  }>;
+  sites: Array<{
+    id: number;
+    domain: string;
+    status: string;
+    ssl?: boolean | number | string;
+    ssl_status?: string;
+  }>;
+}
+
+/**
+ * Fetch client dashboard information
+ */
+export async function fetchClientDashboard(): Promise<ClientDashboardData> {
+  const response = await fetch(`${API_BASE}/client/dashboard`, {
+    method: 'GET',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
+  });
+  const data = await response.json();
+  if (!response.ok) {
+    throw new Error(data.message || data.error || 'Error al obtener datos del panel.');
+  }
+  return data;
+}
+
+/**
+ * Request signed HMAC bridge URL for ARCHON Fleet ERP
+ */
+export async function fetchArchonBridgeUrl(): Promise<{ url: string; expires_in: number }> {
+  const response = await fetch(`${API_BASE}/client/sso/archon`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
+  });
+  const data = await response.json();
+  if (!response.ok) {
+    throw new Error(data.message || data.error || 'Error al generar enlace seguro a ARCHON.');
+  }
+  return data;
+}
+
+/**
+ * Fetch admin leads list
+ */
+export async function fetchAdminLeads(): Promise<unknown> {
+  const response = await fetch(`${API_BASE}/admin/leads`, {
+    method: 'GET',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
+  });
+  const data = await response.json();
+  if (!response.ok) {
+    throw new Error(data.message || data.error || 'Error al obtener prospectos administrativos.');
+  }
+  return data;
+}
+
+/**
+ * Fetch admin audit logs
+ */
+export async function fetchAdminAuditLogs(page = 1, limit = 10): Promise<unknown> {
+  const response = await fetch(`${API_BASE}/admin/audit-logs?page=${page}&limit=${limit}`, {
+    method: 'GET',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
+  });
+  const data = await response.json();
+  if (!response.ok) {
+    throw new Error(data.message || data.error || 'Error al obtener logs de auditoría.');
+  }
+  return data;
+}

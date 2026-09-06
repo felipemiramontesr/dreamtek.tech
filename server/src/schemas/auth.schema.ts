@@ -3,8 +3,8 @@ import { z } from 'zod';
 export const loginSchema = z.object({
   email: z
     .string()
-    .min(1, 'El email es requerido.')
-    .email('El correo electrónico debe ser una dirección válida.'),
+    .min(1, 'El correo electrónico o nombre de usuario es requerido.')
+    .min(3, 'El identificador debe tener al menos 3 caracteres.'),
   password: z
     .string()
     .min(1, 'La contraseña es requerida.')

@@ -26,17 +26,18 @@ const COOKIE_NAME = 'dreamtek_session';
 exports.authRouter.post('/login', (0, validate_js_1.validate)(auth_schema_js_1.loginSchema), async (req, res) => {
     try {
         const { email, password } = req.body;
-        if (!email || !password) {
+        const identifier = String(email || '').trim();
+        if (!identifier || !password) {
             res.status(400).json({ status: 'error', message: 'Email y contraseña requeridos.' });
             return;
         }
-        const users = await (0, db_js_1.query)('SELECT id, email, password_hash, role, full_name FROM users WHERE email = ? LIMIT 1', [email]);
+        const users = await (0, db_js_1.query)('SELECT id, username, email, password_hash, role, full_name FROM users WHERE (email = ? OR username = ?) LIMIT 1', [identifier, identifier]);
         const user = users[0];
         if (!user || !(await bcryptjs_1.default.compare(password, user.password_hash))) {
             await (0, auditLogger_js_1.logSecurityEvent)(req, {
                 eventType: 'LOGIN_FAILURE',
                 status: 'FAILURE',
-                details: `Failed login attempt for ${email}`,
+                details: `Failed login attempt for ${identifier}`,
             });
             res.status(401).json({ status: 'error', message: 'Credenciales inválidas.' });
             return;
@@ -63,6 +64,7 @@ exports.authRouter.post('/login', (0, validate_js_1.validate)(auth_schema_js_1.l
             status: 'success',
             user: {
                 id: user.id,
+                username: user.username || null,
                 email: user.email,
                 role: user.role,
                 full_name: user.full_name,

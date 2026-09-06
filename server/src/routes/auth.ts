@@ -27,15 +27,16 @@ authRouter.post(
   async (req: Request, res: Response): Promise<void> => {
     try {
       const { email, password } = req.body;
+      const identifier = String(email || '').trim();
 
-      if (!email || !password) {
+      if (!identifier || !password) {
         res.status(400).json({ status: 'error', message: 'Email y contraseña requeridos.' });
         return;
       }
 
       const users = await query<any[]>(
-        'SELECT id, email, password_hash, role, full_name FROM users WHERE email = ? LIMIT 1',
-        [email],
+        'SELECT id, username, email, password_hash, role, full_name FROM users WHERE (email = ? OR username = ?) LIMIT 1',
+        [identifier, identifier],
       );
       const user = users[0];
 
@@ -43,7 +44,7 @@ authRouter.post(
         await logSecurityEvent(req, {
           eventType: 'LOGIN_FAILURE',
           status: 'FAILURE',
-          details: `Failed login attempt for ${email}`,
+          details: `Failed login attempt for ${identifier}`,
         });
         res.status(401).json({ status: 'error', message: 'Credenciales inválidas.' });
         return;
@@ -78,6 +79,7 @@ authRouter.post(
         status: 'success',
         user: {
           id: user.id,
+          username: user.username || null,
           email: user.email,
           role: user.role,
           full_name: user.full_name,

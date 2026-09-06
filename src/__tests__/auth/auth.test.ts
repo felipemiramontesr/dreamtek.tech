@@ -1,5 +1,14 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { registerUser, loginUser, logoutUser, getCurrentUser } from '@/lib/auth/client';
+import {
+  registerUser,
+  loginUser,
+  logoutUser,
+  getCurrentUser,
+  fetchClientDashboard,
+  fetchArchonBridgeUrl,
+  fetchAdminLeads,
+  fetchAdminAuditLogs,
+} from '@/lib/auth/client';
 
 describe('FC 001m Client Auth Library Suite', () => {
   beforeEach(() => {
@@ -107,5 +116,120 @@ describe('FC 001m Client Auth Library Suite', () => {
     await expect(loginUser({ email: 'test@empresa.com', password: 'wrong' })).rejects.toThrow(
       'Credenciales inválidas o error de inicio de sesión.',
     );
+  });
+
+  it('fetchClientDashboard debe obtener datos del panel o arrojar error', async () => {
+    const mockDashboard = {
+      status: 'success',
+      profile: { id: 1, full_name: 'Test', email: 'test@dtk.com', role: 'CLIENT', created_at: '' },
+      services: [],
+      sites: [],
+    };
+    global.fetch = vi.fn().mockResolvedValueOnce({
+      ok: true,
+      json: async () => mockDashboard,
+    } as Response);
+
+    const res = await fetchClientDashboard();
+    expect(res).toEqual(mockDashboard);
+
+    // Error con message
+    global.fetch = vi.fn().mockResolvedValueOnce({
+      ok: false,
+      json: async () => ({ message: 'No autorizado' }),
+    } as Response);
+    await expect(fetchClientDashboard()).rejects.toThrow('No autorizado');
+
+    // Error con fallback
+    global.fetch = vi.fn().mockResolvedValueOnce({
+      ok: false,
+      json: async () => ({}),
+    } as Response);
+    await expect(fetchClientDashboard()).rejects.toThrow('Error al obtener datos del panel.');
+  });
+
+  it('fetchArchonBridgeUrl debe retornar url HMAC o arrojar error', async () => {
+    const mockPayload = { url: 'https://fleet.archon.dreamtek.tech/bridge', expires_in: 300 };
+    global.fetch = vi.fn().mockResolvedValueOnce({
+      ok: true,
+      json: async () => mockPayload,
+    } as Response);
+
+    const res = await fetchArchonBridgeUrl();
+    expect(res).toEqual(mockPayload);
+
+    // Error con message
+    global.fetch = vi.fn().mockResolvedValueOnce({
+      ok: false,
+      json: async () => ({ message: 'Sin suscripción' }),
+    } as Response);
+    await expect(fetchArchonBridgeUrl()).rejects.toThrow('Sin suscripción');
+
+    // Error fallback
+    global.fetch = vi.fn().mockResolvedValueOnce({
+      ok: false,
+      json: async () => ({}),
+    } as Response);
+    await expect(fetchArchonBridgeUrl()).rejects.toThrow(
+      'Error al generar enlace seguro a ARCHON.',
+    );
+  });
+
+  it('fetchAdminLeads debe retornar lista de prospectos o arrojar error', async () => {
+    const mockLeads = { leads: [{ id: 1, name: 'Lead 1' }] };
+    global.fetch = vi.fn().mockResolvedValueOnce({
+      ok: true,
+      json: async () => mockLeads,
+    } as Response);
+
+    const res = await fetchAdminLeads();
+    expect(res).toEqual(mockLeads);
+
+    // Error con message
+    global.fetch = vi.fn().mockResolvedValueOnce({
+      ok: false,
+      json: async () => ({ message: 'Fallo de base de datos' }),
+    } as Response);
+    await expect(fetchAdminLeads()).rejects.toThrow('Fallo de base de datos');
+
+    // Error fallback
+    global.fetch = vi.fn().mockResolvedValueOnce({
+      ok: false,
+      json: async () => ({}),
+    } as Response);
+    await expect(fetchAdminLeads()).rejects.toThrow('Error al obtener prospectos administrativos.');
+  });
+
+  it('fetchAdminAuditLogs debe retornar lista de logs o arrojar error', async () => {
+    const mockLogs = { logs: [{ id: 10 }] };
+    global.fetch = vi.fn().mockResolvedValueOnce({
+      ok: true,
+      json: async () => mockLogs,
+    } as Response);
+
+    const res = await fetchAdminAuditLogs(2, 20);
+    expect(res).toEqual(mockLogs);
+
+    // Con parámetros por defecto
+    global.fetch = vi.fn().mockResolvedValueOnce({
+      ok: true,
+      json: async () => mockLogs,
+    } as Response);
+    const resDefault = await fetchAdminAuditLogs();
+    expect(resDefault).toEqual(mockLogs);
+
+    // Error con message
+    global.fetch = vi.fn().mockResolvedValueOnce({
+      ok: false,
+      json: async () => ({ message: 'Error de servidor' }),
+    } as Response);
+    await expect(fetchAdminAuditLogs()).rejects.toThrow('Error de servidor');
+
+    // Error fallback
+    global.fetch = vi.fn().mockResolvedValueOnce({
+      ok: false,
+      json: async () => ({}),
+    } as Response);
+    await expect(fetchAdminAuditLogs()).rejects.toThrow('Error al obtener logs de auditoría.');
   });
 });

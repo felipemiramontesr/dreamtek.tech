@@ -1,4 +1,5 @@
 import { Router, Response } from 'express';
+import crypto from 'crypto';
 import { query } from '../db.js';
 import { requireAuth, AuthenticatedRequest } from '../middleware/auth.js';
 
@@ -109,6 +110,73 @@ clientRouter.get('/sites', async (req: AuthenticatedRequest, res: Response): Pro
     res.status(500).json({
       status: 'error',
       message: err.message || 'Error al obtener sitios web del cliente.',
+    });
+  }
+});
+
+/**
+ * POST /api/v1/client/sso/archon
+ * Generates an HMAC-SHA256 signed access link for ARCHON ERP Fleet Management
+ * Condition C-038: dedicated ARCHON_SSO_SECRET, 300s TTL, strict allowlist against open-redirect
+ */
+const ARCHON_ALLOWLIST = [
+  'https://fleet.archon.dreamtek.tech',
+  'https://archon.dreamtek.tech',
+  'http://localhost:3001',
+];
+
+clientRouter.post('/sso/archon', async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+  try {
+    const userId = req.user?.userId;
+    const userRole = req.user?.role;
+
+    // Check if user has active ARCHON subscription or is ADMIN
+    let hasAccess = userRole === 'ADMIN';
+    if (!hasAccess) {
+      const subs = await query<any[]>(
+        'SELECT id FROM subscriptions WHERE user_id = ? AND plan_id LIKE "%archon%" AND status = "active"',
+        [userId],
+      ).catch(() => []);
+      hasAccess = subs.length > 0;
+    }
+
+    if (!hasAccess) {
+      res.status(403).json({
+        status: 'error',
+        error: 'Forbidden',
+        message: 'No cuenta con una suscripción activa a ARCHON Gestión de Flotas.',
+      });
+      return;
+    }
+
+    const baseUrl = process.env.ARCHON_BASE_URL || 'https://fleet.archon.dreamtek.tech';
+    if (!ARCHON_ALLOWLIST.includes(baseUrl)) {
+      res.status(400).json({
+        status: 'error',
+        error: 'Security Error',
+        message: 'Base URL de destino no autorizada en allowlist.',
+      });
+      return;
+    }
+
+    const timestamp = Math.floor(Date.now() / 1000);
+    const expiresAt = timestamp + 300; // 5 minutos
+    const secret = process.env.ARCHON_SSO_SECRET || 'dreamtek_archon_hmac_secret_2026';
+    const payload = `${userId}:${userRole}:${expiresAt}`;
+    const signature = crypto.createHmac('sha256', secret).update(payload).digest('hex');
+
+    const signedUrl = `${baseUrl}/auth/bridge?uid=${userId}&role=${userRole}&exp=${expiresAt}&sig=${signature}`;
+
+    res.json({
+      status: 'success',
+      type: 'HMAC_LINK',
+      url: signedUrl,
+      expires_in: 300,
+    });
+  } catch (err: any) {
+    res.status(500).json({
+      status: 'error',
+      message: err.message || 'Error al generar enlace seguro para ARCHON.',
     });
   }
 });
