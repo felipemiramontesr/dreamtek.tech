@@ -4,6 +4,7 @@ import { Services } from '@/components/sections/Services';
 import { Products } from '@/components/sections/Products';
 import { Differential } from '@/components/sections/Differential';
 import { Contact } from '@/components/sections/Contact';
+import { QuoteFunnelWizard } from '@/components/funnel/QuoteFunnelWizard';
 import { en } from '@/i18n/dictionaries/en';
 
 export const metadata: Metadata = {
@@ -33,6 +34,9 @@ export default function HomeEN() {
         <Hero dict={en} />
         <Services dict={en} />
         <Products dict={en} />
+        <section id="cotizador" className="py-16 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto w-full">
+          <QuoteFunnelWizard />
+        </section>
         <Differential dict={en} />
         <Contact dict={en} />
       </main>

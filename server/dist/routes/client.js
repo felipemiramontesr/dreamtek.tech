@@ -4,6 +4,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.clientRouter = void 0;
+exports.getArchonSsoSecret = getArchonSsoSecret;
 const express_1 = require("express");
 const crypto_1 = __importDefault(require("crypto"));
 const db_js_1 = require("../db.js");
@@ -105,6 +106,16 @@ exports.clientRouter.get('/sites', async (req, res) => {
  * Generates an HMAC-SHA256 signed access link for ARCHON ERP Fleet Management
  * Condition C-038: dedicated ARCHON_SSO_SECRET, 300s TTL, strict allowlist against open-redirect
  */
+function getArchonSsoSecret() {
+    const secret = process.env.ARCHON_SSO_SECRET;
+    if (!secret) {
+        if (process.env.NODE_ENV === 'production') {
+            throw new Error('ARCHON_SSO_SECRET must be explicitly set in production');
+        }
+        return 'dreamtek_archon_hmac_secret_2026';
+    }
+    return secret;
+}
 const ARCHON_ALLOWLIST = [
     'https://fleet.archon.dreamtek.tech',
     'https://archon.dreamtek.tech',
@@ -139,7 +150,7 @@ exports.clientRouter.post('/sso/archon', async (req, res) => {
         }
         const timestamp = Math.floor(Date.now() / 1000);
         const expiresAt = timestamp + 300; // 5 minutos
-        const secret = process.env.ARCHON_SSO_SECRET || 'dreamtek_archon_hmac_secret_2026';
+        const secret = getArchonSsoSecret();
         const payload = `${userId}:${userRole}:${expiresAt}`;
         const signature = crypto_1.default.createHmac('sha256', secret).update(payload).digest('hex');
         const signedUrl = `${baseUrl}/auth/bridge?uid=${userId}&role=${userRole}&exp=${expiresAt}&sig=${signature}`;

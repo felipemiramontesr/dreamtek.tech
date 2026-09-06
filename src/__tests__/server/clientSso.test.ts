@@ -6,7 +6,7 @@ import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import * as db from '../../../server/src/db';
 import { authRouter } from '../../../server/src/routes/auth';
-import { clientRouter } from '../../../server/src/routes/client';
+import { clientRouter, getArchonSsoSecret } from '../../../server/src/routes/client';
 
 vi.mock('../../../server/src/db', () => ({
   query: vi.fn(),
@@ -319,6 +319,31 @@ describe('Client SSO & Dual Auth Integration Suite (FC 038 100% Coverage)', () =
 
       jsonSpy.mockRestore();
       jsonFallbackSpy.mockRestore();
+    });
+
+    it('getArchonSsoSecret debe retornar el secret seteado, fallback en dev, o lanzar error en prod (C-039.4)', () => {
+      const origSecret = process.env.ARCHON_SSO_SECRET;
+      const origEnv = process.env.NODE_ENV;
+
+      try {
+        // 1. Secret seteado
+        process.env.ARCHON_SSO_SECRET = 'custom_secret_123';
+        expect(getArchonSsoSecret()).toBe('custom_secret_123');
+
+        // 2. Secret vacío en modo dev / test
+        delete process.env.ARCHON_SSO_SECRET;
+        process.env.NODE_ENV = 'development';
+        expect(getArchonSsoSecret()).toBe('dreamtek_archon_hmac_secret_2026');
+
+        // 3. Secret vacío en producción -> lanza Error fail-closed
+        process.env.NODE_ENV = 'production';
+        expect(() => getArchonSsoSecret()).toThrow(
+          'ARCHON_SSO_SECRET must be explicitly set in production',
+        );
+      } finally {
+        process.env.ARCHON_SSO_SECRET = origSecret;
+        process.env.NODE_ENV = origEnv;
+      }
     });
   });
 });

@@ -9,6 +9,9 @@ const Products = dynamic(() =>
 const Differential = dynamic(() =>
   import('@/components/sections/Differential').then((mod) => mod.Differential),
 );
+const QuoteFunnelWizard = dynamic(() =>
+  import('@/components/funnel/QuoteFunnelWizard').then((mod) => mod.QuoteFunnelWizard),
+);
 const Contact = dynamic(() => import('@/components/sections/Contact').then((mod) => mod.Contact));
 
 export default function Home() {
@@ -18,6 +21,9 @@ export default function Home() {
         <Hero dict={es} />
         <Services dict={es} />
         <Products dict={es} />
+        <section id="cotizador" className="py-16 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto w-full">
+          <QuoteFunnelWizard />
+        </section>
         <Differential dict={es} />
         <Contact dict={es} />
       </main>

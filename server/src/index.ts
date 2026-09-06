@@ -36,6 +36,7 @@ import webhooksRouter from './routes/webhooks.js';
 import workflowsRouter from './routes/workflows.js';
 import analyticsRouter from './routes/analytics.js';
 import { portalsRouter, publicPortalsRouter } from './routes/portals.js';
+import { quotesRouter } from './routes/quotes.js';
 import { pool } from './db.js';
 import { getCache, setCache } from './utils/cache.js';
 
@@ -163,6 +164,7 @@ app.use('/api/v1/checkout', checkoutRouter);
 app.use('/api/v1/client', clientRouter);
 app.use('/api/v1/admin', adminRouter);
 app.use('/api/v1/contact', sensitiveEndpointLimiter, contactRouter);
+app.use('/api/v1/quotes', quotesRouter);
 app.use('/api/v1/assets', assetsRouter);
 app.use('/api/v1/shares', sharesRouter);
 app.use('/api/v1/tags', tagsRouter);
