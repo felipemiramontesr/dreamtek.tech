@@ -67,7 +67,7 @@
                 },
     "versioning":  {
                        "scheme":  "semver",
-                       "semver":  "0.1.65",
+                       "semver":  "0.1.66",
                        "codeVersion":  null,
                        "packageSync":  true,
                        "tagPrefix":  {

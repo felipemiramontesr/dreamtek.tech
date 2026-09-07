@@ -7,6 +7,10 @@ import {
   fetchClientDashboard,
   fetchArchonBridgeUrl,
   fetchAdminLeads,
+  fetchAdminLeadDetails,
+  updateAdminLeadStatus,
+  addAdminLeadActivity,
+  sendAdminLeadEmail,
   fetchAdminAuditLogs,
 } from '@/lib/auth/client';
 
@@ -175,7 +179,7 @@ describe('FC 001m Client Auth Library Suite', () => {
     );
   });
 
-  it('fetchAdminLeads debe retornar lista de prospectos o arrojar error', async () => {
+  it('fetchAdminLeads debe retornar lista de prospectos con y sin filtros o arrojar error', async () => {
     const mockLeads = { leads: [{ id: 1, name: 'Lead 1' }] };
     global.fetch = vi.fn().mockResolvedValueOnce({
       ok: true,
@@ -184,6 +188,18 @@ describe('FC 001m Client Auth Library Suite', () => {
 
     const res = await fetchAdminLeads();
     expect(res).toEqual(mockLeads);
+
+    // Con filtros
+    global.fetch = vi.fn().mockResolvedValueOnce({
+      ok: true,
+      json: async () => mockLeads,
+    } as Response);
+    const resFiltered = await fetchAdminLeads({
+      status: 'NEW',
+      vertical: 'WEB_DEV',
+      search: 'Test',
+    });
+    expect(resFiltered).toEqual(mockLeads);
 
     // Error con message
     global.fetch = vi.fn().mockResolvedValueOnce({
@@ -198,6 +214,118 @@ describe('FC 001m Client Auth Library Suite', () => {
       json: async () => ({}),
     } as Response);
     await expect(fetchAdminLeads()).rejects.toThrow('Error al obtener prospectos administrativos.');
+  });
+
+  it('fetchAdminLeadDetails debe retornar expediente o arrojar error', async () => {
+    const mockLead = { lead: { id: 1, activities: [] } };
+    global.fetch = vi.fn().mockResolvedValueOnce({
+      ok: true,
+      json: async () => mockLead,
+    } as Response);
+
+    const res = await fetchAdminLeadDetails(1);
+    expect(res).toEqual(mockLead);
+
+    // Error con message
+    global.fetch = vi.fn().mockResolvedValueOnce({
+      ok: false,
+      json: async () => ({ message: 'Lead no encontrado' }),
+    } as Response);
+    await expect(fetchAdminLeadDetails(999)).rejects.toThrow('Lead no encontrado');
+
+    // Error fallback
+    global.fetch = vi.fn().mockResolvedValueOnce({
+      ok: false,
+      json: async () => ({}),
+    } as Response);
+    await expect(fetchAdminLeadDetails(999)).rejects.toThrow(
+      'Error al obtener expediente del prospecto.',
+    );
+  });
+
+  it('updateAdminLeadStatus debe actualizar estado o arrojar error', async () => {
+    const mockSuccess = { status: 'success' };
+    global.fetch = vi.fn().mockResolvedValueOnce({
+      ok: true,
+      json: async () => mockSuccess,
+    } as Response);
+
+    const res = await updateAdminLeadStatus(1, 'QUALIFIED', 'Nota de prueba');
+    expect(res).toEqual(mockSuccess);
+
+    // Error con message
+    global.fetch = vi.fn().mockResolvedValueOnce({
+      ok: false,
+      json: async () => ({ message: 'Estado inválido' }),
+    } as Response);
+    await expect(updateAdminLeadStatus(1, 'INVALID')).rejects.toThrow('Estado inválido');
+
+    // Error fallback
+    global.fetch = vi.fn().mockResolvedValueOnce({
+      ok: false,
+      json: async () => ({}),
+    } as Response);
+    await expect(updateAdminLeadStatus(1, 'INVALID')).rejects.toThrow(
+      'Error al actualizar estado del prospecto.',
+    );
+  });
+
+  it('addAdminLeadActivity debe registrar actividad o arrojar error', async () => {
+    const mockSuccess = { status: 'success', activity_id: 12 };
+    global.fetch = vi.fn().mockResolvedValueOnce({
+      ok: true,
+      json: async () => mockSuccess,
+    } as Response);
+
+    const res = await addAdminLeadActivity(1, { activity_type: 'NOTE', title: 'Nota' });
+    expect(res).toEqual(mockSuccess);
+
+    // Error con message
+    global.fetch = vi.fn().mockResolvedValueOnce({
+      ok: false,
+      json: async () => ({ message: 'Error en título' }),
+    } as Response);
+    await expect(addAdminLeadActivity(1, { activity_type: 'NOTE', title: '' })).rejects.toThrow(
+      'Error en título',
+    );
+
+    // Error fallback
+    global.fetch = vi.fn().mockResolvedValueOnce({
+      ok: false,
+      json: async () => ({}),
+    } as Response);
+    await expect(addAdminLeadActivity(1, { activity_type: 'NOTE', title: '' })).rejects.toThrow(
+      'Error al registrar actividad.',
+    );
+  });
+
+  it('sendAdminLeadEmail debe despachar correo o arrojar error', async () => {
+    const mockSuccess = { status: 'success', subject: 'Asunto' };
+    global.fetch = vi.fn().mockResolvedValueOnce({
+      ok: true,
+      json: async () => mockSuccess,
+    } as Response);
+
+    const res = await sendAdminLeadEmail(1, { template_id: 'DIAGNOSTIC_INVITATION' });
+    expect(res).toEqual(mockSuccess);
+
+    // Error con message
+    global.fetch = vi.fn().mockResolvedValueOnce({
+      ok: false,
+      json: async () => ({ message: 'Error SMTP' }),
+    } as Response);
+    await expect(sendAdminLeadEmail(1, { template_id: 'DIAGNOSTIC_INVITATION' })).rejects.toThrow(
+      'Error SMTP',
+    );
+
+    // Error fallback
+    global.fetch = vi.fn().mockResolvedValueOnce({
+      ok: false,
+      json: async () => ({}),
+    } as Response);
+    await expect(sendAdminLeadEmail(1, { template_id: 'DIAGNOSTIC_INVITATION' })).rejects.toThrow(
+      'Error al enviar correo de seguimiento.',
+    );
   });
 
   it('fetchAdminAuditLogs debe retornar lista de logs o arrojar error', async () => {

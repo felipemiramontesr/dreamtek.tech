@@ -233,6 +233,17 @@ describe('Server Express Routes 100% Comprehensive Suite', () => {
     });
     expect(resUpdate.status).toBe(200);
 
+    // Existing lead update without company and step_reached
+    vi.mocked(db.query)
+      .mockResolvedValueOnce([{ id: 88 }])
+      .mockResolvedValueOnce({ affectedRows: 1 });
+    const resUpdateNoCompany = await supertest(app).post('/onboarding/lead').send({
+      name: 'Prospecto Existente Sin Empresa',
+      email: 'existente@empresa.com',
+      phone: '5511223344',
+    });
+    expect(resUpdateNoCompany.status).toBe(200);
+
     // New lead insertion
     vi.mocked(db.query).mockResolvedValueOnce([]).mockResolvedValueOnce({ insertId: 89 });
     const resInsert = await supertest(app).post('/onboarding/lead').send({
@@ -243,6 +254,15 @@ describe('Server Express Routes 100% Comprehensive Suite', () => {
       step_reached: 1,
     });
     expect(resInsert.status).toBe(200);
+
+    // New lead insertion without company and step_reached
+    vi.mocked(db.query).mockResolvedValueOnce([]).mockResolvedValueOnce({ insertId: 90 });
+    const resInsertNoCompany = await supertest(app).post('/onboarding/lead').send({
+      full_name: 'Prospecto Nuevo Sin Empresa',
+      email: 'nuevo2@empresa.com',
+      phone: '5511223344',
+    });
+    expect(resInsertNoCompany.status).toBe(200);
 
     // DB Error catch
     vi.mocked(db.query).mockRejectedValueOnce(new Error('DB Error'));
@@ -1014,6 +1034,24 @@ describe('Server Express Routes 100% Comprehensive Suite', () => {
       .mockResolvedValueOnce({}); // update
     await leadHandler(
       { body: { email: 'update@test.com', phone: '123', full_name: 'Update Name' } },
+      leadRes,
+    );
+    expect(leadRes.json).toHaveBeenCalled();
+
+    // With company and step_reached
+    vi.mocked(db.query)
+      .mockResolvedValueOnce([{ id: 99 }])
+      .mockResolvedValueOnce({});
+    await leadHandler(
+      {
+        body: {
+          email: 'update2@test.com',
+          phone: '1234567890',
+          full_name: 'Full Name',
+          company: 'Acme Corp',
+          step_reached: 3,
+        },
+      },
       leadRes,
     );
     expect(leadRes.json).toHaveBeenCalled();

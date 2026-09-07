@@ -4,22 +4,13 @@ import React, { useEffect, useState } from 'react';
 import { GlassCard } from '@/components/ui/GlassCard';
 import { Button } from '@/components/ui/Button';
 import { fetchAdminLeads, fetchAdminAuditLogs } from '@/lib/auth/client';
+import { LeadCrmPipeline, LeadItem } from './LeadCrmPipeline';
 
 interface OmnipotentAdminPanelProps {
   adminName?: string;
   totalSites?: number;
   totalServices?: number;
   onViewAsClient?: () => void;
-}
-
-interface LeadItem {
-  id: string | number;
-  full_name?: string;
-  name?: string;
-  email?: string;
-  company_name?: string;
-  plan_id?: string;
-  created_at: string;
 }
 
 interface AuditLogItem {
@@ -156,48 +147,7 @@ export function OmnipotentAdminPanel({
       </div>
 
       {/* Contenido de pestañas */}
-      {activeTab === 'leads' && (
-        <GlassCard className="p-6 border-purple-500/20 bg-slate-900/40">
-          <h3 className="text-base font-bold text-white mb-4">Leads y Solicitudes Entrantes</h3>
-          {leads.length === 0 ? (
-            <p className="text-xs text-slate-400">No hay prospectos registrados actualmente.</p>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs text-slate-300">
-                <thead className="border-b border-slate-700 text-slate-400 uppercase text-[10px]">
-                  <tr>
-                    <th className="py-2.5">ID</th>
-                    <th>Contacto</th>
-                    <th>Empresa</th>
-                    <th>Plan Solicitado</th>
-                    <th>Fecha</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-800">
-                  {leads.map((l) => (
-                    <tr key={l.id} className="hover:bg-slate-800/30">
-                      <td className="py-2.5 font-mono text-cyan-400">#{l.id}</td>
-                      <td>
-                        <div className="font-medium text-white">{l.full_name || l.name}</div>
-                        <div className="text-[11px] text-slate-400">{l.email}</div>
-                      </td>
-                      <td>{l.company_name || 'N/A'}</td>
-                      <td>
-                        <span className="px-2 py-0.5 rounded-full text-[10px] bg-cyan-500/10 text-cyan-300 border border-cyan-500/20">
-                          {l.plan_id || 'Escolta WEB'}
-                        </span>
-                      </td>
-                      <td className="text-slate-400 text-[11px]">
-                        {new Date(l.created_at).toLocaleDateString()}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </GlassCard>
-      )}
+      {activeTab === 'leads' && <LeadCrmPipeline initialLeads={leads} />}
 
       {activeTab === 'security' && (
         <GlassCard className="p-6 border-amber-500/20 bg-slate-900/40">

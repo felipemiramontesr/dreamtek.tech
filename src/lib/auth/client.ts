@@ -167,10 +167,20 @@ export async function fetchArchonBridgeUrl(): Promise<{ url: string; expires_in:
 }
 
 /**
- * Fetch admin leads list
+ * Fetch admin leads list with optional filters
  */
-export async function fetchAdminLeads(): Promise<unknown> {
-  const response = await fetch(`${API_BASE}/admin/leads`, {
+export async function fetchAdminLeads(filters?: {
+  status?: string;
+  vertical?: string;
+  search?: string;
+}): Promise<unknown> {
+  const params = new URLSearchParams();
+  if (filters?.status) params.append('status', filters.status);
+  if (filters?.vertical) params.append('vertical', filters.vertical);
+  if (filters?.search) params.append('search', filters.search);
+
+  const queryStr = params.toString() ? `?${params.toString()}` : '';
+  const response = await fetch(`${API_BASE}/admin/leads${queryStr}`, {
     method: 'GET',
     headers: { 'Content-Type': 'application/json' },
     credentials: 'include',
@@ -178,6 +188,83 @@ export async function fetchAdminLeads(): Promise<unknown> {
   const data = await response.json();
   if (!response.ok) {
     throw new Error(data.message || data.error || 'Error al obtener prospectos administrativos.');
+  }
+  return data;
+}
+
+/**
+ * Fetch lead details and activity timeline
+ */
+export async function fetchAdminLeadDetails(leadId: number | string): Promise<unknown> {
+  const response = await fetch(`${API_BASE}/admin/leads/${leadId}`, {
+    method: 'GET',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
+  });
+  const data = await response.json();
+  if (!response.ok) {
+    throw new Error(data.message || data.error || 'Error al obtener expediente del prospecto.');
+  }
+  return data;
+}
+
+/**
+ * Update lead commercial status
+ */
+export async function updateAdminLeadStatus(
+  leadId: number | string,
+  status: string,
+  note?: string,
+): Promise<unknown> {
+  const response = await fetch(`${API_BASE}/admin/leads/${leadId}/status`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
+    body: JSON.stringify({ status, note }),
+  });
+  const data = await response.json();
+  if (!response.ok) {
+    throw new Error(data.message || data.error || 'Error al actualizar estado del prospecto.');
+  }
+  return data;
+}
+
+/**
+ * Add manual activity (note, call, meeting) to lead
+ */
+export async function addAdminLeadActivity(
+  leadId: number | string,
+  activity: { activity_type: string; title: string; details?: string },
+): Promise<unknown> {
+  const response = await fetch(`${API_BASE}/admin/leads/${leadId}/activities`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
+    body: JSON.stringify(activity),
+  });
+  const data = await response.json();
+  if (!response.ok) {
+    throw new Error(data.message || data.error || 'Error al registrar actividad.');
+  }
+  return data;
+}
+
+/**
+ * Send manual follow-up email template
+ */
+export async function sendAdminLeadEmail(
+  leadId: number | string,
+  emailData: { template_id: string; subject?: string; custom_message?: string },
+): Promise<unknown> {
+  const response = await fetch(`${API_BASE}/admin/leads/${leadId}/send-email`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
+    body: JSON.stringify(emailData),
+  });
+  const data = await response.json();
+  if (!response.ok) {
+    throw new Error(data.message || data.error || 'Error al enviar correo de seguimiento.');
   }
   return data;
 }
