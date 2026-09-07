@@ -20,6 +20,8 @@ export interface QuoteSubmissionInput {
   company_name?: string;
   notes?: string;
   requirements?: Record<string, unknown>;
+  locale?: 'es' | 'en';
+  currency?: 'MXN' | 'USD';
 }
 
 export interface QuoteData {
@@ -32,6 +34,7 @@ export interface QuoteData {
   estimated_weeks_min: number;
   estimated_weeks_max: number;
   currency: string;
+  locale?: string;
   disclaimer: string;
 }
 

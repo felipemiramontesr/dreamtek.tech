@@ -65,8 +65,8 @@ quotesRouter.post('/', async (req: Request, res: Response): Promise<void> => {
 
   const data = parseResult.data;
 
-  // Server-side SSOT matrix evaluation (C-039.2)
-  const matrixResult = evaluateQuoteMatrix(data.vertical, data.scale);
+  // Server-side SSOT matrix evaluation (C-039.2 & C-042.1)
+  const matrixResult = evaluateQuoteMatrix(data.vertical, data.scale, data.locale);
   if (!matrixResult) {
     res.status(400).json({
       status: 'error',
@@ -81,21 +81,24 @@ quotesRouter.post('/', async (req: Request, res: Response): Promise<void> => {
   const requirementsJson = data.requirements ? JSON.stringify(data.requirements) : null;
 
   try {
-    // Atomic UPSERT on email per C-039.1
+    // Atomic UPSERT on email per C-039.1 & C-042.2
     await query(
       `INSERT INTO \`leads\` (
         \`email\`, \`full_name\`, \`phone\`, \`company\`,
         \`project_vertical\`, \`complexity_level\`,
+        \`currency\`, \`locale\`,
         \`estimated_budget_min\`, \`estimated_budget_max\`,
         \`estimated_weeks_min\`, \`estimated_weeks_max\`,
         \`requirements_payload\`, \`ip_address\`
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       ON DUPLICATE KEY UPDATE
         \`full_name\` = VALUES(\`full_name\`),
         \`phone\` = VALUES(\`phone\`),
         \`company\` = VALUES(\`company\`),
         \`project_vertical\` = VALUES(\`project_vertical\`),
         \`complexity_level\` = VALUES(\`complexity_level\`),
+        \`currency\` = VALUES(\`currency\`),
+        \`locale\` = VALUES(\`locale\`),
         \`estimated_budget_min\` = VALUES(\`estimated_budget_min\`),
         \`estimated_budget_max\` = VALUES(\`estimated_budget_max\`),
         \`estimated_weeks_min\` = VALUES(\`estimated_weeks_min\`),
@@ -110,6 +113,8 @@ quotesRouter.post('/', async (req: Request, res: Response): Promise<void> => {
         data.company_name || null,
         data.vertical,
         data.scale,
+        matrixResult.currency,
+        matrixResult.locale,
         matrixResult.estimatedBudgetMin,
         matrixResult.estimatedBudgetMax,
         matrixResult.estimatedWeeksMin,
@@ -124,24 +129,25 @@ quotesRouter.post('/', async (req: Request, res: Response): Promise<void> => {
       await logSecurityEvent(req, {
         eventType: 'QUOTE_LEAD_SUBMITTED',
         status: 'SUCCESS',
-        details: `vertical=${data.vertical};scale=${data.scale}`,
+        details: `vertical=${data.vertical};scale=${data.scale};currency=${matrixResult.currency};locale=${matrixResult.locale}`,
       });
     } catch {
       // Non-blocking security audit failure
     }
 
-    // Fail-open notification email dispatch (C-039.3)
+    // Fail-open notification email dispatch (C-039.3 & C-042.5)
     if (process.env.NODE_ENV === 'production' && process.env.SMTP_PASS) {
       getTransporter()
         .sendMail({
           from: '"Dreamtek Solutions" <hola@dreamtek.tech>',
           to: 'hola@dreamtek.tech',
-          subject: `Nueva Cotización: ${matrixResult.serviceLabel} - ${data.full_name}`,
+          subject: `Nueva Cotización [${matrixResult.currency}]: ${matrixResult.serviceLabel} - ${data.full_name}`,
           html: `
             <h3>Nueva Solicitud de Cotización</h3>
             <p><strong>Vertical:</strong> ${matrixResult.serviceLabel} (${data.vertical})</p>
             <p><strong>Alcance:</strong> ${matrixResult.scaleLabel} (${data.scale})</p>
-            <p><strong>Rango Estimado:</strong> $${matrixResult.estimatedBudgetMin.toLocaleString()} - $${matrixResult.estimatedBudgetMax.toLocaleString()} MXN</p>
+            <p><strong>Moneda / Idioma:</strong> ${matrixResult.currency} (${matrixResult.locale.toUpperCase()})</p>
+            <p><strong>Rango Estimado:</strong> $${matrixResult.estimatedBudgetMin.toLocaleString()} - $${matrixResult.estimatedBudgetMax.toLocaleString()} ${matrixResult.currency}</p>
             <p><strong>Plazo Estimado:</strong> ${matrixResult.estimatedWeeksMin} - ${matrixResult.estimatedWeeksMax} semanas</p>
             <p><strong>Contacto:</strong> ${data.full_name} (${data.email})</p>
             <p><strong>Teléfono:</strong> ${data.phone}</p>
@@ -154,10 +160,12 @@ quotesRouter.post('/', async (req: Request, res: Response): Promise<void> => {
         });
     }
 
+    const isEn = matrixResult.locale === 'en';
     res.status(201).json({
       status: 'success',
-      message:
-        'Estimación paramétrica registrada exitosamente. Un arquitecto de soluciones de Dreamtek revisará tus requerimientos y te contactará a la brevedad.',
+      message: isEn
+        ? 'Parametric estimation registered successfully. A Dreamtek solutions architect will review your technical requirements and contact you shortly.'
+        : 'Estimación paramétrica registrada exitosamente. Un arquitecto de soluciones de Dreamtek revisará tus requerimientos y te contactará a la brevedad.',
       data: {
         vertical: data.vertical,
         scale: data.scale,
@@ -167,9 +175,11 @@ quotesRouter.post('/', async (req: Request, res: Response): Promise<void> => {
         estimated_budget_max: matrixResult.estimatedBudgetMax,
         estimated_weeks_min: matrixResult.estimatedWeeksMin,
         estimated_weeks_max: matrixResult.estimatedWeeksMax,
-        currency: 'MXN',
-        disclaimer:
-          'Estimación paramétrica orientativa sujeta a revisión de requerimientos técnicos detallados y formalización contractual.',
+        currency: matrixResult.currency,
+        locale: matrixResult.locale,
+        disclaimer: isEn
+          ? 'Orientative parametric estimation subject to detailed technical requirements review and formal contract agreement. List prices designed for international market; not a live financial exchange rate.'
+          : 'Estimación paramétrica orientativa sujeta a revisión de requerimientos técnicos detallados y formalización contractual. Precios de lista independientes por mercado; no constituye un tipo de cambio financiero en tiempo real.',
       },
     });
   } catch (err: unknown) {

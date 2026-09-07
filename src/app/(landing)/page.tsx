@@ -22,7 +22,7 @@ export default function Home() {
         <Services dict={es} />
         <Products dict={es} />
         <section id="cotizador" className="py-16 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto w-full">
-          <QuoteFunnelWizard />
+          <QuoteFunnelWizard locale="es" />
         </section>
         <Differential dict={es} />
         <Contact dict={es} />

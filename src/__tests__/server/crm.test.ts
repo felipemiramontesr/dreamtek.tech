@@ -282,6 +282,108 @@ describe('CRM Pipeline Backend & Formal Verification Suite (FC 041 100% Coverage
       expect(rendered.text).toContain('Estimado/a');
     });
 
+    it('debe renderizar plantillas de correo en inglés cuando locale="en" (FC 042)', () => {
+      const enContext = {
+        fullName: 'Alexander Wright',
+        email: 'alex@uscorp.com',
+        company: 'US Corp LLC',
+        projectVertical: 'WEB_DEV',
+        estimatedBudgetMin: 2000,
+        estimatedBudgetMax: 3500,
+        estimatedWeeksMin: 3,
+        estimatedWeeksMax: 5,
+        currency: 'USD',
+        locale: 'en',
+      };
+
+      // 1. DIAGNOSTIC_INVITATION en inglés con nota personalizada
+      const diagEn = renderLeadFollowUpEmail(
+        enContext,
+        'DIAGNOSTIC_INVITATION',
+        undefined,
+        'Custom note',
+      );
+      expect(diagEn.subject).toContain(
+        'Technical Architecture Diagnostic Invitation — Dreamtek & US Corp LLC',
+      );
+      expect(diagEn.html).toContain('Hello <strong>Alexander Wright</strong>');
+      expect(diagEn.html).toContain('Schedule Diagnostic Session');
+      expect(diagEn.html).toContain('Custom note');
+      expect(diagEn.text).toContain('30-minute technical architecture diagnostic session');
+      expect(diagEn.text).toContain('US Corp LLC');
+
+      // 1.b DIAGNOSTIC_INVITATION sin company ni custom note (cubre fallback a fullName y sin safeCustomMsg)
+      const diagEnNoCompany = renderLeadFollowUpEmail(
+        { fullName: 'David Clark', email: 'david@clark.io', locale: 'en' },
+        'DIAGNOSTIC_INVITATION',
+      );
+      expect(diagEnNoCompany.subject).toContain(
+        'Technical Architecture Diagnostic Invitation — Dreamtek & David Clark',
+      );
+      expect(diagEnNoCompany.html).not.toContain('Custom note');
+      expect(diagEnNoCompany.text).not.toContain('Additional notes:');
+
+      // 2. PROPOSAL_SUBMITTED en inglés con USD y sin custom message
+      const propEn = renderLeadFollowUpEmail(enContext, 'PROPOSAL_SUBMITTED');
+      expect(propEn.subject).toBe('Tailored Commercial & Technical Proposal — Dreamtek');
+      expect(propEn.html).toContain('Projected Investment Range:');
+      expect(propEn.html).toContain('$2,000 - $3,500 USD');
+      expect(propEn.html).toContain('Estimated Delivery Time:');
+      expect(propEn.html).toContain('3 to 5 weeks');
+      expect(propEn.text).toContain('US Corp LLC');
+
+      // 2.b PROPOSAL_SUBMITTED con custom message y sin rangos numéricos
+      const propEnCustom = renderLeadFollowUpEmail(
+        { fullName: 'Sarah Connor', email: 'sarah@resistance.org', locale: 'en' },
+        'PROPOSAL_SUBMITTED',
+        undefined,
+        'Special enterprise pricing applied.',
+      );
+      expect(propEnCustom.html).toContain('Special enterprise pricing applied.');
+      expect(propEnCustom.html).not.toContain('Projected Investment Range:');
+      expect(propEnCustom.html).not.toContain('Estimated Delivery Time:');
+      expect(propEnCustom.text).toContain('Details:\nSpecial enterprise pricing applied.');
+
+      // 3. CUSTOM_FOLLOWUP en inglés sin mensaje libre
+      const customEn = renderLeadFollowUpEmail(enContext, 'CUSTOM_FOLLOWUP');
+      expect(customEn.subject).toBe('Follow-up regarding your project inquiry — Dreamtek');
+      expect(customEn.html).toContain(
+        'We are reaching out to follow up on your recent inquiry at Dreamtek',
+      );
+      expect(customEn.text).toContain('US Corp LLC');
+
+      // 3.b CUSTOM_FOLLOWUP en inglés con mensaje libre
+      const customEnMsg = renderLeadFollowUpEmail(
+        enContext,
+        'CUSTOM_FOLLOWUP',
+        'Custom English Subject',
+        'Custom English message body text.',
+      );
+      expect(customEnMsg.subject).toBe('Custom English Subject');
+      expect(customEnMsg.html).toContain('Custom English message body text.');
+      expect(customEnMsg.text).toContain('Custom English message body text.');
+
+      // 4. Fallbacks en inglés cuando todos los campos son nulos
+      const emptyEn = {
+        fullName: '',
+        email: 'empty@en.com',
+        locale: 'en',
+      };
+      const emptyRender = renderLeadFollowUpEmail(emptyEn, 'CUSTOM_FOLLOWUP');
+      expect(emptyRender.html).toContain('Hello <strong>Valued Client</strong>');
+      expect(emptyRender.html).toContain('your organization');
+      expect(emptyRender.text).toContain('Valued Client');
+
+      const emptyDiag = renderLeadFollowUpEmail(emptyEn, 'DIAGNOSTIC_INVITATION');
+      expect(emptyDiag.text).toContain('Valued Client');
+      expect(emptyDiag.text).toContain('your organization');
+
+      const emptyProp = renderLeadFollowUpEmail(emptyEn, 'PROPOSAL_SUBMITTED');
+      expect(emptyProp.text).toContain('Valued Client');
+      expect(emptyProp.text).toContain('your organization');
+      expect(emptyProp.text).not.toContain('Details:');
+    });
+
     it('debe resolver la clave de cliente en getAdminEmailClientKey', () => {
       // 1. Con usuario autenticado
       const reqWithUser: any = { user: { userId: 42 }, headers: {} };

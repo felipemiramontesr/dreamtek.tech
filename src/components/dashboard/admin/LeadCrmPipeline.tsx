@@ -24,6 +24,8 @@ export interface LeadItem {
   last_contacted_at?: string | null;
   project_vertical?: string | null;
   complexity_level?: string | null;
+  currency?: 'MXN' | 'USD' | string | null;
+  locale?: 'es' | 'en' | string | null;
   estimated_budget_min?: number | null;
   estimated_budget_max?: number | null;
   estimated_weeks_min?: number | null;
@@ -401,13 +403,25 @@ export function LeadCrmPipeline({ initialLeads }: LeadCrmPipelineProps = {}) {
                       <td className="px-2">
                         {lead.project_vertical ? (
                           <div className="space-y-0.5">
-                            <span className="inline-block px-1.5 py-0.2 rounded text-[10px] bg-slate-800 text-cyan-300 border border-slate-700">
-                              {lead.project_vertical}
-                            </span>
+                            <div className="flex items-center gap-1">
+                              <span className="inline-block px-1.5 py-0.2 rounded text-[10px] bg-slate-800 text-cyan-300 border border-slate-700">
+                                {lead.project_vertical}
+                              </span>
+                              <span
+                                className={`inline-block px-1 py-0.2 rounded text-[9px] font-mono font-bold ${
+                                  lead.currency === 'USD'
+                                    ? 'bg-indigo-500/20 text-indigo-300 border border-indigo-500/30'
+                                    : 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+                                }`}
+                              >
+                                {lead.currency || 'MXN'}
+                              </span>
+                            </div>
                             {lead.estimated_budget_min && lead.estimated_budget_max && (
                               <div className="text-[11px] text-slate-400 font-mono">
                                 ${lead.estimated_budget_min.toLocaleString()} - $
-                                {lead.estimated_budget_max.toLocaleString()} USD
+                                {lead.estimated_budget_max.toLocaleString()}{' '}
+                                {lead.currency || 'MXN'}
                               </div>
                             )}
                           </div>
@@ -498,7 +512,7 @@ export function LeadCrmPipeline({ initialLeads }: LeadCrmPipelineProps = {}) {
                 <span className="text-slate-500 block">Presupuesto Proyectado</span>
                 <span className="text-emerald-400 font-mono">
                   {selectedLead.estimated_budget_min && selectedLead.estimated_budget_max
-                    ? `$${selectedLead.estimated_budget_min.toLocaleString()} - $${selectedLead.estimated_budget_max.toLocaleString()} USD`
+                    ? `$${selectedLead.estimated_budget_min.toLocaleString()} - $${selectedLead.estimated_budget_max.toLocaleString()} ${selectedLead.currency || 'MXN'} [${(selectedLead.locale || 'es').toUpperCase()}]`
                     : 'N/A'}
                 </span>
               </div>

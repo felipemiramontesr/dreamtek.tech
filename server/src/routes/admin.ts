@@ -294,6 +294,8 @@ adminRouter.post(
           estimatedBudgetMax: lead.estimated_budget_max,
           estimatedWeeksMin: lead.estimated_weeks_min,
           estimatedWeeksMax: lead.estimated_weeks_max,
+          currency: lead.currency || 'MXN',
+          locale: lead.locale || 'es',
         },
         template_id,
         subject,

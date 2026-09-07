@@ -9,8 +9,11 @@ import * as auditLoggerModule from '../../../server/src/middleware/auditLogger';
 import {
   evaluateQuoteMatrix,
   QUOTE_ESTIMATION_MATRIX,
+  QUOTE_ESTIMATION_MATRIX_EN,
   VERTICALS,
   SCALES,
+  CURRENCIES,
+  LOCALES,
 } from '../../../server/src/schemas/quotes.schema';
 
 vi.mock('../../../server/src/db', () => ({
@@ -73,14 +76,53 @@ describe('Quote Funnel Diagnostic API & Matrix Suite (FC 039 100% Coverage)', ()
       expect(evaluateQuoteMatrix('ARCHON_FLEET', 'AGENT')).toBeNull();
     });
 
-    it('debe contener las constantes estáticas declaradas de VERTICALS y SCALES', () => {
+    it('debe contener las constantes estáticas declaradas de VERTICALS, SCALES, CURRENCIES y LOCALES', () => {
       expect(VERTICALS.length).toBe(4);
       expect(SCALES.length).toBe(8);
+      expect(CURRENCIES).toEqual(['MXN', 'USD']);
+      expect(LOCALES).toEqual(['es', 'en']);
       expect(QUOTE_ESTIMATION_MATRIX.WEB_DEV.MVP?.estimatedBudgetMin).toBe(35000);
+      expect(QUOTE_ESTIMATION_MATRIX_EN.WEB_DEV.MVP?.estimatedBudgetMin).toBe(2000);
+    });
+
+    it('debe validar y calcular valores para la matriz en inglés con escala en USD (FC 042 / Alternativa A)', () => {
+      const validPairs = [
+        { vertical: 'WEB_DEV', scale: 'MVP', expectedMin: 2000, expectedMax: 3500 },
+        { vertical: 'WEB_DEV', scale: 'SCALE', expectedMin: 4500, expectedMax: 9000 },
+        { vertical: 'ARCHON_FLEET', scale: 'SMALL', expectedMin: 1200, expectedMax: 2500 },
+        { vertical: 'ARCHON_FLEET', scale: 'LARGE', expectedMin: 3500, expectedMax: 7500 },
+        { vertical: 'AI_AUTOMATION', scale: 'AGENT', expectedMin: 2500, expectedMax: 5000 },
+        {
+          vertical: 'AI_AUTOMATION',
+          scale: 'ENTERPRISE_VISION',
+          expectedMin: 5500,
+          expectedMax: 11000,
+        },
+        {
+          vertical: 'CYBERSECURITY',
+          scale: 'VULN_ASSESSMENT',
+          expectedMin: 1500,
+          expectedMax: 3000,
+        },
+        { vertical: 'CYBERSECURITY', scale: 'PENTEST_FULL', expectedMin: 3500, expectedMax: 6500 },
+      ];
+
+      for (const pair of validPairs) {
+        const result = evaluateQuoteMatrix(pair.vertical, pair.scale, 'en');
+        expect(result).not.toBeNull();
+        expect(result?.valid).toBe(true);
+        expect(result?.currency).toBe('USD');
+        expect(result?.locale).toBe('en');
+        expect(result?.estimatedBudgetMin).toBe(pair.expectedMin);
+        expect(result?.estimatedBudgetMax).toBe(pair.expectedMax);
+      }
     });
   });
 
   describe('2. POST /api/v1/quotes Endpoint Integration Tests', () => {
+    let testIpCounter = 1;
+    const getTestIp = () => `198.51.200.${testIpCounter++}`;
+
     it('debe registrar exitosamente un lead con par válido y persistir en leads vía UPSERT (201 Created)', async () => {
       vi.mocked(db.query).mockResolvedValueOnce({ affectedRows: 1 } as any);
 
@@ -95,7 +137,10 @@ describe('Quote Funnel Diagnostic API & Matrix Suite (FC 039 100% Coverage)', ()
         requirements: { auth: true, db: 'MariaDB' },
       };
 
-      const res = await supertest(app).post('/api/v1/quotes').send(payload);
+      const res = await supertest(app)
+        .post('/api/v1/quotes')
+        .set('x-forwarded-for', getTestIp())
+        .send(payload);
 
       expect(res.status).toBe(201);
       expect(res.body.status).toBe('success');
@@ -136,7 +181,10 @@ describe('Quote Funnel Diagnostic API & Matrix Suite (FC 039 100% Coverage)', ()
         phone: '5544332211',
       };
 
-      const res = await supertest(app).post('/api/v1/quotes').send(payload);
+      const res = await supertest(app)
+        .post('/api/v1/quotes')
+        .set('x-forwarded-for', getTestIp())
+        .send(payload);
 
       expect(res.status).toBe(201);
       expect(res.body.data.service_label).toBe('Inteligencia Artificial y Automatización');
@@ -144,6 +192,42 @@ describe('Quote Funnel Diagnostic API & Matrix Suite (FC 039 100% Coverage)', ()
       expect(db.query).toHaveBeenCalledWith(
         expect.any(String),
         expect.arrayContaining([null, null]), // company, requirements
+      );
+    });
+
+    it('debe procesar cotización en inglés (locale="en") con moneda USD forzada por servidor (C-042.1 / C-042.2)', async () => {
+      vi.mocked(db.query).mockResolvedValueOnce({ affectedRows: 1 } as any);
+
+      const payload = {
+        vertical: 'WEB_DEV',
+        scale: 'MVP',
+        full_name: 'John Miller',
+        email: 'john@acme.us',
+        phone: '+1 555 123 4567',
+        company_name: 'Acme Corp',
+        locale: 'en',
+        currency: 'MXN', // Mismatch intencional del cliente: el servidor debe coaccionar a USD
+      };
+
+      const res = await supertest(app)
+        .post('/api/v1/quotes')
+        .set('x-forwarded-for', getTestIp())
+        .send(payload);
+
+      expect(res.status).toBe(201);
+      expect(res.body.status).toBe('success');
+      expect(res.body.message).toContain('Parametric estimation registered successfully');
+      expect(res.body.data.currency).toBe('USD');
+      expect(res.body.data.locale).toBe('en');
+      expect(res.body.data.estimated_budget_min).toBe(2000);
+      expect(res.body.data.estimated_budget_max).toBe(3500);
+      expect(res.body.data.service_label).toBe('Web Development & SaaS Platforms');
+      expect(res.body.data.disclaimer).toContain('List prices designed for international market');
+
+      // Verificar que db.query recibió 'USD' y 'en'
+      expect(db.query).toHaveBeenCalledWith(
+        expect.stringContaining('ON DUPLICATE KEY UPDATE'),
+        expect.arrayContaining(['USD', 'en', 2000, 3500]),
       );
     });
 
@@ -156,7 +240,10 @@ describe('Quote Funnel Diagnostic API & Matrix Suite (FC 039 100% Coverage)', ()
         phone: '5511223344',
       };
 
-      const res = await supertest(app).post('/api/v1/quotes').send(payload);
+      const res = await supertest(app)
+        .post('/api/v1/quotes')
+        .set('x-forwarded-for', getTestIp())
+        .send(payload);
 
       expect(res.status).toBe(400);
       expect(res.body.error).toBe('Invalid Combination');
@@ -165,34 +252,43 @@ describe('Quote Funnel Diagnostic API & Matrix Suite (FC 039 100% Coverage)', ()
 
     it('debe rechazar solicitudes con campos inválidos o incompletos con 400 Bad Request', async () => {
       // 1. Email inválido
-      const res1 = await supertest(app).post('/api/v1/quotes').send({
-        vertical: 'WEB_DEV',
-        scale: 'MVP',
-        full_name: 'Pedro',
-        email: 'not-an-email',
-        phone: '12345678',
-      });
+      const res1 = await supertest(app)
+        .post('/api/v1/quotes')
+        .set('x-forwarded-for', getTestIp())
+        .send({
+          vertical: 'WEB_DEV',
+          scale: 'MVP',
+          full_name: 'Pedro',
+          email: 'not-an-email',
+          phone: '12345678',
+        });
       expect(res1.status).toBe(400);
       expect(res1.body.error).toBe('Validation Error');
 
       // 2. Nombre muy corto (< 3 chars)
-      const res2 = await supertest(app).post('/api/v1/quotes').send({
-        vertical: 'WEB_DEV',
-        scale: 'MVP',
-        full_name: 'Al',
-        email: 'al@test.com',
-        phone: '12345678',
-      });
+      const res2 = await supertest(app)
+        .post('/api/v1/quotes')
+        .set('x-forwarded-for', getTestIp())
+        .send({
+          vertical: 'WEB_DEV',
+          scale: 'MVP',
+          full_name: 'Al',
+          email: 'al@test.com',
+          phone: '12345678',
+        });
       expect(res2.status).toBe(400);
 
       // 3. Teléfono muy corto (< 8 chars)
-      const res3 = await supertest(app).post('/api/v1/quotes').send({
-        vertical: 'WEB_DEV',
-        scale: 'MVP',
-        full_name: 'Alejandro',
-        email: 'al@test.com',
-        phone: '123',
-      });
+      const res3 = await supertest(app)
+        .post('/api/v1/quotes')
+        .set('x-forwarded-for', getTestIp())
+        .send({
+          vertical: 'WEB_DEV',
+          scale: 'MVP',
+          full_name: 'Alejandro',
+          email: 'al@test.com',
+          phone: '123',
+        });
       expect(res3.status).toBe(400);
     });
 
@@ -211,13 +307,16 @@ describe('Quote Funnel Diagnostic API & Matrix Suite (FC 039 100% Coverage)', ()
 
         vi.mocked(db.query).mockResolvedValueOnce({ affectedRows: 1 } as any);
 
-        const res = await supertest(app).post('/api/v1/quotes').send({
-          vertical: 'CYBERSECURITY',
-          scale: 'PENTEST_FULL',
-          full_name: 'Security Officer',
-          email: 'sec@bank.com',
-          phone: '+52 55 9999 8888',
-        });
+        const res = await supertest(app)
+          .post('/api/v1/quotes')
+          .set('x-forwarded-for', getTestIp())
+          .send({
+            vertical: 'CYBERSECURITY',
+            scale: 'PENTEST_FULL',
+            full_name: 'Security Officer',
+            email: 'sec@bank.com',
+            phone: '+52 55 9999 8888',
+          });
 
         expect(res.status).toBe(201);
         expect(mockSendMail).toHaveBeenCalled();
@@ -242,13 +341,16 @@ describe('Quote Funnel Diagnostic API & Matrix Suite (FC 039 100% Coverage)', ()
 
         vi.mocked(db.query).mockResolvedValueOnce({ affectedRows: 1 } as any);
 
-        const res = await supertest(app).post('/api/v1/quotes').send({
-          vertical: 'ARCHON_FLEET',
-          scale: 'LARGE',
-          full_name: 'Flotas México',
-          email: 'contacto@flotas.mx',
-          phone: '+52 55 8888 7777',
-        });
+        const res = await supertest(app)
+          .post('/api/v1/quotes')
+          .set('x-forwarded-for', getTestIp())
+          .send({
+            vertical: 'ARCHON_FLEET',
+            scale: 'LARGE',
+            full_name: 'Flotas México',
+            email: 'contacto@flotas.mx',
+            phone: '+52 55 8888 7777',
+          });
 
         expect(res.status).toBe(201);
         expect(mockSendMail).toHaveBeenCalled();
@@ -261,13 +363,16 @@ describe('Quote Funnel Diagnostic API & Matrix Suite (FC 039 100% Coverage)', ()
     it('debe manejar errores inesperados de base de datos con 500 status', async () => {
       vi.mocked(db.query).mockRejectedValueOnce(new Error('MariaDB connection lost'));
 
-      const res = await supertest(app).post('/api/v1/quotes').send({
-        vertical: 'WEB_DEV',
-        scale: 'MVP',
-        full_name: 'Usuario Prueba',
-        email: 'prueba@test.com',
-        phone: '+52 55 1111 2222',
-      });
+      const res = await supertest(app)
+        .post('/api/v1/quotes')
+        .set('x-forwarded-for', getTestIp())
+        .send({
+          vertical: 'WEB_DEV',
+          scale: 'MVP',
+          full_name: 'Usuario Prueba',
+          email: 'prueba@test.com',
+          phone: '+52 55 1111 2222',
+        });
 
       expect(res.status).toBe(500);
       expect(res.body.message).toBe('MariaDB connection lost');
@@ -275,13 +380,16 @@ describe('Quote Funnel Diagnostic API & Matrix Suite (FC 039 100% Coverage)', ()
       // Error no instancia de Error
       vi.mocked(db.query).mockRejectedValueOnce('Fatal String Exception');
 
-      const resFallback = await supertest(app).post('/api/v1/quotes').send({
-        vertical: 'WEB_DEV',
-        scale: 'MVP',
-        full_name: 'Usuario Prueba',
-        email: 'prueba@test.com',
-        phone: '+52 55 1111 2222',
-      });
+      const resFallback = await supertest(app)
+        .post('/api/v1/quotes')
+        .set('x-forwarded-for', getTestIp())
+        .send({
+          vertical: 'WEB_DEV',
+          scale: 'MVP',
+          full_name: 'Usuario Prueba',
+          email: 'prueba@test.com',
+          phone: '+52 55 1111 2222',
+        });
 
       expect(resFallback.status).toBe(500);
       expect(resFallback.body.message).toBe('Error inesperado al registrar cotización.');

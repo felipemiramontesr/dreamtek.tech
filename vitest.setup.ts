@@ -1,6 +1,11 @@
 import '@testing-library/jest-dom';
-import { vi } from 'vitest';
+import { vi, afterEach } from 'vitest';
+import { cleanup } from '@testing-library/react';
 import React from 'react';
+
+afterEach(() => {
+  cleanup();
+});
 
 vi.mock('next-export-optimize-images/image', () => {
   return {
@@ -21,3 +26,4 @@ vi.mock('next/navigation', () => {
     useSearchParams: () => new URLSearchParams(),
   };
 });
+

@@ -46,6 +46,8 @@ const mockLeadsData: LeadItem[] = [
     estimated_budget_max: 5000,
     estimated_weeks_min: 2,
     estimated_weeks_max: 4,
+    currency: 'USD',
+    locale: 'en',
     created_at: '2026-09-06T11:00:00Z',
   },
   {

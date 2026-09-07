@@ -1,5 +1,5 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { render, screen, fireEvent, waitFor, cleanup } from '@testing-library/react';
 import React from 'react';
 import { QuoteFunnelWizard } from '../../components/funnel/QuoteFunnelWizard';
 import * as quotesClient from '../../lib/quotes/client';
@@ -14,6 +14,11 @@ vi.mock('../../lib/quotes/client', async () => {
 
 describe('QuoteFunnelWizard Component & Frontend API Client Suite (FC 039 100% Coverage)', () => {
   beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  afterEach(() => {
+    cleanup();
     vi.clearAllMocks();
   });
 
@@ -258,6 +263,8 @@ describe('QuoteFunnelWizard Component & Frontend API Client Suite (FC 039 100% C
           phone: '+52 81 1234 5678',
           company_name: undefined,
           notes: undefined,
+          locale: 'es',
+          currency: 'MXN',
         });
       });
     });
@@ -359,6 +366,121 @@ describe('QuoteFunnelWizard Component & Frontend API Client Suite (FC 039 100% C
           phone: '12345678',
         }),
       ).rejects.toThrow('Error al enviar cotización.');
+    });
+  });
+
+  describe('3. Bilingual & International Mode (FC 042 / Alternativa A)', () => {
+    it('debe renderizar el wizard en inglés con escala en USD cuando locale="en"', async () => {
+      vi.mocked(quotesClient.submitQuoteDiagnostic).mockResolvedValueOnce({
+        status: 'success',
+        message: 'Registered successfully',
+        data: {
+          vertical: 'WEB_DEV',
+          scale: 'MVP',
+          service_label: 'Web Development & SaaS Platforms',
+          scale_label: 'Agile & Validated MVP',
+          estimated_budget_min: 2000,
+          estimated_budget_max: 3500,
+          estimated_weeks_min: 3,
+          estimated_weeks_max: 5,
+          currency: 'USD',
+          locale: 'en',
+          disclaimer: 'Orientative parametric estimation.',
+        },
+      });
+
+      render(<QuoteFunnelWizard locale="en" />);
+
+      // Paso 1 en inglés
+      expect(screen.getByText('Step 1 of 4')).toBeInTheDocument();
+      expect(screen.getByText('Calculate your project scope')).toBeInTheDocument();
+      expect(screen.getByText('Web Development & SaaS Platforms')).toBeInTheDocument();
+
+      fireEvent.click(screen.getByRole('button', { name: /Continue to Step 2/i }));
+
+      // Paso 2 en inglés
+      expect(screen.getByText('Step 2 of 4')).toBeInTheDocument();
+      expect(screen.getByText(/Vertical: Web Development & SaaS Platforms/i)).toBeInTheDocument();
+      expect(screen.getByText('$2,000 – $3,500 USD')).toBeInTheDocument();
+
+      fireEvent.click(screen.getByRole('button', { name: /View Parametric Estimation/i }));
+
+      // Paso 3 en inglés
+      expect(screen.getByText('Step 3 of 4')).toBeInTheDocument();
+      expect(screen.getByText('Parametric Projection')).toBeInTheDocument();
+      expect(screen.getByText('$2,000 – $3,500')).toBeInTheDocument();
+      expect(screen.getByText(/Technical Honesty Notice/i)).toBeInTheDocument();
+
+      fireEvent.click(screen.getByRole('button', { name: /Request Formal Proposal/i }));
+
+      // Paso 4 en inglés
+      expect(screen.getByText('Step 4 of 4')).toBeInTheDocument();
+      expect(screen.getByLabelText(/Full Name/i)).toBeInTheDocument();
+      expect(screen.getByLabelText(/Corporate Email/i)).toBeInTheDocument();
+
+      // Validación en inglés
+      const submitBtn = screen.getByRole('button', { name: /Submit & Request Contact/i });
+      fireEvent.submit(submitBtn.closest('form')!);
+      expect(
+        screen.getByText('Please complete the required fields (Name, Corporate Email, and Phone).'),
+      ).toBeInTheDocument();
+
+      // Completar y enviar
+      fireEvent.change(screen.getByLabelText(/Full Name/i), { target: { value: 'John Miller' } });
+      fireEvent.change(screen.getByLabelText(/Corporate Email/i), {
+        target: { value: 'john@acme.us' },
+      });
+      fireEvent.change(screen.getByLabelText(/Phone \/ WhatsApp/i), {
+        target: { value: '+1 (555) 345-6789' },
+      });
+
+      fireEvent.submit(submitBtn.closest('form')!);
+
+      await waitFor(() => {
+        expect(screen.getByText('Diagnostic Registered Successfully!')).toBeInTheDocument();
+        expect(screen.getByText('$2,000 – $3,500 USD')).toBeInTheDocument();
+        expect(screen.getByText('3 to 5 weeks')).toBeInTheDocument();
+      });
+
+      expect(quotesClient.submitQuoteDiagnostic).toHaveBeenCalledWith(
+        expect.objectContaining({
+          locale: 'en',
+          currency: 'USD',
+          full_name: 'John Miller',
+          email: 'john@acme.us',
+        }),
+      );
+
+      // Reset en inglés
+      fireEvent.click(screen.getByRole('button', { name: /Perform another estimation/i }));
+      expect(screen.getByText('Step 1 of 4')).toBeInTheDocument();
+    });
+
+    it('debe manejar error no instancia de Error en inglés', async () => {
+      vi.mocked(quotesClient.submitQuoteDiagnostic).mockRejectedValueOnce('Network failure raw');
+
+      render(<QuoteFunnelWizard locale="en" />);
+
+      fireEvent.click(screen.getByRole('button', { name: /Continue to Step 2/i }));
+      fireEvent.click(screen.getByRole('button', { name: /View Parametric Estimation/i }));
+      fireEvent.click(screen.getByRole('button', { name: /Request Formal Proposal/i }));
+
+      fireEvent.change(screen.getByLabelText(/Full Name/i), { target: { value: 'John Doe' } });
+      fireEvent.change(screen.getByLabelText(/Corporate Email/i), {
+        target: { value: 'john@doe.com' },
+      });
+      fireEvent.change(screen.getByLabelText(/Phone \/ WhatsApp/i), {
+        target: { value: '123456789' },
+      });
+
+      const submitBtn = screen.getByRole('button', { name: /Submit & Request Contact/i });
+      fireEvent.submit(submitBtn.closest('form')!);
+
+      await waitFor(() => {
+        expect(
+          screen.getByText('Unexpected error while submitting quote diagnostic.'),
+        ).toBeInTheDocument();
+      });
     });
   });
 });
