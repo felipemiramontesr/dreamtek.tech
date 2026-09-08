@@ -12,6 +12,8 @@ import {
   addAdminLeadActivity,
   sendAdminLeadEmail,
   fetchAdminAuditLogs,
+  createAdminLeadCheckoutSession,
+  fetchAdminLeadPayments,
 } from '@/lib/auth/client';
 
 describe('FC 001m Client Auth Library Suite', () => {
@@ -359,5 +361,88 @@ describe('FC 001m Client Auth Library Suite', () => {
       json: async () => ({}),
     } as Response);
     await expect(fetchAdminAuditLogs()).rejects.toThrow('Error al obtener logs de auditoría.');
+  });
+
+  it('createAdminLeadCheckoutSession debe generar sesión de pago o arrojar error (FC 043)', async () => {
+    const mockRes = {
+      status: 'success',
+      checkout_url: 'https://checkout.stripe.com/pay/cs_test',
+      session_id: 'cs_test',
+      amount: 5000,
+      currency: 'USD',
+    };
+
+    // Éxito
+    global.fetch = vi.fn().mockResolvedValueOnce({
+      ok: true,
+      json: async () => mockRes,
+    } as Response);
+    const res = await createAdminLeadCheckoutSession(1, { payment_type: 'DEPOSIT_50' });
+    expect(res).toEqual(mockRes);
+
+    // Error con message
+    global.fetch = vi.fn().mockResolvedValueOnce({
+      ok: false,
+      json: async () => ({ message: 'Monto fuera de rango' }),
+    } as Response);
+    await expect(
+      createAdminLeadCheckoutSession(1, { payment_type: 'CUSTOM', custom_amount: 10 }),
+    ).rejects.toThrow('Monto fuera de rango');
+
+    // Error con error property
+    global.fetch = vi.fn().mockResolvedValueOnce({
+      ok: false,
+      json: async () => ({ error: 'Error de pasarela Stripe' }),
+    } as Response);
+    await expect(createAdminLeadCheckoutSession(1, { payment_type: 'DEPOSIT_50' })).rejects.toThrow(
+      'Error de pasarela Stripe',
+    );
+
+    // Error fallback genérico
+    global.fetch = vi.fn().mockResolvedValueOnce({
+      ok: false,
+      json: async () => ({}),
+    } as Response);
+    await expect(createAdminLeadCheckoutSession(1, { payment_type: 'DEPOSIT_50' })).rejects.toThrow(
+      'Error al generar enlace de pago para el prospecto.',
+    );
+  });
+
+  it('fetchAdminLeadPayments debe retornar historial de pagos o arrojar error (FC 043)', async () => {
+    const mockRes = {
+      status: 'success',
+      payments: [{ id: 1, amount_cents: 250000, status: 'PAID' }],
+    };
+
+    // Éxito
+    global.fetch = vi.fn().mockResolvedValueOnce({
+      ok: true,
+      json: async () => mockRes,
+    } as Response);
+    const res = await fetchAdminLeadPayments(1);
+    expect(res).toEqual(mockRes);
+
+    // Error con message
+    global.fetch = vi.fn().mockResolvedValueOnce({
+      ok: false,
+      json: async () => ({ message: 'Prospecto no encontrado' }),
+    } as Response);
+    await expect(fetchAdminLeadPayments(999)).rejects.toThrow('Prospecto no encontrado');
+
+    // Error con error property
+    global.fetch = vi.fn().mockResolvedValueOnce({
+      ok: false,
+      json: async () => ({ error: 'Acceso no autorizado' }),
+    } as Response);
+    await expect(fetchAdminLeadPayments(1)).rejects.toThrow('Acceso no autorizado');
+
+    // Error fallback genérico
+    global.fetch = vi.fn().mockResolvedValueOnce({
+      ok: false,
+      json: async () => ({}),
+    } as Response);
+    await expect(fetchAdminLeadPayments(1)).rejects.toThrow(
+      'Error al obtener historial de pagos del prospecto.',
+    );
   });
 });

@@ -581,4 +581,264 @@ describe('Stripe Webhooks & Subscription Engine (Comprehensive Suite)', () => {
     expect(resFallback.status).toBe(500);
     expect(resFallback.body.verified).toBe(false);
   });
+
+  describe('B2B Lead Deposit Webhook Processing (FC 043 rev-2)', () => {
+    it('debe rechazar webhook B2B si falta lead_id válido', async () => {
+      const rawPayload = JSON.stringify({
+        id: 'evt_b2b_no_lead',
+        type: 'checkout.session.completed',
+        data: {
+          object: {
+            id: 'cs_b2b_no_lead',
+            metadata: { tenant_type: 'B2B_LEAD' },
+          },
+        },
+      });
+      mockStripe.webhooks.constructEvent.mockReturnValue(JSON.parse(rawPayload));
+
+      const res = await request(app)
+        .post('/api/v1/checkout/webhook')
+        .set('stripe-signature', 't=123,v1=valid_sig')
+        .send(Buffer.from(rawPayload));
+
+      expect(res.status).toBe(400);
+      expect(res.body.message).toContain('Falta lead_id válido');
+    });
+
+    it('debe retornar 404 si el registro de pago no existe en lead_payments', async () => {
+      const rawPayload = JSON.stringify({
+        id: 'evt_b2b_not_found',
+        type: 'checkout.session.completed',
+        data: {
+          object: {
+            id: 'cs_b2b_missing_payment',
+            client_reference_id: '42',
+            metadata: { tenant_type: 'B2B_LEAD', lead_id: '42' },
+          },
+        },
+      });
+      mockStripe.webhooks.constructEvent.mockReturnValue(JSON.parse(rawPayload));
+
+      vi.mocked(db.query).mockResolvedValueOnce([]); // SELECT lead_payments empty
+
+      const res = await request(app)
+        .post('/api/v1/checkout/webhook')
+        .set('stripe-signature', 't=123,v1=valid_sig')
+        .send(Buffer.from(rawPayload));
+
+      expect(res.status).toBe(404);
+      expect(res.body.message).toContain('Registro de pago de anticipo B2B no encontrado');
+    });
+
+    it('debe procesar de forma idempotente un pago ya liquidado (PAID)', async () => {
+      const rawPayload = JSON.stringify({
+        id: 'evt_b2b_idempotent',
+        type: 'checkout.session.completed',
+        data: {
+          object: {
+            id: 'cs_b2b_already_paid',
+            metadata: { tenant_type: 'B2B_LEAD', lead_id: '15' },
+          },
+        },
+      });
+      mockStripe.webhooks.constructEvent.mockReturnValue(JSON.parse(rawPayload));
+
+      vi.mocked(db.query).mockResolvedValueOnce([
+        { id: 1, lead_id: 15, status: 'PAID', amount_cents: 500000, currency: 'USD' },
+      ]);
+
+      const res = await request(app)
+        .post('/api/v1/checkout/webhook')
+        .set('stripe-signature', 't=123,v1=valid_sig')
+        .send(Buffer.from(rawPayload));
+
+      expect(res.status).toBe(200);
+      expect(res.body.message).toContain('ya procesado previamente');
+    });
+
+    it('debe fallar cerrado (400) si hay discrepancia de monto o divisa (C-043.3)', async () => {
+      const rawPayloadAmount = JSON.stringify({
+        id: 'evt_b2b_amount_mismatch',
+        type: 'checkout.session.completed',
+        data: {
+          object: {
+            id: 'cs_b2b_amount_mismatch',
+            amount_total: 10000, // 100 USD en vez de 2500 USD
+            currency: 'usd',
+            metadata: { tenant_type: 'B2B_LEAD', lead_id: '20' },
+          },
+        },
+      });
+      mockStripe.webhooks.constructEvent.mockReturnValue(JSON.parse(rawPayloadAmount));
+
+      vi.mocked(db.query).mockResolvedValueOnce([
+        { id: 2, lead_id: 20, status: 'PENDING', amount_cents: 250000, currency: 'USD' },
+      ]);
+
+      const resAmount = await request(app)
+        .post('/api/v1/checkout/webhook')
+        .set('stripe-signature', 't=123,v1=valid_sig')
+        .send(Buffer.from(rawPayloadAmount));
+
+      expect(resAmount.status).toBe(400);
+      expect(resAmount.body.error).toBe('Amount Or Currency Mismatch');
+
+      // Discrepancia de divisa
+      const rawPayloadCurrency = JSON.stringify({
+        id: 'evt_b2b_cur_mismatch',
+        type: 'checkout.session.completed',
+        data: {
+          object: {
+            id: 'cs_b2b_cur_mismatch',
+            amount_total: 250000,
+            currency: 'mxn', // MXN en vez de USD
+            metadata: { tenant_type: 'B2B_LEAD', lead_id: '20' },
+          },
+        },
+      });
+      mockStripe.webhooks.constructEvent.mockReturnValue(JSON.parse(rawPayloadCurrency));
+
+      vi.mocked(db.query).mockResolvedValueOnce([
+        { id: 2, lead_id: 20, status: 'PENDING', amount_cents: 250000, currency: 'USD' },
+      ]);
+
+      const resCur = await request(app)
+        .post('/api/v1/checkout/webhook')
+        .set('stripe-signature', 't=123,v1=valid_sig')
+        .send(Buffer.from(rawPayloadCurrency));
+
+      expect(resCur.status).toBe(400);
+      expect(resCur.body.error).toBe('Amount Or Currency Mismatch');
+
+      // Discrepancia cuando session.currency no viene definido (evalúa rama null)
+      const rawPayloadNoCurrency = JSON.stringify({
+        id: 'evt_b2b_no_cur',
+        type: 'checkout.session.completed',
+        data: {
+          object: {
+            id: 'cs_b2b_no_cur',
+            amount_total: 250000,
+            metadata: { tenant_type: 'B2B_LEAD', lead_id: '20' },
+          },
+        },
+      });
+      mockStripe.webhooks.constructEvent.mockReturnValue(JSON.parse(rawPayloadNoCurrency));
+
+      vi.mocked(db.query).mockResolvedValueOnce([
+        { id: 2, lead_id: 20, status: 'PENDING', amount_cents: 250000, currency: 'USD' },
+      ]);
+
+      const resNoCur = await request(app)
+        .post('/api/v1/checkout/webhook')
+        .set('stripe-signature', 't=123,v1=valid_sig')
+        .send(Buffer.from(rawPayloadNoCurrency));
+
+      expect(resNoCur.status).toBe(400);
+      expect(resNoCur.body.error).toBe('Amount Or Currency Mismatch');
+    });
+
+    it('debe liquidar anticipo B2B, transicionar lead a WON y registrar actividad atómicamente', async () => {
+      const rawPayload = JSON.stringify({
+        id: 'evt_b2b_success',
+        type: 'checkout.session.completed',
+        data: {
+          object: {
+            id: 'cs_b2b_success_123',
+            amount_total: 12500000, // 125,000 MXN
+            currency: 'mxn',
+            payment_intent: 'pi_test_b2b_999',
+            metadata: { tenant_type: 'B2B_LEAD', lead_id: '50' },
+          },
+        },
+      });
+      mockStripe.webhooks.constructEvent.mockReturnValue(JSON.parse(rawPayload));
+
+      vi.mocked(db.query).mockResolvedValueOnce([
+        {
+          id: 5,
+          lead_id: 50,
+          status: 'PENDING',
+          amount_cents: 12500000,
+          currency: 'MXN',
+          payment_type: 'DEPOSIT_50',
+        },
+      ]);
+
+      const res = await request(app)
+        .post('/api/v1/checkout/webhook')
+        .set('stripe-signature', 't=123,v1=valid_sig')
+        .send(Buffer.from(rawPayload));
+
+      expect(res.status).toBe(200);
+      expect(res.body.status).toBe('success');
+      expect(res.body.message).toContain(
+        'Anticipo B2B procesado con éxito y prospecto transicionado a WON',
+      );
+      expect(db.withTransaction).toHaveBeenCalled();
+
+      // Liquidar con payment_intent como objeto y payment_intent como null
+      const rawPayloadObjPi = JSON.stringify({
+        id: 'evt_b2b_success_obj_pi',
+        type: 'checkout.session.completed',
+        data: {
+          object: {
+            id: 'cs_b2b_obj_pi',
+            amount_total: 5000,
+            currency: 'usd',
+            payment_intent: { id: 'pi_from_obj_999' },
+            metadata: { tenant_type: 'B2B_LEAD', lead_id: '51' },
+          },
+        },
+      });
+      mockStripe.webhooks.constructEvent.mockReturnValue(JSON.parse(rawPayloadObjPi));
+      vi.mocked(db.query).mockResolvedValueOnce([
+        {
+          id: 6,
+          lead_id: 51,
+          status: 'PENDING',
+          amount_cents: 5000,
+          currency: 'USD',
+          payment_type: 'CUSTOM',
+        },
+      ]);
+
+      const resObjPi = await request(app)
+        .post('/api/v1/checkout/webhook')
+        .set('stripe-signature', 't=123,v1=valid_sig')
+        .send(Buffer.from(rawPayloadObjPi));
+      expect(resObjPi.status).toBe(200);
+
+      // Liquidar sin payment_intent (null)
+      const rawPayloadNullPi = JSON.stringify({
+        id: 'evt_b2b_success_null_pi',
+        type: 'checkout.session.completed',
+        data: {
+          object: {
+            id: 'cs_b2b_null_pi',
+            amount_total: 5000,
+            currency: 'usd',
+            payment_intent: null,
+            metadata: { tenant_type: 'B2B_LEAD', lead_id: '52' },
+          },
+        },
+      });
+      mockStripe.webhooks.constructEvent.mockReturnValue(JSON.parse(rawPayloadNullPi));
+      vi.mocked(db.query).mockResolvedValueOnce([
+        {
+          id: 7,
+          lead_id: 52,
+          status: 'PENDING',
+          amount_cents: 5000,
+          currency: 'USD',
+          payment_type: 'CUSTOM',
+        },
+      ]);
+
+      const resNullPi = await request(app)
+        .post('/api/v1/checkout/webhook')
+        .set('stripe-signature', 't=123,v1=valid_sig')
+        .send(Buffer.from(rawPayloadNullPi));
+      expect(resNullPi.status).toBe(200);
+    });
+  });
 });

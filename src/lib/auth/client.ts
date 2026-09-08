@@ -284,3 +284,43 @@ export async function fetchAdminAuditLogs(page = 1, limit = 10): Promise<unknown
   }
   return data;
 }
+
+/**
+ * Generate Stripe Checkout session for B2B deposit (FC 043 rev-2)
+ */
+export async function createAdminLeadCheckoutSession(
+  leadId: number | string,
+  paymentData: { payment_type: 'DEPOSIT_50' | 'CUSTOM'; custom_amount?: number; notes?: string },
+): Promise<unknown> {
+  const response = await fetch(`${API_BASE}/admin/leads/${leadId}/checkout-session`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
+    body: JSON.stringify(paymentData),
+  });
+  const data = await response.json();
+  if (!response.ok) {
+    throw new Error(
+      data.message || data.error || 'Error al generar enlace de pago para el prospecto.',
+    );
+  }
+  return data;
+}
+
+/**
+ * Fetch payment records for a specific lead (FC 043 rev-2)
+ */
+export async function fetchAdminLeadPayments(leadId: number | string): Promise<unknown> {
+  const response = await fetch(`${API_BASE}/admin/leads/${leadId}/payments`, {
+    method: 'GET',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
+  });
+  const data = await response.json();
+  if (!response.ok) {
+    throw new Error(
+      data.message || data.error || 'Error al obtener historial de pagos del prospecto.',
+    );
+  }
+  return data;
+}

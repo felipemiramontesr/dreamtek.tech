@@ -35,6 +35,8 @@ export interface LeadEmailContext {
   estimatedWeeksMax?: number | null;
   currency?: 'MXN' | 'USD' | string | null;
   locale?: 'es' | 'en' | string | null;
+  checkoutUrl?: string | null;
+  depositAmount?: number | null;
 }
 
 export interface RenderedLeadEmail {
@@ -71,6 +73,40 @@ export function renderLeadFollowUpEmail(
   if (isEn) {
     // English templates (FC 042 / Anglo-Saxon market)
     switch (templateId) {
+      case 'PAYMENT_LINK_INVITATION': {
+        const payUrl = context.checkoutUrl || 'https://dreamtek.tech/en#contact';
+        const formattedAmount = context.depositAmount
+          ? `$${context.depositAmount.toLocaleString()} ${currency}`
+          : 'Project Deposit';
+
+        defaultSubject = `Project Deposit & Architecture Activation — Dreamtek & ${context.company || context.fullName}`;
+        bodyHtml = `
+          <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 600px; margin: 0 auto; color: #1e293b; line-height: 1.6;">
+            <div style="background: linear-gradient(135deg, #0f172a 0%, #1e1b4b 100%); padding: 32px 24px; text-align: center; border-radius: 12px 12px 0 0;">
+              <h1 style="color: #38bdf8; margin: 0; font-size: 24px; font-weight: 800; letter-spacing: 0.5px;">DREAMTEK</h1>
+              <p style="color: #94a3b8; margin: 8px 0 0 0; font-size: 14px;">Sovereign Software Engineering & Defensive Cybersecurity</p>
+            </div>
+            <div style="background: #ffffff; padding: 32px 24px; border: 1px solid #e2e8f0; border-top: none; border-radius: 0 0 12px 12px;">
+              <p style="font-size: 16px; margin-top: 0;">Hello <strong>${safeName}</strong>,</p>
+              <p>Following our technical evaluation for <strong>${safeCompany}</strong>, we have generated your secure project formalization and deposit link.</p>
+              <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 16px; margin: 20px 0;">
+                <p style="margin: 0; font-size: 14px; color: #64748b;">Deposit Amount / Commitment:</p>
+                <p style="margin: 4px 0 0 0; font-size: 20px; font-weight: 800; color: #0284c7;">${formattedAmount}</p>
+                <p style="margin: 8px 0 0 0; font-size: 11px; color: #94a3b8; font-style: italic;">* Initial deposit to formalize architecture and sprint scheduling. Remaining balance governed by milestone agreements.</p>
+              </div>
+              ${safeCustomMsg ? `<div style="margin: 20px 0; padding: 16px; background: #f8fafc; border-left: 4px solid #38bdf8; font-style: italic; color: #334155;">${safeCustomMsg}</div>` : ''}
+              <div style="margin: 32px 0; text-align: center;">
+                <a href="${payUrl}" style="background: #0284c7; color: #ffffff; padding: 14px 28px; text-decoration: none; border-radius: 8px; font-weight: 600; font-size: 14px; display: inline-block;">Complete Deposit via Stripe Checkout ↗</a>
+              </div>
+              <p style="font-size: 12px; color: #64748b;">This secure payment link is valid for 72 hours. All transactions are encrypted and processed by Stripe.</p>
+              <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 24px 0;" />
+              <p style="font-size: 12px; color: #64748b; margin-bottom: 0;">Dreamtek Sovereign Tech · Commercial closing & deposit confirmation.</p>
+            </div>
+          </div>
+        `;
+        bodyText = `Hello ${context.fullName || defaultName},\n\nWe have generated your secure project deposit link for ${context.company || defaultCompany}.\n\nDeposit Amount: ${formattedAmount}\nPayment URL: ${payUrl}\n\n${customMessage ? `Notes:\n${customMessage}\n\n` : ''}This link expires in 72 hours.\n\nBest regards,\nDreamtek Team`;
+        break;
+      }
       case 'DIAGNOSTIC_INVITATION': {
         defaultSubject = `Technical Architecture Diagnostic Invitation — Dreamtek & ${context.company || context.fullName}`;
         bodyHtml = `
@@ -142,6 +178,40 @@ export function renderLeadFollowUpEmail(
   } else {
     // Spanish templates
     switch (templateId) {
+      case 'PAYMENT_LINK_INVITATION': {
+        const payUrl = context.checkoutUrl || 'https://dreamtek.tech/#contacto';
+        const formattedAmount = context.depositAmount
+          ? `$${context.depositAmount.toLocaleString()} ${currency}`
+          : 'Anticipo de Proyecto';
+
+        defaultSubject = `Enlace de Anticipo y Formalización de Proyecto — Dreamtek & ${context.company || context.fullName}`;
+        bodyHtml = `
+          <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 600px; margin: 0 auto; color: #1e293b; line-height: 1.6;">
+            <div style="background: linear-gradient(135deg, #0f172a 0%, #1e1b4b 100%); padding: 32px 24px; text-align: center; border-radius: 12px 12px 0 0;">
+              <h1 style="color: #38bdf8; margin: 0; font-size: 24px; font-weight: 800; letter-spacing: 0.5px;">DREAMTEK</h1>
+              <p style="color: #94a3b8; margin: 8px 0 0 0; font-size: 14px;">Ingeniería de Software Soberana & Ciberseguridad Defensiva</p>
+            </div>
+            <div style="background: #ffffff; padding: 32px 24px; border: 1px solid #e2e8f0; border-top: none; border-radius: 0 0 12px 12px;">
+              <p style="font-size: 16px; margin-top: 0;">Hola <strong>${safeName}</strong>,</p>
+              <p>Tras nuestra evaluación técnica para <strong>${safeCompany}</strong>, hemos generado tu enlace seguro de formalización y anticipo de proyecto.</p>
+              <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 16px; margin: 20px 0;">
+                <p style="margin: 0; font-size: 14px; color: #64748b;">Monto de Anticipo / Compromiso:</p>
+                <p style="margin: 4px 0 0 0; font-size: 20px; font-weight: 800; color: #0284c7;">${formattedAmount}</p>
+                <p style="margin: 8px 0 0 0; font-size: 11px; color: #94a3b8; font-style: italic;">* Anticipo inicial para formalizar arquitectura y reserva de sprints. El saldo restante se liquida según los hitos pactados.</p>
+              </div>
+              ${safeCustomMsg ? `<div style="margin: 20px 0; padding: 16px; background: #f8fafc; border-left: 4px solid #38bdf8; font-style: italic; color: #334155;">${safeCustomMsg}</div>` : ''}
+              <div style="margin: 32px 0; text-align: center;">
+                <a href="${payUrl}" style="background: #0284c7; color: #ffffff; padding: 14px 28px; text-decoration: none; border-radius: 8px; font-weight: 600; font-size: 14px; display: inline-block;">Completar Anticipo vía Stripe Checkout ↗</a>
+              </div>
+              <p style="font-size: 12px; color: #64748b;">Este enlace seguro de pago tiene una vigencia de 72 horas. Todas las transacciones están encriptadas y procesadas por Stripe.</p>
+              <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 24px 0;" />
+              <p style="font-size: 12px; color: #64748b; margin-bottom: 0;">Dreamtek Sovereign Tech · Cierre comercial y formalización de anticipo.</p>
+            </div>
+          </div>
+        `;
+        bodyText = `Hola ${context.fullName || defaultName},\n\nHemos generado tu enlace seguro de anticipo de proyecto para ${context.company || defaultCompany}.\n\nMonto de Anticipo: ${formattedAmount}\nEnlace de Pago: ${payUrl}\n\n${customMessage ? `Notas:\n${customMessage}\n\n` : ''}Este enlace expira en 72 horas.\n\nAtentamente,\nEquipo Dreamtek`;
+        break;
+      }
       case 'DIAGNOSTIC_INVITATION': {
         defaultSubject = `Invitación a Diagnóstico Técnico de Arquitectura — Dreamtek & ${context.company || context.fullName}`;
         bodyHtml = `

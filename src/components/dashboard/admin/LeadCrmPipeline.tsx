@@ -9,6 +9,7 @@ import {
   updateAdminLeadStatus,
   addAdminLeadActivity,
   sendAdminLeadEmail,
+  createAdminLeadCheckoutSession,
 } from '@/lib/auth/client';
 
 export interface LeadItem {
@@ -20,6 +21,7 @@ export interface LeadItem {
   company?: string;
   company_name?: string;
   status: 'NEW' | 'CONTACTED' | 'QUALIFIED' | 'PROPOSAL_SENT' | 'NEGOTIATION' | 'WON' | 'LOST';
+  deposit_status?: 'NONE' | 'PENDING' | 'PAID' | 'REFUNDED' | 'CANCELLED' | null;
   assigned_to?: number | null;
   last_contacted_at?: string | null;
   project_vertical?: string | null;
@@ -30,6 +32,21 @@ export interface LeadItem {
   estimated_budget_max?: number | null;
   estimated_weeks_min?: number | null;
   estimated_weeks_max?: number | null;
+  created_at: string;
+  updated_at?: string;
+}
+
+export interface LeadPayment {
+  id: number | string;
+  lead_id: number | string;
+  stripe_session_id: string;
+  stripe_payment_intent_id?: string | null;
+  payment_type: 'DEPOSIT_50' | 'CUSTOM';
+  amount_cents: number;
+  currency: 'USD' | 'MXN' | string;
+  status: 'PENDING' | 'PAID' | 'FAILED' | 'CANCELLED';
+  notes?: string | null;
+  paid_at?: string | null;
   created_at: string;
   updated_at?: string;
 }
@@ -45,6 +62,29 @@ export interface LeadActivity {
   author_name?: string | null;
   author_username?: string | null;
 }
+
+export const DEPOSIT_STATUS_CONFIG: Record<string, { label: string; badgeClass: string }> = {
+  NONE: {
+    label: 'Sin Anticipo',
+    badgeClass: 'bg-slate-800/60 text-slate-400 border-slate-700',
+  },
+  PENDING: {
+    label: 'Anticipo Pendiente',
+    badgeClass: 'bg-amber-500/10 text-amber-400 border-amber-500/30',
+  },
+  PAID: {
+    label: 'Anticipo Cobrado (50%)',
+    badgeClass: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30',
+  },
+  REFUNDED: {
+    label: 'Reembolsado',
+    badgeClass: 'bg-rose-500/10 text-rose-400 border-rose-500/30',
+  },
+  CANCELLED: {
+    label: 'Cancelado',
+    badgeClass: 'bg-slate-800 text-slate-500 border-slate-700',
+  },
+};
 
 const STATUS_CONFIG: Record<string, { label: string; color: string; badgeClass: string }> = {
   NEW: {
@@ -96,6 +136,11 @@ const TEMPLATE_OPTIONS = [
     desc: 'Envía rangos de inversión proyectados y tiempos estimados calculados en el cotizador.',
   },
   {
+    id: 'PAYMENT_LINK_INVITATION',
+    title: 'Enlace de Anticipo / Formalización',
+    desc: 'Envía el enlace seguro de Stripe Checkout para el anticipo del proyecto.',
+  },
+  {
     id: 'CUSTOM_FOLLOWUP',
     title: 'Seguimiento Personalizado',
     desc: 'Plantilla de comunicación directa con mensaje libre.',
@@ -113,6 +158,17 @@ export const getStatusConfig = (status?: string | null) => {
   return STATUS_CONFIG[getStatusKey(status)];
 };
 
+export const getDepositStatusKey = (status?: string | null): string => {
+  if (status && status in DEPOSIT_STATUS_CONFIG) {
+    return status;
+  }
+  return 'NONE';
+};
+
+export const getDepositStatusConfig = (status?: string | null) => {
+  return DEPOSIT_STATUS_CONFIG[getDepositStatusKey(status)];
+};
+
 interface LeadCrmPipelineProps {
   initialLeads?: LeadItem[];
 }
@@ -127,6 +183,7 @@ export function LeadCrmPipeline({ initialLeads }: LeadCrmPipelineProps = {}) {
   // Lead Details Modal State
   const [selectedLead, setSelectedLead] = useState<LeadItem | null>(null);
   const [activities, setActivities] = useState<LeadActivity[]>([]);
+  const [payments, setPayments] = useState<LeadPayment[]>([]);
   const [loadingDetails, setLoadingDetails] = useState(false);
 
   // New Activity Form State
@@ -140,6 +197,14 @@ export function LeadCrmPipeline({ initialLeads }: LeadCrmPipelineProps = {}) {
   const [emailSubject, setEmailSubject] = useState('');
   const [emailCustomMessage, setEmailCustomMessage] = useState('');
   const [sendingEmail, setSendingEmail] = useState(false);
+
+  // Lead Checkout Payment Session Form State (FC 043 rev-2)
+  const [paymentType, setPaymentType] = useState<'DEPOSIT_50' | 'CUSTOM'>('DEPOSIT_50');
+  const [customAmount, setCustomAmount] = useState<string>('');
+  const [paymentNotes, setPaymentNotes] = useState<string>('');
+  const [generatingPayment, setGeneratingPayment] = useState(false);
+  const [generatedPaymentUrl, setGeneratedPaymentUrl] = useState<string | null>(null);
+  const [copiedPaymentLink, setCopiedPaymentLink] = useState(false);
 
   const loadLeads = useCallback(async () => {
     setLoading(true);
@@ -173,16 +238,90 @@ export function LeadCrmPipeline({ initialLeads }: LeadCrmPipelineProps = {}) {
     setNewActivityDetails('');
     setEmailCustomMessage('');
     setEmailSubject('');
+    setGeneratedPaymentUrl(null);
+    setCopiedPaymentLink(false);
+    setPaymentNotes('');
+    setCustomAmount('');
+    if (lead.estimated_budget_min && lead.estimated_budget_min > 0) {
+      setPaymentType('DEPOSIT_50');
+    } else {
+      setPaymentType('CUSTOM');
+    }
+
     try {
       const data = (await fetchAdminLeadDetails(lead.id)) as {
-        lead: LeadItem & { activities?: LeadActivity[] };
+        lead: LeadItem & { activities?: LeadActivity[]; payments?: LeadPayment[] };
       };
       setSelectedLead(data.lead);
       setActivities(data.lead.activities || []);
+      setPayments(data.lead.payments || []);
     } catch (err) {
       setActionFeedback((err as Error)?.message || 'Error al cargar expediente');
     } finally {
       setLoadingDetails(false);
+    }
+  };
+
+  const handleGenerateCheckoutSession = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const lead = selectedLead!;
+
+    setGeneratingPayment(true);
+    setCopiedPaymentLink(false);
+    try {
+      const payload: {
+        payment_type: 'DEPOSIT_50' | 'CUSTOM';
+        custom_amount?: number;
+        notes?: string;
+      } = {
+        payment_type: paymentType,
+        notes: paymentNotes.trim() || undefined,
+      };
+
+      if (paymentType === 'CUSTOM') {
+        const parsed = Number(customAmount);
+        if (!parsed || isNaN(parsed) || parsed <= 0) {
+          setActionFeedback('Ingresa un monto numérico válido mayor a cero.');
+          setGeneratingPayment(false);
+          return;
+        }
+        payload.custom_amount = parsed;
+      }
+
+      const result = (await createAdminLeadCheckoutSession(lead.id, payload)) as {
+        status: string;
+        checkout_url: string;
+        session_id: string;
+        amount: number;
+        currency: string;
+      };
+
+      setGeneratedPaymentUrl(result.checkout_url);
+      setActionFeedback(
+        `Enlace de anticipo generado con éxito ($${result.amount.toLocaleString()} ${result.currency}).`,
+      );
+
+      const updated = (await fetchAdminLeadDetails(lead.id)) as {
+        lead: LeadItem & { activities?: LeadActivity[]; payments?: LeadPayment[] };
+      };
+      setSelectedLead(updated.lead);
+      setActivities(updated.lead.activities || []);
+      setPayments(updated.lead.payments || []);
+      loadLeads();
+    } catch (err) {
+      setActionFeedback((err as Error)?.message || 'Error al generar enlace de pago.');
+    } finally {
+      setGeneratingPayment(false);
+    }
+  };
+
+  const handleCopyPaymentLink = async () => {
+    try {
+      await navigator.clipboard.writeText(generatedPaymentUrl!);
+      setCopiedPaymentLink(true);
+      setTimeout(() => setCopiedPaymentLink(false), 3000);
+    } catch {
+      setActionFeedback('No se pudo copiar el enlace al portapapeles.');
     }
   };
 
@@ -430,17 +569,28 @@ export function LeadCrmPipeline({ initialLeads }: LeadCrmPipelineProps = {}) {
                         )}
                       </td>
                       <td className="px-2">
-                        <select
-                          value={currentStatus}
-                          onChange={(e) => handleStatusChange(lead.id, e.target.value)}
-                          className={`px-2 py-1 rounded text-[11px] font-semibold border cursor-pointer bg-slate-900 ${statusCfg.badgeClass}`}
-                        >
-                          {Object.entries(STATUS_CONFIG).map(([k, cfg]) => (
-                            <option key={k} value={k} className="bg-slate-900 text-slate-200">
-                              {cfg.label}
-                            </option>
-                          ))}
-                        </select>
+                        <div className="space-y-1">
+                          <select
+                            value={currentStatus}
+                            onChange={(e) => handleStatusChange(lead.id, e.target.value)}
+                            className={`w-full px-2 py-1 rounded text-[11px] font-semibold border cursor-pointer bg-slate-900 ${statusCfg.badgeClass}`}
+                          >
+                            {Object.entries(STATUS_CONFIG).map(([k, cfg]) => (
+                              <option key={k} value={k} className="bg-slate-900 text-slate-200">
+                                {cfg.label}
+                              </option>
+                            ))}
+                          </select>
+                          {lead.deposit_status && lead.deposit_status !== 'NONE' && (
+                            <span
+                              className={`inline-block px-1.5 py-0.5 rounded text-[9px] font-semibold border ${
+                                getDepositStatusConfig(lead.deposit_status).badgeClass
+                              }`}
+                            >
+                              {getDepositStatusConfig(lead.deposit_status).label}
+                            </span>
+                          )}
+                        </div>
                       </td>
                       <td className="px-2 text-right">
                         <Button
@@ -479,6 +629,15 @@ export function LeadCrmPipeline({ initialLeads }: LeadCrmPipelineProps = {}) {
                   >
                     {getStatusConfig(selectedLead.status).label}
                   </span>
+                  {selectedLead.deposit_status && selectedLead.deposit_status !== 'NONE' && (
+                    <span
+                      className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold border uppercase ${
+                        getDepositStatusConfig(selectedLead.deposit_status).badgeClass
+                      }`}
+                    >
+                      {getDepositStatusConfig(selectedLead.deposit_status).label}
+                    </span>
+                  )}
                 </div>
                 <p className="text-xs text-slate-400 mt-1">
                   Empresa:{' '}
@@ -542,6 +701,227 @@ export function LeadCrmPipeline({ initialLeads }: LeadCrmPipelineProps = {}) {
                 </a>
               </div>
             )}
+
+            {/* Stripe B2B Deposit Payment Engine (FC 043 rev-2) */}
+            <div className="p-5 rounded-xl bg-slate-950/80 border border-cyan-500/30 space-y-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-800 pb-3">
+                <div className="flex items-center gap-2">
+                  <div className="w-2.5 h-2.5 rounded-full bg-cyan-400 animate-pulse" />
+                  <h4 className="text-xs font-bold text-cyan-300 uppercase tracking-wider">
+                    Motor de Anticipos & Cobros B2B (Stripe Checkout)
+                  </h4>
+                </div>
+                <span className="text-[10px] text-cyan-400 bg-cyan-950/60 px-2.5 py-0.5 rounded border border-cyan-800/50 font-mono">
+                  Divisa: {selectedLead.currency || 'USD'}
+                </span>
+              </div>
+
+              <form onSubmit={handleGenerateCheckoutSession} className="space-y-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <label
+                    className={`p-3 rounded-lg border cursor-pointer transition-colors ${
+                      paymentType === 'DEPOSIT_50'
+                        ? 'border-cyan-500 bg-cyan-950/30 text-white'
+                        : 'border-slate-800 bg-slate-900/50 text-slate-400 hover:border-slate-700'
+                    }`}
+                  >
+                    <input
+                      type="radio"
+                      name="leadPaymentType"
+                      value="DEPOSIT_50"
+                      checked={paymentType === 'DEPOSIT_50'}
+                      onChange={() => setPaymentType('DEPOSIT_50')}
+                      className="sr-only"
+                    />
+                    <div className="font-semibold text-xs text-cyan-300">
+                      Anticipo 50% de Cotización
+                    </div>
+                    <div className="text-[11px] text-slate-400 mt-1">
+                      {selectedLead.estimated_budget_min &&
+                      selectedLead.estimated_budget_min > 0 ? (
+                        <span className="font-mono text-emerald-400 font-bold">
+                          ${Math.round(selectedLead.estimated_budget_min * 0.5).toLocaleString()}{' '}
+                          {selectedLead.currency || 'USD'}
+                        </span>
+                      ) : (
+                        <span className="text-amber-400">
+                          Sin presupuesto mínimo base (requiere monto libre)
+                        </span>
+                      )}
+                    </div>
+                  </label>
+
+                  <label
+                    className={`p-3 rounded-lg border cursor-pointer transition-colors ${
+                      paymentType === 'CUSTOM'
+                        ? 'border-cyan-500 bg-cyan-950/30 text-white'
+                        : 'border-slate-800 bg-slate-900/50 text-slate-400 hover:border-slate-700'
+                    }`}
+                  >
+                    <input
+                      type="radio"
+                      name="leadPaymentType"
+                      value="CUSTOM"
+                      checked={paymentType === 'CUSTOM'}
+                      onChange={() => setPaymentType('CUSTOM')}
+                      className="sr-only"
+                    />
+                    <div className="font-semibold text-xs text-purple-300">Monto Personalizado</div>
+                    <div className="text-[11px] text-slate-400 mt-1">
+                      Definir monto manual según acuerdos comerciales
+                    </div>
+                  </label>
+                </div>
+
+                {paymentType === 'CUSTOM' && (
+                  <div>
+                    <label className="text-[11px] text-slate-400 block mb-1">
+                      Monto a Cobrar ({selectedLead.currency || 'USD'})
+                    </label>
+                    <input
+                      type="number"
+                      min={selectedLead.currency === 'MXN' ? 500 : 50}
+                      max={selectedLead.currency === 'MXN' ? 500000 : 30000}
+                      step="1"
+                      placeholder={selectedLead.currency === 'MXN' ? 'Ej. 15000' : 'Ej. 1000'}
+                      value={customAmount}
+                      onChange={(e) => setCustomAmount(e.target.value)}
+                      className="w-full px-3 py-2 text-xs rounded-lg bg-slate-900 border border-slate-700 text-slate-200 focus:outline-none focus:border-cyan-500 font-mono"
+                    />
+                    <span className="text-[10px] text-slate-500 mt-0.5 block">
+                      Límites:{' '}
+                      {selectedLead.currency === 'MXN'
+                        ? '$500 a $500,000 MXN'
+                        : '$50 a $30,000 USD'}
+                    </span>
+                  </div>
+                )}
+
+                <div>
+                  <label className="text-[11px] text-slate-400 block mb-1">
+                    Notas Internas / Concepto (Opcional)
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="Ej. Anticipo Fase 1 de Arquitectura y Auditoría"
+                    value={paymentNotes}
+                    onChange={(e) => setPaymentNotes(e.target.value)}
+                    className="w-full px-3 py-1.5 text-xs rounded-lg bg-slate-900 border border-slate-700 text-slate-200 focus:outline-none focus:border-cyan-500"
+                  />
+                </div>
+
+                <Button
+                  type="submit"
+                  variant="primary"
+                  size="sm"
+                  disabled={
+                    generatingPayment ||
+                    (paymentType === 'DEPOSIT_50' &&
+                      (!selectedLead.estimated_budget_min ||
+                        selectedLead.estimated_budget_min <= 0))
+                  }
+                  className="w-full bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-slate-950 font-bold text-xs shadow-lg shadow-cyan-950/50"
+                >
+                  {generatingPayment
+                    ? 'Generando Sesión Segura en Stripe...'
+                    : 'Generar Enlace de Anticipo vía Stripe Checkout 💳'}
+                </Button>
+              </form>
+
+              {/* Generated Link Display */}
+              {generatedPaymentUrl && (
+                <div className="p-3.5 rounded-lg bg-slate-900 border border-cyan-500/40 space-y-2.5">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-cyan-300">
+                      Enlace de Pago Generado (Válido por 72h)
+                    </span>
+                    <span className="text-[10px] text-emerald-400 font-medium">Activo ✓</span>
+                  </div>
+                  <input
+                    type="text"
+                    readOnly
+                    value={generatedPaymentUrl}
+                    className="w-full px-2.5 py-1.5 text-[11px] rounded bg-slate-950 border border-slate-800 text-slate-300 font-mono select-all focus:outline-none"
+                  />
+                  <div className="flex flex-wrap items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={handleCopyPaymentLink}
+                      className="px-3 py-1 rounded text-xs bg-slate-800 hover:bg-slate-700 text-slate-200 font-semibold transition-colors border border-slate-700"
+                    >
+                      {copiedPaymentLink ? 'Copiado al Portapapeles ✓' : 'Copiar Enlace 📋'}
+                    </button>
+                    {selectedLead.phone && (
+                      <a
+                        href={`https://wa.me/${selectedLead.phone.replace(/\D/g, '')}?text=${encodeURIComponent(
+                          `Hola ${selectedLead.full_name || ''}, te comparto tu enlace de anticipo y formalización para el proyecto en Dreamtek: ${generatedPaymentUrl}`,
+                        )}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="px-3 py-1 rounded text-xs bg-emerald-600 hover:bg-emerald-500 text-slate-950 font-bold transition-colors"
+                      >
+                        Enviar por WhatsApp ↗
+                      </a>
+                    )}
+                    <a
+                      href={generatedPaymentUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="px-3 py-1 rounded text-xs bg-cyan-600 hover:bg-cyan-500 text-slate-950 font-bold transition-colors"
+                    >
+                      Abrir Checkout ↗
+                    </a>
+                  </div>
+                </div>
+              )}
+
+              {/* Payments History in Drawer */}
+              {payments && payments.length > 0 && (
+                <div className="space-y-2 pt-2 border-t border-slate-800/80">
+                  <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">
+                    Historial de Pagos de Anticipo ({payments.length})
+                  </span>
+                  <div className="space-y-1.5 max-h-36 overflow-y-auto pr-1">
+                    {payments.map((p) => (
+                      <div
+                        key={p.id}
+                        className="p-2.5 rounded-lg bg-slate-900/60 border border-slate-800 flex items-center justify-between text-xs"
+                      >
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <span className="font-mono font-bold text-white">
+                              ${(p.amount_cents / 100).toLocaleString()} {p.currency}
+                            </span>
+                            <span className="text-[10px] text-slate-400">
+                              ({p.payment_type === 'DEPOSIT_50' ? 'Anticipo 50%' : 'Personalizado'})
+                            </span>
+                          </div>
+                          <span className="text-[10px] text-slate-500 font-mono block">
+                            Sesión: {p.stripe_session_id.substring(0, 18)}...
+                          </span>
+                        </div>
+                        <div className="text-right">
+                          <span
+                            className={`px-2 py-0.5 rounded text-[10px] font-bold border ${
+                              p.status === 'PAID'
+                                ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30'
+                                : p.status === 'PENDING'
+                                  ? 'bg-amber-500/10 text-amber-400 border-amber-500/30'
+                                  : 'bg-slate-800 text-slate-400 border-slate-700'
+                            }`}
+                          >
+                            {p.status}
+                          </span>
+                          <span className="text-[10px] text-slate-500 block mt-0.5">
+                            {new Date(p.created_at).toLocaleDateString()}
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
 
             {/* Actions: Send Email & Add Note Grid */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">

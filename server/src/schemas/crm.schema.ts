@@ -44,6 +44,7 @@ export const FOLLOWUP_TEMPLATE_IDS = [
   'DIAGNOSTIC_INVITATION',
   'PROPOSAL_SUBMITTED',
   'CUSTOM_FOLLOWUP',
+  'PAYMENT_LINK_INVITATION',
 ] as const;
 
 export type FollowUpTemplateId = (typeof FOLLOWUP_TEMPLATE_IDS)[number];
@@ -62,6 +63,26 @@ export const sendLeadFollowUpEmailSchema = z.object({
     .optional(),
 });
 
+export const LEAD_PAYMENT_TYPES = ['DEPOSIT_50', 'FULL_PAYMENT', 'CUSTOM'] as const;
+export type LeadPaymentType = (typeof LEAD_PAYMENT_TYPES)[number];
+
+export const LEAD_PAYMENT_STATUSES = ['PENDING', 'PAID', 'EXPIRED', 'CANCELLED'] as const;
+export type LeadPaymentStatus = (typeof LEAD_PAYMENT_STATUSES)[number];
+
+export const LEAD_DEPOSIT_STATUSES = ['UNPAID', 'PENDING', 'PAID'] as const;
+export type LeadDepositStatus = (typeof LEAD_DEPOSIT_STATUSES)[number];
+
+export const createLeadCheckoutSessionSchema = z.object({
+  payment_type: z.enum(LEAD_PAYMENT_TYPES, {
+    errorMap: () => ({ message: 'Tipo de pago de anticipo inválido.' }),
+  }).default('DEPOSIT_50'),
+  custom_amount: z.number().positive('El monto personalizado debe ser positivo.').optional(),
+  notes: z.string().max(500, 'Las notas no pueden exceder 500 caracteres.').optional(),
+  description: z.string().max(500, 'La descripción no puede exceder 500 caracteres.').optional(),
+});
+
 export type UpdateLeadStatusInput = z.infer<typeof updateLeadStatusSchema>;
 export type CreateLeadActivityInput = z.infer<typeof createLeadActivitySchema>;
 export type SendLeadFollowUpEmailInput = z.infer<typeof sendLeadFollowUpEmailSchema>;
+export type CreateLeadCheckoutSessionInput = z.infer<typeof createLeadCheckoutSessionSchema>;
+

@@ -9,15 +9,20 @@ import {
   LEAD_STATUSES,
   LEAD_ACTIVITY_TYPES,
   FOLLOWUP_TEMPLATE_IDS,
+  LEAD_PAYMENT_TYPES,
+  LEAD_PAYMENT_STATUSES,
+  LEAD_DEPOSIT_STATUSES,
   updateLeadStatusSchema,
   createLeadActivitySchema,
   sendLeadFollowUpEmailSchema,
+  createLeadCheckoutSessionSchema,
 } from '../../../server/src/schemas/crm.schema';
 import {
   escapeHtml,
   escapeLikeWildcards,
   renderLeadFollowUpEmail,
 } from '../../../server/src/utils/crm';
+import { setStripeForTest } from '../../../server/src/routes/checkout';
 
 vi.mock('../../../server/src/db', () => ({
   query: vi.fn(),
@@ -31,11 +36,14 @@ import jwt from 'jsonwebtoken';
 
 const TEST_SECRET = 'dreamtek_dev_jwt_secret_key_2026';
 
-const adminToken = jwt.sign(
-  { userId: 99, uid: 99, email: 'grayman@dreamtek.tech', role: 'ADMIN' },
-  TEST_SECRET,
-  { algorithm: 'HS512' },
-);
+const getAdminToken = (uid = 99) =>
+  jwt.sign(
+    { userId: uid, uid, email: `grayman_${uid}@dreamtek.tech`, role: 'ADMIN' },
+    TEST_SECRET,
+    { algorithm: 'HS512' },
+  );
+
+const adminToken = getAdminToken(99);
 
 const clientToken = jwt.sign(
   { userId: 42, uid: 42, email: 'client@empresa.com', role: 'CLIENT' },
@@ -76,7 +84,11 @@ describe('CRM Pipeline Backend & Formal Verification Suite (FC 041 100% Coverage
         'DIAGNOSTIC_INVITATION',
         'PROPOSAL_SUBMITTED',
         'CUSTOM_FOLLOWUP',
+        'PAYMENT_LINK_INVITATION',
       ]);
+      expect(LEAD_PAYMENT_TYPES).toEqual(['DEPOSIT_50', 'FULL_PAYMENT', 'CUSTOM']);
+      expect(LEAD_PAYMENT_STATUSES).toEqual(['PENDING', 'PAID', 'EXPIRED', 'CANCELLED']);
+      expect(LEAD_DEPOSIT_STATUSES).toEqual(['UNPAID', 'PENDING', 'PAID']);
     });
 
     it('debe validar updateLeadStatusSchema correctamente', () => {
@@ -154,6 +166,37 @@ describe('CRM Pipeline Backend & Formal Verification Suite (FC 041 100% Coverage
         custom_message: 'a'.repeat(2001),
       });
       expect(longCustomMessage.success).toBe(false);
+    });
+
+    it('debe validar createLeadCheckoutSessionSchema correctamente', () => {
+      const valid50 = createLeadCheckoutSessionSchema.safeParse({
+        payment_type: 'DEPOSIT_50',
+      });
+      expect(valid50.success).toBe(true);
+
+      const validCustom = createLeadCheckoutSessionSchema.safeParse({
+        payment_type: 'CUSTOM',
+        custom_amount: 1500,
+        notes: 'Pago pactado',
+      });
+      expect(validCustom.success).toBe(true);
+
+      const invalidType = createLeadCheckoutSessionSchema.safeParse({
+        payment_type: 'INVALID' as any,
+      });
+      expect(invalidType.success).toBe(false);
+
+      const negativeAmount = createLeadCheckoutSessionSchema.safeParse({
+        payment_type: 'CUSTOM',
+        custom_amount: -100,
+      });
+      expect(negativeAmount.success).toBe(false);
+
+      const longNotes = createLeadCheckoutSessionSchema.safeParse({
+        payment_type: 'DEPOSIT_50',
+        notes: 'a'.repeat(501),
+      });
+      expect(longNotes.success).toBe(false);
     });
   });
 
@@ -382,6 +425,66 @@ describe('CRM Pipeline Backend & Formal Verification Suite (FC 041 100% Coverage
       expect(emptyProp.text).toContain('Valued Client');
       expect(emptyProp.text).toContain('your organization');
       expect(emptyProp.text).not.toContain('Details:');
+
+      // 5. PAYMENT_LINK_INVITATION en español e inglés (FC 043 rev-2)
+      const payContextEs = {
+        fullName: 'Carlos Slim',
+        email: 'carlos@acme.mx',
+        company: 'América Móvil',
+        projectVertical: 'CORE_ENGINEERING',
+        depositAmount: 125000,
+        currency: 'MXN',
+        checkoutUrl: 'https://checkout.stripe.com/pay/cs_test_es',
+        locale: 'es',
+      };
+      const payEs = renderLeadFollowUpEmail(
+        payContextEs,
+        'PAYMENT_LINK_INVITATION',
+        undefined,
+        'Anticipo 50% pactado para inicio de arquitectura.',
+      );
+      expect(payEs.subject).toContain('Enlace de Anticipo y Formalización de Proyecto');
+      expect(payEs.html).toContain('125,000 MXN');
+      expect(payEs.html).toContain('https://checkout.stripe.com/pay/cs_test_es');
+      expect(payEs.html).toContain('Anticipo 50% pactado');
+      expect(payEs.text).toContain('125,000 MXN');
+
+      const payContextEn = {
+        fullName: 'Alice Smith',
+        email: 'alice@smithcorp.com',
+        company: 'Smith Corp',
+        projectVertical: 'CYBERSECURITY',
+        depositAmount: 5000,
+        currency: 'USD',
+        checkoutUrl: 'https://checkout.stripe.com/pay/cs_test_en',
+        locale: 'en',
+      };
+      const payEn = renderLeadFollowUpEmail(
+        payContextEn,
+        'PAYMENT_LINK_INVITATION',
+        undefined,
+        'Deposit required for sprint scheduling.',
+      );
+      expect(payEn.subject).toContain('Project Deposit & Architecture Activation');
+      expect(payEn.html).toContain('5,000 USD');
+      expect(payEn.html).toContain('https://checkout.stripe.com/pay/cs_test_en');
+      expect(payEn.html).toContain('Deposit required for sprint scheduling.');
+      expect(payEn.text).toContain('5,000 USD');
+
+      // 5.b PAYMENT_LINK_INVITATION con fallbacks (sin monto ni url)
+      const payFallback = renderLeadFollowUpEmail(
+        { email: 'anon@test.com' },
+        'PAYMENT_LINK_INVITATION',
+      );
+      expect(payFallback.html).toContain('Anticipo de Proyecto');
+      expect(payFallback.html).toContain('https://dreamtek.tech/#contacto');
+
+      const payFallbackEn = renderLeadFollowUpEmail(
+        { email: 'anon@test.com', locale: 'en' },
+        'PAYMENT_LINK_INVITATION',
+      );
+      expect(payFallbackEn.html).toContain('Project Deposit');
+      expect(payFallbackEn.html).toContain('https://dreamtek.tech/en#contact');
     });
 
     it('debe resolver la clave de cliente en getAdminEmailClientKey', () => {
@@ -477,12 +580,15 @@ describe('CRM Pipeline Backend & Formal Verification Suite (FC 041 100% Coverage
         .set('Authorization', `Bearer ${adminToken}`);
       expect(resNotFound.status).toBe(404);
 
-      // Éxito con actividades
+      // Éxito con actividades y pagos
       const mockLead = { id: 10, email: 'lead@test.com', full_name: 'Prospecto 10' };
       const mockActivities = [
         { id: 1, activity_type: 'STATUS_CHANGE', title: 'Transición a CONTACTED' },
       ];
-      vi.mocked(db.query).mockResolvedValueOnce([mockLead]).mockResolvedValueOnce(mockActivities);
+      vi.mocked(db.query)
+        .mockResolvedValueOnce([mockLead])
+        .mockResolvedValueOnce(mockActivities)
+        .mockResolvedValueOnce([]);
 
       const resSuccess = await supertest(app)
         .get('/api/v1/admin/leads/10')
@@ -490,6 +596,7 @@ describe('CRM Pipeline Backend & Formal Verification Suite (FC 041 100% Coverage
       expect(resSuccess.status).toBe(200);
       expect(resSuccess.body.lead.id).toBe(10);
       expect(resSuccess.body.lead.activities).toHaveLength(1);
+      expect(resSuccess.body.lead.payments).toEqual([]);
 
       // Excepción en DB
       vi.mocked(db.query).mockImplementationOnce(() => {
@@ -793,6 +900,323 @@ describe('CRM Pipeline Backend & Formal Verification Suite (FC 041 100% Coverage
         });
       expect(resErr.status).toBe(500);
       expect(resErr.body.message).toBe('Error al procesar envío de correo.');
+    });
+
+    it('POST /api/v1/admin/leads/:id/checkout-session debe validar entradas, calcular anticipos y generar sesión de Stripe (FC 043)', async () => {
+      // 1. ID inválido
+      const resInvalidId = await supertest(app)
+        .post('/api/v1/admin/leads/abc/checkout-session')
+        .set('Authorization', `Bearer ${getAdminToken(201)}`)
+        .send({ payment_type: 'DEPOSIT_50' });
+      expect(resInvalidId.status).toBe(400);
+      expect(resInvalidId.body.message).toContain('ID de prospecto inválido');
+
+      // 2. Schema validation error
+      const resBadBody = await supertest(app)
+        .post('/api/v1/admin/leads/10/checkout-session')
+        .set('Authorization', `Bearer ${getAdminToken(202)}`)
+        .send({ payment_type: 'INVALID_TYPE' });
+      expect(resBadBody.status).toBe(400);
+      expect(resBadBody.body.error).toBe('Validation Error');
+
+      // 3. Lead no encontrado (404)
+      vi.mocked(db.query).mockResolvedValueOnce([]);
+      const resNotFound = await supertest(app)
+        .post('/api/v1/admin/leads/999/checkout-session')
+        .set('Authorization', `Bearer ${getAdminToken(203)}`)
+        .send({ payment_type: 'DEPOSIT_50' });
+      expect(resNotFound.status).toBe(404);
+
+      // 4. Lead sin email válido
+      vi.mocked(db.query).mockResolvedValueOnce([{ id: 10, email: 'notanemail' }]);
+      const resNoEmail = await supertest(app)
+        .post('/api/v1/admin/leads/10/checkout-session')
+        .set('Authorization', `Bearer ${getAdminToken(204)}`)
+        .send({ payment_type: 'DEPOSIT_50' });
+      expect(resNoEmail.status).toBe(400);
+      expect(resNoEmail.body.message).toContain('correo electrónico válido');
+
+      // 5. DEPOSIT_50 sin estimated_budget_min
+      vi.mocked(db.query).mockResolvedValueOnce([
+        { id: 10, email: 'lead@test.com', estimated_budget_min: null },
+      ]);
+      const resNoBudget = await supertest(app)
+        .post('/api/v1/admin/leads/10/checkout-session')
+        .set('Authorization', `Bearer ${getAdminToken(205)}`)
+        .send({ payment_type: 'DEPOSIT_50' });
+      expect(resNoBudget.status).toBe(400);
+      expect(resNoBudget.body.message).toContain('presupuesto mínimo');
+
+      // 6. CUSTOM sin custom_amount o <= 0
+      vi.mocked(db.query).mockResolvedValueOnce([{ id: 10, email: 'lead@test.com' }]);
+      const resNoCustom = await supertest(app)
+        .post('/api/v1/admin/leads/10/checkout-session')
+        .set('Authorization', `Bearer ${getAdminToken(206)}`)
+        .send({ payment_type: 'CUSTOM' });
+      expect(resNoCustom.status).toBe(400);
+      expect(resNoCustom.body.message).toContain('monto personalizado');
+
+      // 7. Límites USD (< 50 o > 30000)
+      vi.mocked(db.query).mockResolvedValueOnce([
+        { id: 10, email: 'lead@test.com', currency: 'USD' },
+      ]);
+      const resUsdLow = await supertest(app)
+        .post('/api/v1/admin/leads/10/checkout-session')
+        .set('Authorization', `Bearer ${getAdminToken(207)}`)
+        .send({ payment_type: 'CUSTOM', custom_amount: 30 });
+      expect(resUsdLow.status).toBe(400);
+      expect(resUsdLow.body.message).toContain('Monto fuera de rango para USD');
+
+      vi.mocked(db.query).mockResolvedValueOnce([
+        { id: 10, email: 'lead@test.com', currency: 'USD' },
+      ]);
+      const resUsdHigh = await supertest(app)
+        .post('/api/v1/admin/leads/10/checkout-session')
+        .set('Authorization', `Bearer ${getAdminToken(208)}`)
+        .send({ payment_type: 'CUSTOM', custom_amount: 35000 });
+      expect(resUsdHigh.status).toBe(400);
+      expect(resUsdHigh.body.message).toContain('Monto fuera de rango para USD');
+
+      // 8. Límites MXN (< 500 o > 500000)
+      vi.mocked(db.query).mockResolvedValueOnce([
+        { id: 10, email: 'lead@test.com', currency: 'MXN' },
+      ]);
+      const resMxnLow = await supertest(app)
+        .post('/api/v1/admin/leads/10/checkout-session')
+        .set('Authorization', `Bearer ${getAdminToken(209)}`)
+        .send({ payment_type: 'CUSTOM', custom_amount: 300 });
+      expect(resMxnLow.status).toBe(400);
+      expect(resMxnLow.body.message).toContain('Monto fuera de rango para MXN');
+
+      vi.mocked(db.query).mockResolvedValueOnce([
+        { id: 10, email: 'lead@test.com', currency: 'MXN' },
+      ]);
+      const resMxnHigh = await supertest(app)
+        .post('/api/v1/admin/leads/10/checkout-session')
+        .set('Authorization', `Bearer ${getAdminToken(210)}`)
+        .send({ payment_type: 'CUSTOM', custom_amount: 600000 });
+      expect(resMxnHigh.status).toBe(400);
+      expect(resMxnHigh.body.message).toContain('Monto fuera de rango para MXN');
+
+      // 8.b Divisa no soportada
+      vi.mocked(db.query).mockResolvedValueOnce([
+        { id: 10, email: 'lead@test.com', currency: 'EUR' },
+      ]);
+      const resEur = await supertest(app)
+        .post('/api/v1/admin/leads/10/checkout-session')
+        .set('Authorization', `Bearer ${getAdminToken(211)}`)
+        .send({ payment_type: 'CUSTOM', custom_amount: 500 });
+      expect(resEur.status).toBe(400);
+      expect(resEur.body.message).toContain('Divisa no soportada');
+
+      // 9. C-043.5: Disallow sk_test_mock in production
+      const oldEnv = process.env.NODE_ENV;
+      const oldKey = process.env.STRIPE_SECRET_KEY;
+      const oldJwt = process.env.JWT_SECRET;
+      try {
+        process.env.NODE_ENV = 'production';
+        process.env.JWT_SECRET = TEST_SECRET;
+        delete process.env.STRIPE_SECRET_KEY;
+        vi.mocked(db.query).mockResolvedValueOnce([
+          { id: 10, email: 'lead@test.com', currency: 'USD' },
+        ]);
+        const resProdNoKey = await supertest(app)
+          .post('/api/v1/admin/leads/10/checkout-session')
+          .set('Authorization', `Bearer ${getAdminToken(212)}`)
+          .send({ payment_type: 'CUSTOM', custom_amount: 1000 });
+        expect(resProdNoKey.status).toBe(503);
+
+        // Con STRIPE_SECRET_KEY = 'sk_test_mock' explícito
+        process.env.STRIPE_SECRET_KEY = 'sk_test_mock';
+        vi.mocked(db.query).mockResolvedValueOnce([
+          { id: 10, email: 'lead@test.com', currency: 'USD' },
+        ]);
+        const resProdMockKey = await supertest(app)
+          .post('/api/v1/admin/leads/10/checkout-session')
+          .set('Authorization', `Bearer ${getAdminToken(220)}`)
+          .send({ payment_type: 'CUSTOM', custom_amount: 1000 });
+        expect(resProdMockKey.status).toBe(503);
+      } finally {
+        process.env.NODE_ENV = oldEnv;
+        if (oldKey) process.env.STRIPE_SECRET_KEY = oldKey;
+        if (oldJwt) process.env.JWT_SECRET = oldJwt;
+        else delete process.env.JWT_SECRET;
+      }
+
+      // 10. Creación exitosa DEPOSIT_50 (USD) usando mockStripe
+      const mockStripe = {
+        checkout: {
+          sessions: {
+            create: vi.fn().mockResolvedValue({
+              id: 'cs_test_stripe_session_123',
+              url: 'https://checkout.stripe.com/c/pay/cs_test_stripe_session_123',
+              expires_at: 1700000000,
+            }),
+          },
+        },
+      };
+      setStripeForTest(mockStripe);
+
+      const mockLeadUsd = {
+        id: 10,
+        email: 'ceo@techstartup.com',
+        full_name: 'Tech CEO',
+        company: 'Startup LLC',
+        currency: 'USD',
+        estimated_budget_min: 5000,
+      };
+
+      vi.mocked(db.query)
+        .mockResolvedValueOnce([mockLeadUsd]) // SELECT lead
+        .mockResolvedValueOnce({ insertId: 1 }) // INSERT lead_payments
+        .mockResolvedValueOnce({ affectedRows: 1 }) // UPDATE leads
+        .mockResolvedValueOnce({ insertId: 2 }); // INSERT lead_activities
+
+      const resDepositSuccess = await supertest(app)
+        .post('/api/v1/admin/leads/10/checkout-session')
+        .set('Authorization', `Bearer ${getAdminToken(213)}`)
+        .send({ payment_type: 'DEPOSIT_50', notes: 'Anticipo 50% pactado' });
+
+      expect(resDepositSuccess.status).toBe(201);
+      expect(resDepositSuccess.body.status).toBe('success');
+      expect(resDepositSuccess.body.amount).toBe(2500);
+      expect(resDepositSuccess.body.amount_cents).toBe(250000);
+      expect(resDepositSuccess.body.currency).toBe('USD');
+      expect(resDepositSuccess.body.session_id).toBe('cs_test_stripe_session_123');
+      expect(mockStripe.checkout.sessions.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          customer_email: 'ceo@techstartup.com',
+          client_reference_id: '10',
+          metadata: expect.objectContaining({
+            tenant_type: 'B2B_LEAD',
+            lead_id: '10',
+            payment_type: 'DEPOSIT_50',
+          }),
+        }),
+      );
+
+      // 10.b Creación CUSTOM sin company, sin currency (default USD), sin notes y con stripeSession.url undefined
+      const mockStripeNoUrl = {
+        checkout: {
+          sessions: {
+            create: vi.fn().mockResolvedValue({
+              id: 'cs_test_stripe_session_no_url',
+              expires_at: 1700000000,
+            }),
+          },
+        },
+      };
+      setStripeForTest(mockStripeNoUrl);
+
+      const mockLeadNoCompanyNoCur = {
+        id: 12,
+        email: 'solo@nombre.com',
+        full_name: 'Solo Nombre',
+      };
+      vi.mocked(db.query)
+        .mockResolvedValueOnce([mockLeadNoCompanyNoCur])
+        .mockResolvedValueOnce({ insertId: 3 })
+        .mockResolvedValueOnce({ affectedRows: 1 })
+        .mockResolvedValueOnce({ insertId: 4 });
+
+      const resCustomNoCompany = await supertest(app)
+        .post('/api/v1/admin/leads/12/checkout-session')
+        .set('Authorization', `Bearer ${getAdminToken(221)}`)
+        .send({ payment_type: 'CUSTOM', custom_amount: 500 });
+      expect(resCustomNoCompany.status).toBe(201);
+      expect(resCustomNoCompany.body.checkout_url).toBe(
+        'https://checkout.stripe.com/c/pay/cs_test_stripe_session_no_url',
+      );
+      expect(resCustomNoCompany.body.currency).toBe('USD');
+
+      // 11. Creación exitosa CUSTOM (MXN) con fallback a sesión mock sin stripeInstance.create
+      setStripeForTest({});
+      const mockLeadMxn = {
+        id: 11,
+        email: 'admin@negocio.mx',
+        full_name: 'Dueño Negocio',
+        currency: 'MXN',
+      };
+
+      vi.mocked(db.query)
+        .mockResolvedValueOnce([mockLeadMxn]) // SELECT lead
+        .mockResolvedValueOnce({ insertId: 2 }) // INSERT lead_payments
+        .mockResolvedValueOnce({ affectedRows: 1 }) // UPDATE leads
+        .mockResolvedValueOnce({ insertId: 3 }); // INSERT lead_activities
+
+      const resCustomSuccess = await supertest(app)
+        .post('/api/v1/admin/leads/11/checkout-session')
+        .set('Authorization', `Bearer ${getAdminToken(214)}`)
+        .send({ payment_type: 'CUSTOM', custom_amount: 15000 });
+
+      expect(resCustomSuccess.status).toBe(201);
+      expect(resCustomSuccess.body.amount).toBe(15000);
+      expect(resCustomSuccess.body.amount_cents).toBe(1500000);
+      expect(resCustomSuccess.body.currency).toBe('MXN');
+      expect(resCustomSuccess.body.session_id).toContain('cs_test_b2b_');
+
+      // Limpiar mock stripe
+      setStripeForTest(null);
+
+      // 12. Error general en BD
+      vi.mocked(db.query).mockImplementationOnce(() => {
+        throw {};
+      });
+      const resDbErr = await supertest(app)
+        .post('/api/v1/admin/leads/10/checkout-session')
+        .set('Authorization', `Bearer ${getAdminToken(215)}`)
+        .send({ payment_type: 'CUSTOM', custom_amount: 1000 });
+      expect(resDbErr.status).toBe(500);
+      expect(resDbErr.body.message).toBe('Error al generar sesión de pago para el prospecto.');
+    });
+
+    it('GET /api/v1/admin/leads/:id/payments debe validar ID y retornar pagos del prospecto', async () => {
+      // 1. ID inválido
+      const resBad = await supertest(app)
+        .get('/api/v1/admin/leads/-1/payments')
+        .set('Authorization', `Bearer ${getAdminToken(301)}`);
+      expect(resBad.status).toBe(400);
+
+      // 2. Lead no encontrado
+      vi.mocked(db.query).mockResolvedValueOnce([]);
+      const resNotFound = await supertest(app)
+        .get('/api/v1/admin/leads/999/payments')
+        .set('Authorization', `Bearer ${getAdminToken(302)}`);
+      expect(resNotFound.status).toBe(404);
+
+      // 3. Éxito
+      const mockPayments = [
+        {
+          id: 1,
+          lead_id: 10,
+          stripe_session_id: 'cs_123',
+          payment_type: 'DEPOSIT_50',
+          amount_cents: 250000,
+          currency: 'USD',
+          status: 'PAID',
+        },
+      ];
+      vi.mocked(db.query)
+        .mockResolvedValueOnce([{ id: 10 }])
+        .mockResolvedValueOnce(mockPayments);
+
+      const resOk = await supertest(app)
+        .get('/api/v1/admin/leads/10/payments')
+        .set('Authorization', `Bearer ${getAdminToken(303)}`);
+      expect(resOk.status).toBe(200);
+      expect(resOk.body.status).toBe('success');
+      expect(resOk.body.payments).toHaveLength(1);
+      expect(resOk.body.payments[0].amount_cents).toBe(250000);
+
+      // 4. Excepción DB
+      vi.mocked(db.query).mockImplementationOnce(() => {
+        throw {};
+      });
+      const resErr = await supertest(app)
+        .get('/api/v1/admin/leads/10/payments')
+        .set('Authorization', `Bearer ${getAdminToken(304)}`);
+      expect(resErr.status).toBe(500);
+      expect(resErr.body.message).toBe('Error al consultar pagos del prospecto.');
     });
   });
 });

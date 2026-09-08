@@ -148,6 +148,108 @@ checkoutRouter.post('/webhook', async (req: Request, res: Response): Promise<voi
 
     if (event.type === 'checkout.session.completed') {
       const session = event.data.object as Stripe.Checkout.Session;
+
+      // Ramificación B2B: Anticipo de Prospecto Comercial (FC 043 rev-2 / C-043.5)
+      if (session.metadata?.tenant_type === 'B2B_LEAD') {
+        const rawLeadId = session.metadata?.lead_id || session.client_reference_id;
+        const leadId = rawLeadId ? parseInt(rawLeadId, 10) : null;
+
+        if (!leadId || isNaN(leadId) || leadId <= 0) {
+          res.status(400).json({
+            status: 'error',
+            message: 'Falta lead_id válido en metadata de pago B2B.',
+          });
+          return;
+        }
+
+        // Buscar registro de pago correspondiente
+        const paymentRows = await query<any[]>(
+          'SELECT * FROM lead_payments WHERE stripe_session_id = ? AND lead_id = ? LIMIT 1',
+          [session.id, leadId],
+        );
+
+        if (!paymentRows || paymentRows.length === 0) {
+          res.status(404).json({
+            status: 'error',
+            message: 'Registro de pago de anticipo B2B no encontrado para esta sesión.',
+          });
+          return;
+        }
+
+        const leadPayment = paymentRows[0];
+
+        // Idempotencia: si ya fue liquidado, responder éxito sin duplicar efectos
+        if (leadPayment.status === 'PAID') {
+          res.json({
+            status: 'success',
+            message: 'Pago de anticipo B2B ya procesado previamente.',
+          });
+          return;
+        }
+
+        // Validación Fail-Closed de Monto y Divisa (C-043.3)
+        const sessionAmount = session.amount_total;
+        const sessionCurrency = session.currency ? session.currency.toUpperCase() : null;
+
+        if (
+          sessionAmount !== leadPayment.amount_cents ||
+          sessionCurrency !== leadPayment.currency
+        ) {
+          console.warn(
+            `[SECURITY_ALERT_FAIL_CLOSED] Webhook B2B discrepancia en monto/divisa. Esperado: ${leadPayment.amount_cents} ${leadPayment.currency}, Recibido: ${sessionAmount} ${sessionCurrency}. Sesión: ${session.id}`,
+          );
+          res.status(400).json({
+            status: 'error',
+            error: 'Amount Or Currency Mismatch',
+            message: 'Discrepancia de monto o divisa en la sesión de pago respecto al registro pactado.',
+          });
+          return;
+        }
+
+        // Transacción atómica: actualizar lead_payments, leads y registrar lead_activities
+        const paymentIntentId =
+          typeof session.payment_intent === 'string'
+            ? session.payment_intent
+            : (session.payment_intent as any)?.id || null;
+
+        const formattedAmount = (leadPayment.amount_cents / 100).toLocaleString();
+        const activityDetails = `Monto anticipo liquidado: $${formattedAmount} ${leadPayment.currency}. Tipo: ${leadPayment.payment_type}. Stripe Session: ${session.id}. Payment Intent: ${paymentIntentId || 'N/A'}. Transición automática a WON.`;
+
+        await withTransaction(async (conn) => {
+          await conn.query(
+            `UPDATE lead_payments
+             SET status = 'PAID',
+                 stripe_payment_intent_id = ?,
+                 paid_at = NOW(),
+                 updated_at = NOW()
+             WHERE id = ?`,
+            [paymentIntentId, leadPayment.id],
+          );
+
+          await conn.query(
+            `UPDATE leads
+             SET status = 'WON',
+                 deposit_status = 'PAID',
+                 last_contacted_at = NOW(),
+                 updated_at = NOW()
+             WHERE id = ?`,
+            [leadId],
+          );
+
+          await conn.query(
+            `INSERT INTO lead_activities (lead_id, user_id, activity_type, title, details)
+             VALUES (?, NULL, 'STATUS_CHANGE', 'Anticipo cobrado con éxito (Stripe)', ?)`,
+            [leadId, activityDetails],
+          );
+        });
+
+        res.json({
+          status: 'success',
+          message: 'Anticipo B2B procesado con éxito y prospecto transicionado a WON.',
+        });
+        return;
+      }
+
       const email = session.customer_email || session.customer_details?.email;
       const clientRefId = session.client_reference_id;
       const metadataUserId = session.metadata?.userId;

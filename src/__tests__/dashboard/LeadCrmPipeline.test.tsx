@@ -1,11 +1,12 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import React from 'react';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { render, screen, fireEvent, waitFor, cleanup } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, cleanup, act } from '@testing-library/react';
 import {
   LeadCrmPipeline,
   LeadItem,
   getStatusConfig,
+  getDepositStatusConfig,
 } from '@/components/dashboard/admin/LeadCrmPipeline';
 import * as authClient from '@/lib/auth/client';
 
@@ -15,6 +16,8 @@ vi.mock('@/lib/auth/client', () => ({
   updateAdminLeadStatus: vi.fn(),
   addAdminLeadActivity: vi.fn(),
   sendAdminLeadEmail: vi.fn(),
+  createAdminLeadCheckoutSession: vi.fn(),
+  fetchAdminLeadPayments: vi.fn(),
 }));
 
 const mockLeadsData: LeadItem[] = [
@@ -530,6 +533,16 @@ describe('LeadCrmPipeline Component Suite (FC 041 100% Coverage)', () => {
     expect(getStatusConfig(null).label).toBe('Nuevo');
   });
 
+  it('debe resolver configuración de deposit_status válida y fallback a NONE', () => {
+    expect(getDepositStatusConfig('PENDING').label).toBe('Anticipo Pendiente');
+    expect(getDepositStatusConfig('PAID').label).toBe('Anticipo Cobrado (50%)');
+    expect(getDepositStatusConfig('REFUNDED').label).toBe('Reembolsado');
+    expect(getDepositStatusConfig('CANCELLED').label).toBe('Cancelado');
+    expect(getDepositStatusConfig('OTHER').label).toBe('Sin Anticipo');
+    expect(getDepositStatusConfig(undefined).label).toBe('Sin Anticipo');
+    expect(getDepositStatusConfig(null).label).toBe('Sin Anticipo');
+  });
+
   it('debe abortar el guardado si el título de actividad está vacío', async () => {
     vi.mocked(authClient.fetchAdminLeadDetails).mockResolvedValue({
       lead: {
@@ -606,6 +619,378 @@ describe('LeadCrmPipeline Component Suite (FC 041 100% Coverage)', () => {
 
     await waitFor(() => {
       expect(screen.getByText('Error al enviar correo.')).toBeInTheDocument();
+    });
+
+    // 6. createAdminLeadCheckoutSession con {}
+    vi.mocked(authClient.createAdminLeadCheckoutSession).mockRejectedValueOnce({});
+    fireEvent.click(
+      screen.getByRole('button', {
+        name: 'Generar Enlace de Anticipo vía Stripe Checkout 💳',
+      }),
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText('Error al generar enlace de pago.')).toBeInTheDocument();
+    });
+  });
+
+  describe('Lead Checkout Session & Stripe Engine (FC 043 rev-2)', () => {
+    it('debe generar enlace de anticipo del 50%, copiar al portapapeles y mostrar historial de pagos', async () => {
+      const mockLeadWithBudget = {
+        ...mockLeadsData[0],
+        estimated_budget_min: 10000,
+        currency: 'USD',
+        deposit_status: 'PENDING' as const,
+        payments: [
+          {
+            id: 1,
+            lead_id: 1,
+            stripe_session_id: 'cs_test_session_previous',
+            payment_type: 'DEPOSIT_50' as const,
+            amount_cents: 500000,
+            currency: 'USD',
+            status: 'PENDING' as const,
+            created_at: '2026-09-06T12:00:00Z',
+          },
+          {
+            id: 2,
+            lead_id: 1,
+            stripe_session_id: 'cs_test_session_custom_paid',
+            payment_type: 'CUSTOM' as const,
+            amount_cents: 200000,
+            currency: 'USD',
+            status: 'PAID' as const,
+            created_at: '2026-09-06T12:00:00Z',
+          },
+          {
+            id: 3,
+            lead_id: 1,
+            stripe_session_id: 'cs_test_session_cancelled',
+            payment_type: 'CUSTOM' as const,
+            amount_cents: 100000,
+            currency: 'USD',
+            status: 'CANCELLED' as const,
+            created_at: '2026-09-06T12:00:00Z',
+          },
+        ],
+      };
+
+      vi.mocked(authClient.fetchAdminLeadDetails).mockResolvedValue({
+        lead: mockLeadWithBudget,
+      });
+
+      vi.mocked(authClient.createAdminLeadCheckoutSession).mockResolvedValue({
+        status: 'success',
+        checkout_url: 'https://checkout.stripe.com/c/pay/cs_test_session_new',
+        session_id: 'cs_test_session_new',
+        amount: 5000,
+        amount_cents: 500000,
+        currency: 'USD',
+      });
+
+      render(<LeadCrmPipeline initialLeads={[mockLeadWithBudget]} />);
+
+      // Abrir expediente
+      fireEvent.click(screen.getByRole('button', { name: 'Expediente ↗' }));
+
+      await waitFor(() => {
+        expect(
+          screen.getByText('Motor de Anticipos & Cobros B2B (Stripe Checkout)'),
+        ).toBeInTheDocument();
+      });
+
+      // Debe mostrar el cálculo del 50% ($5,000 USD)
+      expect(screen.getAllByText('$5,000 USD').length).toBeGreaterThanOrEqual(1);
+
+      // Debe mostrar el historial de pagos previo
+      expect(screen.getByText('Historial de Pagos de Anticipo (3)')).toBeInTheDocument();
+      expect(screen.getByText('CANCELLED')).toBeInTheDocument();
+
+      // Ingresar notas opcionales
+      const notesInput = screen.getByPlaceholderText(
+        'Ej. Anticipo Fase 1 de Arquitectura y Auditoría',
+      );
+      fireEvent.change(notesInput, { target: { value: 'Notas anticipo' } });
+
+      // Click en generar sesión
+      const submitBtn = screen.getByRole('button', {
+        name: 'Generar Enlace de Anticipo vía Stripe Checkout 💳',
+      });
+      fireEvent.click(submitBtn);
+
+      await waitFor(() => {
+        expect(authClient.createAdminLeadCheckoutSession).toHaveBeenCalledWith(1, {
+          payment_type: 'DEPOSIT_50',
+          notes: 'Notas anticipo',
+        });
+      });
+
+      // Debe mostrar el enlace generado
+      await waitFor(() => {
+        expect(screen.getByText('Enlace de Pago Generado (Válido por 72h)')).toBeInTheDocument();
+        expect(
+          screen.getByDisplayValue('https://checkout.stripe.com/c/pay/cs_test_session_new'),
+        ).toBeInTheDocument();
+      });
+
+      // Probar copiado de enlace al portapapeles
+      Object.assign(navigator, {
+        clipboard: {
+          writeText: vi.fn().mockResolvedValue(undefined),
+        },
+      });
+
+      const copyBtn = screen.getByRole('button', { name: 'Copiar Enlace 📋' });
+      fireEvent.click(copyBtn);
+
+      await waitFor(() => {
+        expect(screen.getByText('Copiado al Portapapeles ✓')).toBeInTheDocument();
+      });
+
+      // Probar enlace de WhatsApp generado para compartir
+      const sendWaBtn = screen.getByText('Enviar por WhatsApp ↗');
+      expect(sendWaBtn.getAttribute('href')).toContain('https://wa.me/525512345678');
+      expect(sendWaBtn.getAttribute('href')).toContain(
+        encodeURIComponent('https://checkout.stripe.com/c/pay/cs_test_session_new'),
+      );
+    });
+
+    it('debe permitir seleccionar monto personalizado y validar entrada numérica', async () => {
+      const mockLeadNoBudget = {
+        ...mockLeadsData[2],
+        estimated_budget_min: 0,
+        currency: 'MXN',
+      };
+
+      vi.mocked(authClient.fetchAdminLeadDetails).mockResolvedValue({
+        lead: mockLeadNoBudget,
+      });
+
+      render(<LeadCrmPipeline initialLeads={[mockLeadNoBudget]} />);
+
+      fireEvent.click(screen.getByRole('button', { name: 'Expediente ↗' }));
+
+      await waitFor(() => {
+        expect(screen.getByText('Monto Personalizado')).toBeInTheDocument();
+      });
+
+      // Seleccionar radio de monto personalizado
+      const customRadio = screen.getByDisplayValue('CUSTOM');
+      fireEvent.click(customRadio);
+
+      // Si se intenta generar sin monto válido
+      const submitBtn = screen.getByRole('button', {
+        name: 'Generar Enlace de Anticipo vía Stripe Checkout 💳',
+      });
+      fireEvent.click(submitBtn);
+
+      await waitFor(() => {
+        expect(
+          screen.getByText('Ingresa un monto numérico válido mayor a cero.'),
+        ).toBeInTheDocument();
+      });
+
+      // Ingresar monto personalizado válido
+      const amountInput = screen.getByPlaceholderText('Ej. 15000');
+      fireEvent.change(amountInput, { target: { value: '25000' } });
+
+      vi.mocked(authClient.createAdminLeadCheckoutSession).mockResolvedValueOnce({
+        status: 'success',
+        checkout_url: 'https://checkout.stripe.com/pay/cs_custom',
+        session_id: 'cs_custom',
+        amount: 25000,
+        currency: 'MXN',
+      });
+
+      fireEvent.click(submitBtn);
+
+      await waitFor(() => {
+        expect(authClient.createAdminLeadCheckoutSession).toHaveBeenCalledWith(3, {
+          payment_type: 'CUSTOM',
+          custom_amount: 25000,
+        });
+      });
+    });
+
+    it('debe manejar errores de generación de sesión y fallback de copiado', async () => {
+      const mockLead = mockLeadsData[0];
+      vi.mocked(authClient.fetchAdminLeadDetails).mockResolvedValue({
+        lead: mockLead,
+      });
+
+      render(<LeadCrmPipeline initialLeads={[mockLead]} />);
+
+      fireEvent.click(screen.getByRole('button', { name: 'Expediente ↗' }));
+
+      await waitFor(() => {
+        expect(
+          screen.getByRole('button', {
+            name: 'Generar Enlace de Anticipo vía Stripe Checkout 💳',
+          }),
+        ).toBeInTheDocument();
+      });
+
+      // Error en createAdminLeadCheckoutSession
+      vi.mocked(authClient.createAdminLeadCheckoutSession).mockRejectedValueOnce(
+        new Error('Stripe API Timeout'),
+      );
+
+      fireEvent.click(
+        screen.getByRole('button', {
+          name: 'Generar Enlace de Anticipo vía Stripe Checkout 💳',
+        }),
+      );
+
+      await waitFor(() => {
+        expect(screen.getByText('Stripe API Timeout')).toBeInTheDocument();
+      });
+
+      // Simular fallo en navigator.clipboard
+      vi.mocked(authClient.createAdminLeadCheckoutSession).mockResolvedValueOnce({
+        status: 'success',
+        checkout_url: 'https://checkout.stripe.com/pay/cs_fail_clip',
+        session_id: 'cs_fail_clip',
+        amount: 2500,
+        currency: 'USD',
+      });
+
+      fireEvent.click(
+        screen.getByRole('button', {
+          name: 'Generar Enlace de Anticipo vía Stripe Checkout 💳',
+        }),
+      );
+
+      await waitFor(() => {
+        expect(screen.getByText('Copiar Enlace 📋')).toBeInTheDocument();
+      });
+
+      Object.assign(navigator, {
+        clipboard: {
+          writeText: vi.fn().mockRejectedValue(new Error('Permission Denied')),
+        },
+      });
+
+      fireEvent.click(screen.getByText('Copiar Enlace 📋'));
+
+      await waitFor(() => {
+        expect(
+          screen.getByText('No se pudo copiar el enlace al portapapeles.'),
+        ).toBeInTheDocument();
+      });
+    });
+
+    it('debe manejar lead sin presupuesto base, alternar opciones de pago y copiar link exitosamente', async () => {
+      const mockLeadNoBudget = {
+        id: 99,
+        full_name: '',
+        company: 'Empresa Demo',
+        email: 'demo@empresa.com',
+        phone: '+52 55 1234 5678',
+        currency: 'MXN' as const,
+        status: 'NEW' as const,
+        source: 'MANUAL_OUTREACH' as const,
+        created_at: '2026-09-06T10:00:00Z',
+        updated_at: '2026-09-06T10:00:00Z',
+        estimated_budget_min: 0,
+        estimated_budget_max: 0,
+      };
+
+      vi.mocked(authClient.fetchAdminLeadDetails).mockResolvedValue({
+        lead: mockLeadNoBudget,
+      });
+
+      render(<LeadCrmPipeline initialLeads={[mockLeadNoBudget]} />);
+
+      // Abrir expediente
+      fireEvent.click(screen.getByRole('button', { name: 'Expediente ↗' }));
+
+      await waitFor(() => {
+        expect(
+          screen.getByText('Sin presupuesto mínimo base (requiere monto libre)'),
+        ).toBeInTheDocument();
+      });
+
+      // El tipo inicial es CUSTOM ya que no tiene presupuesto mínimo
+      const radio50 = screen.getByLabelText(/Anticipo 50% de Cotización/i);
+      const radioCustom = screen.getByLabelText(/Monto Personalizado/i);
+
+      // Cambiar a 50%
+      fireEvent.click(radio50);
+      expect(radio50).toBeChecked();
+
+      // El botón debe estar deshabilitado porque no hay presupuesto base
+      const submitBtn = screen.getByRole('button', {
+        name: 'Generar Enlace de Anticipo vía Stripe Checkout 💳',
+      });
+      expect(submitBtn).toBeDisabled();
+
+      // Volver a CUSTOM
+      fireEvent.click(radioCustom);
+      expect(radioCustom).toBeChecked();
+      expect(submitBtn).not.toBeDisabled();
+
+      // Ingresar monto personalizado y generar checkout
+      const amountInput = screen.getByPlaceholderText('Ej. 15000');
+      fireEvent.change(amountInput, { target: { value: '25000' } });
+
+      vi.mocked(authClient.createAdminLeadCheckoutSession).mockResolvedValueOnce({
+        status: 'success',
+        checkout_url: 'https://checkout.stripe.com/pay/cs_test_mxn_link',
+        session_id: 'cs_test_mxn_link',
+        amount: 25000,
+        amount_cents: 2500000,
+        currency: 'MXN',
+      });
+
+      fireEvent.click(submitBtn);
+
+      await waitFor(() => {
+        expect(screen.getByText('Copiar Enlace 📋')).toBeInTheDocument();
+      });
+
+      // Copiado exitoso con invocación del timer callback
+      const originalSetTimeout = global.setTimeout;
+      let timerCallback: (() => void) | undefined;
+      const setTimeoutSpy = vi.spyOn(global, 'setTimeout').mockImplementation(((
+        fn: any,
+        ms: any,
+      ) => {
+        if (ms === 3000) {
+          timerCallback = fn;
+          return 123 as any;
+        }
+        return originalSetTimeout(fn, ms);
+      }) as any);
+
+      let copiedText = '';
+      Object.assign(navigator, {
+        clipboard: {
+          writeText: vi.fn().mockImplementation((text: string) => {
+            copiedText = text;
+            return Promise.resolve();
+          }),
+        },
+      });
+
+      fireEvent.click(screen.getByText('Copiar Enlace 📋'));
+
+      await waitFor(() => {
+        expect(screen.getByText('Copiado al Portapapeles ✓')).toBeInTheDocument();
+      });
+
+      // Ejecutar callback para restaurar estado
+      act(() => {
+        if (timerCallback) {
+          timerCallback();
+        }
+      });
+
+      await waitFor(() => {
+        expect(screen.getByText('Copiar Enlace 📋')).toBeInTheDocument();
+      });
+
+      setTimeoutSpy.mockRestore();
+      expect(copiedText).toBe('https://checkout.stripe.com/pay/cs_test_mxn_link');
     });
   });
 });

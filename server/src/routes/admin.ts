@@ -6,6 +6,7 @@ import {
   updateLeadStatusSchema,
   createLeadActivitySchema,
   sendLeadFollowUpEmailSchema,
+  createLeadCheckoutSessionSchema,
 } from '../schemas/crm.schema.js';
 import {
   escapeHtml,
@@ -13,6 +14,7 @@ import {
   renderLeadFollowUpEmail,
 } from '../utils/crm.js';
 import { getTransporter } from './contact.js';
+import { getStripe } from './checkout.js';
 
 export const adminRouter = Router();
 
@@ -45,6 +47,20 @@ export const leadEmailRateLimiter = rateLimit({
   },
 });
 
+// Rate limiter for generating lead checkout payment sessions (Condition C-043): 10 req/min per admin/IP
+export const leadPaymentRateLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req: Request) => getAdminEmailClientKey(req),
+  message: {
+    status: 'error',
+    error: 'Too Many Requests',
+    message: 'Límite de generación de enlaces de pago alcanzado (máximo 10 por minuto). Intenta más tarde.',
+  },
+});
+
 // Protect all admin routes with requireAuth and requireRole('ADMIN') (Condition C-M1)
 adminRouter.use(requireAuth);
 adminRouter.use(requireRole(['ADMIN']));
@@ -59,7 +75,7 @@ adminRouter.get('/leads', async (req: AuthenticatedRequest, res: Response): Prom
 
     let sql = `SELECT id, email, full_name, phone, company, status, assigned_to, last_contacted_at,
                       project_vertical, complexity_level, estimated_budget_min, estimated_budget_max,
-                      estimated_weeks_min, estimated_weeks_max, created_at, updated_at
+                      estimated_weeks_min, estimated_weeks_max, deposit_status, currency, created_at, updated_at
                FROM leads WHERE 1=1`;
     const params: any[] = [];
 
@@ -123,11 +139,21 @@ adminRouter.get('/leads/:id', async (req: AuthenticatedRequest, res: Response): 
       [leadId],
     );
 
+    const payments = await query<any[]>(
+      `SELECT id, lead_id, stripe_session_id, stripe_payment_intent_id, payment_type,
+              amount_cents, currency, status, notes, paid_at, created_at, updated_at
+       FROM lead_payments
+       WHERE lead_id = ?
+       ORDER BY created_at DESC`,
+      [leadId],
+    );
+
     res.json({
       status: 'success',
       lead: {
         ...lead,
         activities,
+        payments,
       },
     });
   } catch (err: any) {
@@ -350,6 +376,252 @@ adminRouter.post(
       res
         .status(500)
         .json({ status: 'error', message: err.message || 'Error al procesar envío de correo.' });
+    }
+  },
+);
+
+/**
+ * POST /api/v1/admin/leads/:id/checkout-session
+ * Generates a Stripe Checkout session for B2B deposit (FC 043 rev-2)
+ */
+adminRouter.post(
+  '/leads/:id/checkout-session',
+  leadPaymentRateLimiter,
+  async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+    try {
+      const leadId = parseInt(req.params.id, 10);
+      if (isNaN(leadId) || leadId <= 0) {
+        res.status(400).json({ status: 'error', message: 'ID de prospecto inválido.' });
+        return;
+      }
+
+      const parseResult = createLeadCheckoutSessionSchema.safeParse(req.body);
+      if (!parseResult.success) {
+        const errorMsg = parseResult.error.errors.map((e) => e.message).join(', ');
+        res.status(400).json({ status: 'error', error: 'Validation Error', message: errorMsg });
+        return;
+      }
+
+      const { payment_type, custom_amount, notes } = parseResult.data;
+
+      const leadRows = await query<any[]>('SELECT * FROM leads WHERE id = ?', [leadId]);
+      if (!leadRows || leadRows.length === 0) {
+        res.status(404).json({ status: 'error', message: 'Prospecto no encontrado.' });
+        return;
+      }
+
+      const lead = leadRows[0];
+      if (!lead.email || typeof lead.email !== 'string' || !lead.email.includes('@')) {
+        res.status(400).json({ status: 'error', message: 'El prospecto no posee un correo electrónico válido.' });
+        return;
+      }
+
+      // Calculate deposit amount (C-043.4, C-043.6)
+      let amount: number;
+      if (payment_type === 'DEPOSIT_50') {
+        const budgetMin = Number(lead.estimated_budget_min);
+        if (!budgetMin || isNaN(budgetMin) || budgetMin <= 0) {
+          res.status(400).json({
+            status: 'error',
+            message: 'El prospecto no tiene un presupuesto mínimo estimado válido para calcular el 50%. Especifica un monto personalizado.',
+          });
+          return;
+        }
+        amount = Math.round(budgetMin * 0.5);
+      } else {
+        if (!custom_amount || custom_amount <= 0) {
+          res.status(400).json({
+            status: 'error',
+            message: 'El monto personalizado debe ser mayor a cero.',
+          });
+          return;
+        }
+        amount = custom_amount;
+      }
+
+      const currency = (lead.currency || 'USD').toUpperCase() as 'USD' | 'MXN';
+
+      // Amount boundary checks (C-043.6)
+      if (currency === 'USD') {
+        if (amount < 50 || amount > 30000) {
+          res.status(400).json({
+            status: 'error',
+            message: `Monto fuera de rango para USD ($50 - $30,000 USD). Monto solicitado: $${amount}`,
+          });
+          return;
+        }
+      } else if (currency === 'MXN') {
+        if (amount < 500 || amount > 500000) {
+          res.status(400).json({
+            status: 'error',
+            message: `Monto fuera de rango para MXN ($500 - $500,000 MXN). Monto solicitado: $${amount}`,
+          });
+          return;
+        }
+      } else {
+        res.status(400).json({
+          status: 'error',
+          message: `Divisa no soportada: ${currency}. Solo se admite USD o MXN.`,
+        });
+        return;
+      }
+
+      const amountCents = Math.round(amount * 100);
+      const currentKey = process.env.STRIPE_SECRET_KEY || 'sk_test_mock';
+
+      // C-043.5: Disallow sk_test_mock in production
+      if (
+        process.env.NODE_ENV === 'production' &&
+        (!process.env.STRIPE_SECRET_KEY || process.env.STRIPE_SECRET_KEY === 'sk_test_mock')
+      ) {
+        res.status(503).json({
+          status: 'error',
+          message: 'Configuración de pasarela de pago Stripe no disponible en producción.',
+        });
+        return;
+      }
+
+      let session: { id: string; url: string; expires_at?: number };
+
+      const stripeInstance = getStripe(currentKey);
+
+      if (currentKey === 'sk_test_mock' && !stripeInstance?.checkout?.sessions?.create) {
+        const mockSessionId = `cs_test_b2b_${Date.now()}_${leadId}`;
+        session = {
+          id: mockSessionId,
+          url: `https://checkout.stripe.com/c/pay/${mockSessionId}`,
+          expires_at: Math.floor(Date.now() / 1000) + 72 * 3600,
+        };
+      } else {
+        const clientName = lead.company || lead.full_name;
+        const itemName =
+          payment_type === 'DEPOSIT_50'
+            ? `Anticipo de Proyecto (50%) — ${clientName}`
+            : `Anticipo de Proyecto — ${clientName}`;
+
+        const baseUrl = process.env.CORS_ORIGIN || 'https://dreamtek.tech';
+
+        const stripeSession = await stripeInstance.checkout.sessions.create({
+          payment_method_types: ['card'],
+          customer_email: lead.email,
+          client_reference_id: String(lead.id),
+          metadata: {
+            tenant_type: 'B2B_LEAD',
+            lead_id: String(lead.id),
+            payment_type,
+            notes: notes || '',
+          },
+          line_items: [
+            {
+              price_data: {
+                currency: currency.toLowerCase(),
+                product_data: {
+                  name: itemName,
+                  description:
+                    'Anticipo inicial para formalizar arquitectura técnica y reserva de sprints. Saldo restante sujeto a hitos.',
+                },
+                unit_amount: amountCents,
+              },
+              quantity: 1,
+            },
+          ],
+          mode: 'payment',
+          success_url: `${baseUrl}/checkout/success?session_id={CHECKOUT_SESSION_ID}&lead_id=${lead.id}&type=deposit`,
+          cancel_url: `${baseUrl}/checkout/cancel?lead_id=${lead.id}`,
+        });
+
+        session = {
+          id: stripeSession.id,
+          url: stripeSession.url || `https://checkout.stripe.com/c/pay/${stripeSession.id}`,
+          expires_at: stripeSession.expires_at,
+        };
+      }
+
+      // Persist in lead_payments (DDL 041)
+      const sanitizedNotes = notes ? escapeHtml(notes) : null;
+      await query(
+        `INSERT INTO lead_payments (lead_id, stripe_session_id, payment_type, amount_cents, currency, status, notes)
+         VALUES (?, ?, ?, ?, ?, 'PENDING', ?)`,
+        [leadId, session.id, payment_type, amountCents, currency, sanitizedNotes],
+      );
+
+      // Update lead deposit_status
+      await query(
+        `UPDATE leads SET deposit_status = 'PENDING', updated_at = NOW() WHERE id = ?`,
+        [leadId],
+      );
+
+      // Register activity
+      const activityTitle =
+        payment_type === 'DEPOSIT_50'
+          ? `Enlace de anticipo 50% generado`
+          : `Enlace de pago personalizado generado`;
+      const activityDetails = `Monto: $${amount.toLocaleString()} ${currency}. Sesión: ${session.id}`;
+
+      await query(
+        `INSERT INTO lead_activities (lead_id, user_id, activity_type, title, details)
+         VALUES (?, ?, 'NOTE', ?, ?)`,
+        [leadId, req.user!.userId, activityTitle, activityDetails],
+      );
+
+      res.status(201).json({
+        status: 'success',
+        message: 'Sesión de anticipo generada con éxito.',
+        checkout_url: session.url,
+        session_id: session.id,
+        amount,
+        amount_cents: amountCents,
+        currency,
+        expires_at: session.expires_at,
+      });
+    } catch (err: any) {
+      res
+        .status(500)
+        .json({
+          status: 'error',
+          message: err.message || 'Error al generar sesión de pago para el prospecto.',
+        });
+    }
+  },
+);
+
+/**
+ * GET /api/v1/admin/leads/:id/payments
+ * Returns payment history for a specific lead (FC 043 rev-2)
+ */
+adminRouter.get(
+  '/leads/:id/payments',
+  async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+    try {
+      const leadId = parseInt(req.params.id, 10);
+      if (isNaN(leadId) || leadId <= 0) {
+        res.status(400).json({ status: 'error', message: 'ID de prospecto inválido.' });
+        return;
+      }
+
+      const leadRows = await query<any[]>('SELECT id FROM leads WHERE id = ?', [leadId]);
+      if (!leadRows || leadRows.length === 0) {
+        res.status(404).json({ status: 'error', message: 'Prospecto no encontrado.' });
+        return;
+      }
+
+      const payments = await query<any[]>(
+        `SELECT id, lead_id, stripe_session_id, stripe_payment_intent_id, payment_type,
+                amount_cents, currency, status, notes, paid_at, created_at, updated_at
+         FROM lead_payments
+         WHERE lead_id = ?
+         ORDER BY created_at DESC`,
+        [leadId],
+      );
+
+      res.json({
+        status: 'success',
+        payments,
+      });
+    } catch (err: any) {
+      res
+        .status(500)
+        .json({ status: 'error', message: err.message || 'Error al consultar pagos del prospecto.' });
     }
   },
 );
