@@ -16,6 +16,7 @@ vi.mock('@/lib/auth/client', () => ({
   fetchArchonBridgeUrl: vi.fn(),
   fetchAdminLeads: vi.fn(),
   fetchAdminAuditLogs: vi.fn(),
+  updateClientProjectBriefing: vi.fn(),
 }));
 
 describe('ClientDashboardPage Component Suite (FC 038 100% Coverage)', () => {
@@ -318,5 +319,147 @@ describe('ClientDashboardPage Component Suite (FC 038 100% Coverage)', () => {
     const { unmount } = render(<ClientDashboardPage />);
     unmount();
     rejectPromise(new Error('Abort'));
+  });
+
+  it('debe refrescar datos vía onProjectUpdated cuando se actualiza un proyecto B2B', async () => {
+    const mockDataWithProject: authClient.ClientDashboardData = {
+      status: 'success',
+      profile: {
+        id: 42,
+        full_name: 'Cliente Corporativo B2B',
+        email: 'b2b@empresa.com',
+        role: 'CLIENT',
+        created_at: '2026-09-01',
+      },
+      services: [],
+      sites: [],
+      projects: [
+        {
+          id: 77,
+          tenant_id: 1,
+          user_id: 42,
+          project_name: 'Proyecto Onboarding',
+          vertical: 'custom_dev',
+          status: 'ONBOARDING_BRIEF',
+          currency: 'USD',
+          budget_cents: 200000,
+          paid_amount_cents: 100000,
+          pending_balance_cents: 100000,
+          estimated_weeks: 4,
+          created_at: '2026-09-01',
+          updated_at: '2026-09-01',
+        },
+      ],
+    };
+
+    vi.mocked(authClient.fetchClientDashboard).mockResolvedValueOnce(mockDataWithProject);
+    vi.mocked(authClient.updateClientProjectBriefing).mockResolvedValueOnce({
+      status: 'success',
+      message: 'OK',
+      briefing: {} as unknown as authClient.ClientProjectBriefing,
+      status_updated: 'ARCHITECTURE_DESIGN',
+    });
+
+    // Mock segunda llamada tras update
+    vi.mocked(authClient.fetchClientDashboard).mockResolvedValueOnce({
+      ...mockDataWithProject,
+      projects: [
+        {
+          ...mockDataWithProject.projects![0],
+          status: 'ARCHITECTURE_DESIGN',
+        },
+      ],
+    });
+
+    render(<ClientDashboardPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText('Proyecto Onboarding')).toBeInTheDocument();
+    });
+
+    const openModalBtn = screen.getByRole('button', { name: 'Completar Briefing' });
+    fireEvent.click(openModalBtn);
+
+    const goalsInput = screen.getByPlaceholderText(/Describe qué problema resuelve/);
+    fireEvent.change(goalsInput, {
+      target: { value: 'Objetivos comerciales para el portal corporativo' },
+    });
+
+    const submitBtn = screen.getByRole('button', { name: 'Guardar Briefing' });
+    fireEvent.click(submitBtn);
+
+    await waitFor(
+      () => {
+        expect(authClient.fetchClientDashboard).toHaveBeenCalledTimes(2);
+      },
+      { timeout: 3000 },
+    );
+  });
+
+  it('debe manejar error silencioso en onProjectUpdated si fetchClientDashboard falla', async () => {
+    const mockDataWithProject: authClient.ClientDashboardData = {
+      status: 'success',
+      profile: {
+        id: 42,
+        full_name: 'Cliente Corporativo B2B',
+        email: 'b2b@empresa.com',
+        role: 'CLIENT',
+        created_at: '2026-09-01',
+      },
+      services: [],
+      sites: [],
+      projects: [
+        {
+          id: 88,
+          tenant_id: 1,
+          user_id: 42,
+          project_name: 'Proyecto Error Update',
+          vertical: 'custom_dev',
+          status: 'ONBOARDING_BRIEF',
+          currency: 'USD',
+          budget_cents: 200000,
+          paid_amount_cents: 100000,
+          pending_balance_cents: 100000,
+          estimated_weeks: 4,
+          created_at: '2026-09-01',
+          updated_at: '2026-09-01',
+        },
+      ],
+    };
+
+    vi.mocked(authClient.fetchClientDashboard).mockResolvedValueOnce(mockDataWithProject);
+    vi.mocked(authClient.updateClientProjectBriefing).mockResolvedValueOnce({
+      status: 'success',
+      message: 'OK',
+      briefing: {} as unknown as authClient.ClientProjectBriefing,
+      status_updated: 'ARCHITECTURE_DESIGN',
+    });
+
+    // Mock que rechaza en el callback
+    vi.mocked(authClient.fetchClientDashboard).mockRejectedValueOnce(
+      new Error('Network error on refresh'),
+    );
+
+    render(<ClientDashboardPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText('Proyecto Error Update')).toBeInTheDocument();
+    });
+
+    const openModalBtn = screen.getByRole('button', { name: 'Completar Briefing' });
+    fireEvent.click(openModalBtn);
+
+    const goalsInput = screen.getByPlaceholderText(/Describe qué problema resuelve/);
+    fireEvent.change(goalsInput, { target: { value: 'Objetivos para probar catch en refresh' } });
+
+    const submitBtn = screen.getByRole('button', { name: 'Guardar Briefing' });
+    fireEvent.click(submitBtn);
+
+    await waitFor(
+      () => {
+        expect(authClient.fetchClientDashboard).toHaveBeenCalledTimes(2);
+      },
+      { timeout: 3000 },
+    );
   });
 });

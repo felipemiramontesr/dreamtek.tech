@@ -130,3 +130,124 @@ authRouter.get('/me', async (req: Request, res: Response): Promise<void> => {
     res.status(401).json({ status: 'error', message: 'Sesión expirada o inválida.' });
   }
 });
+
+/**
+ * GET /api/v1/auth/invite/verify
+ * Validates an onboarding invite token (Condition C-044.1 / FC 044)
+ */
+authRouter.get('/invite/verify', async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { token } = req.query;
+    if (!token || typeof token !== 'string') {
+      res
+        .status(400)
+        .json({ status: 'error', valid: false, message: 'Token de invitación requerido.' });
+      return;
+    }
+
+    const payload = jwt.verify(token, getJwtSecret(), { algorithms: ['HS512'] }) as any;
+    if (payload.action !== 'B2B_PORTAL_INVITE') {
+      res
+        .status(400)
+        .json({ status: 'error', valid: false, message: 'Token de invitación inválido.' });
+      return;
+    }
+
+    res.json({
+      status: 'success',
+      valid: true,
+      email: payload.email,
+      userId: payload.userId,
+    });
+  } catch (_err) {
+    res.status(400).json({ status: 'error', valid: false, message: 'Token expirado o inválido.' });
+  }
+});
+
+/**
+ * POST /api/v1/auth/activate
+ * Sets initial password for invited B2B client and authenticates (Condition C-044.1 / FC 044)
+ */
+authRouter.post('/activate', async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { token, password } = req.body;
+    if (!token || typeof token !== 'string' || !password || typeof password !== 'string') {
+      res.status(400).json({ status: 'error', message: 'Token y contraseña requeridos.' });
+      return;
+    }
+
+    if (password.length < 8) {
+      res
+        .status(400)
+        .json({ status: 'error', message: 'La contraseña debe tener al menos 8 caracteres.' });
+      return;
+    }
+
+    let payload: any;
+    try {
+      payload = jwt.verify(token, getJwtSecret(), { algorithms: ['HS512'] });
+    } catch (_err) {
+      res
+        .status(400)
+        .json({ status: 'error', message: 'Token de invitación expirado o inválido.' });
+      return;
+    }
+
+    if (payload.action !== 'B2B_PORTAL_INVITE') {
+      res.status(400).json({ status: 'error', message: 'Tipo de token inválido para activación.' });
+      return;
+    }
+
+    const users = await query<any[]>(
+      'SELECT id, email, role, full_name FROM users WHERE id = ? LIMIT 1',
+      [payload.userId],
+    );
+    const user = users[0];
+    if (!user) {
+      res.status(404).json({ status: 'error', message: 'Usuario no encontrado.' });
+      return;
+    }
+
+    const passwordHash = await bcrypt.hash(password, 12);
+    await query('UPDATE users SET password_hash = ? WHERE id = ?', [passwordHash, user.id]);
+
+    await logSecurityEvent(req, {
+      eventType: 'CLIENT_INVITE_ACTIVATED',
+      userId: user.id,
+      status: 'SUCCESS',
+      details: `B2B Client account activated for ${user.email}`,
+    });
+
+    const sessionToken = jwt.sign(
+      {
+        userId: user.id,
+        uid: user.id,
+        email: user.email,
+        role: (user.role || 'CLIENT').toUpperCase(),
+        name: user.full_name,
+      },
+      getJwtSecret(),
+      { algorithm: 'HS512', expiresIn: '24h' },
+    );
+
+    res.cookie(COOKIE_NAME, sessionToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      maxAge: 7 * 24 * 60 * 60 * 1000,
+    });
+
+    res.json({
+      status: 'success',
+      message: 'Cuenta activada y contraseña configurada exitosamente.',
+      user: {
+        id: user.id,
+        email: user.email,
+        role: user.role,
+        full_name: user.full_name,
+      },
+    });
+  } catch (err: any) {
+    res.status(500).json({ status: 'error', message: err.message || 'Error al activar cuenta.' });
+  }
+});

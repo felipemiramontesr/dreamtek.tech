@@ -3,13 +3,28 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.clientRouter = void 0;
+exports.clientBriefingRateLimiter = exports.clientRouter = void 0;
 exports.getArchonSsoSecret = getArchonSsoSecret;
 const express_1 = require("express");
+const express_rate_limit_1 = __importDefault(require("express-rate-limit"));
 const crypto_1 = __importDefault(require("crypto"));
 const db_js_1 = require("../db.js");
 const auth_js_1 = require("../middleware/auth.js");
+const project_schema_js_1 = require("../schemas/project.schema.js");
+const crm_js_1 = require("../utils/crm.js");
 exports.clientRouter = (0, express_1.Router)();
+// Rate limiter for briefing updates (15 req/min per IP)
+exports.clientBriefingRateLimiter = (0, express_rate_limit_1.default)({
+    windowMs: 60 * 1000,
+    max: 15,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: {
+        status: 'error',
+        error: 'Too Many Requests',
+        message: 'Demasiadas solicitudes de actualización de briefing. Intenta de nuevo en un momento.',
+    },
+});
 // Protect all client routes with requireAuth middleware
 exports.clientRouter.use(auth_js_1.requireAuth);
 /**
@@ -55,6 +70,47 @@ exports.clientRouter.get('/dashboard', async (req, res) => {
             console.error('⚠️ subscriptions DB query warning:', subErr?.message || subErr);
             services = [];
         }
+        // Query client projects and milestones (FC 044 / Condition C-044)
+        let projects = [];
+        try {
+            const projectRows = await (0, db_js_1.query)(`SELECT id, tenant_id, user_id, lead_id, project_name, vertical, status,
+                currency, budget_cents, paid_amount_cents, pending_balance_cents,
+                estimated_weeks, briefing_data, staging_url, repository_url,
+                created_at, updated_at
+         FROM client_projects
+         WHERE user_id = ?
+         ORDER BY created_at DESC`, [userId]);
+            for (const proj of projectRows) {
+                const milestones = await (0, db_js_1.query)(`SELECT id, project_id, milestone_index, title, description, target_week, status, completed_at
+           FROM client_project_milestones
+           WHERE project_id = ?
+           ORDER BY milestone_index ASC`, [proj.id]).catch(() => []);
+                const completedCount = milestones.filter((m) => m.status === 'COMPLETED').length;
+                const progressPercent = milestones.length > 0 ? Math.round((completedCount / milestones.length) * 100) : 0;
+                let parsedBriefing = null;
+                if (proj.briefing_data) {
+                    try {
+                        parsedBriefing =
+                            typeof proj.briefing_data === 'string'
+                                ? JSON.parse(proj.briefing_data)
+                                : proj.briefing_data;
+                    }
+                    catch {
+                        parsedBriefing = proj.briefing_data;
+                    }
+                }
+                projects.push({
+                    ...proj,
+                    briefing_data: parsedBriefing,
+                    milestones,
+                    progress_percent: progressPercent,
+                });
+            }
+        }
+        catch (projErr) {
+            console.error('⚠️ client_projects DB query warning:', projErr?.message || projErr);
+            projects = [];
+        }
         res.json({
             status: 'success',
             profile: {
@@ -66,6 +122,7 @@ exports.clientRouter.get('/dashboard', async (req, res) => {
             },
             services,
             sites,
+            projects,
         });
     }
     catch (err) {
@@ -99,6 +156,124 @@ exports.clientRouter.get('/sites', async (req, res) => {
             status: 'error',
             message: err.message || 'Error al obtener sitios web del cliente.',
         });
+    }
+});
+/**
+ * GET /api/v1/client/projects/:id
+ * Anti-IDOR: Returns B2B project detail with milestones and progress (Condition C-044.7)
+ */
+exports.clientRouter.get('/projects/:id', async (req, res) => {
+    try {
+        const userId = req.user?.userId;
+        const projectId = parseInt(req.params.id, 10);
+        if (isNaN(projectId) || projectId <= 0) {
+            res.status(400).json({ status: 'error', message: 'ID de proyecto inválido.' });
+            return;
+        }
+        const projectRows = await (0, db_js_1.query)(`SELECT id, tenant_id, user_id, lead_id, project_name, vertical, status,
+              currency, budget_cents, paid_amount_cents, pending_balance_cents,
+              estimated_weeks, briefing_data, staging_url, repository_url,
+              created_at, updated_at
+       FROM client_projects
+       WHERE id = ? AND user_id = ?
+       LIMIT 1`, [projectId, userId]);
+        if (!projectRows || projectRows.length === 0) {
+            res
+                .status(404)
+                .json({ status: 'error', error: 'Not Found', message: 'Proyecto no encontrado.' });
+            return;
+        }
+        const proj = projectRows[0];
+        const milestones = await (0, db_js_1.query)(`SELECT id, project_id, milestone_index, title, description, target_week, status, completed_at
+       FROM client_project_milestones
+       WHERE project_id = ?
+       ORDER BY milestone_index ASC`, [proj.id]).catch(() => []);
+        const completedCount = milestones.filter((m) => m.status === 'COMPLETED').length;
+        const progressPercent = milestones.length > 0 ? Math.round((completedCount / milestones.length) * 100) : 0;
+        let parsedBriefing = null;
+        if (proj.briefing_data) {
+            try {
+                parsedBriefing =
+                    typeof proj.briefing_data === 'string'
+                        ? JSON.parse(proj.briefing_data)
+                        : proj.briefing_data;
+            }
+            catch {
+                parsedBriefing = proj.briefing_data;
+            }
+        }
+        res.json({
+            status: 'success',
+            project: {
+                ...proj,
+                briefing_data: parsedBriefing,
+                milestones,
+                progress_percent: progressPercent,
+            },
+        });
+    }
+    catch (err) {
+        res
+            .status(500)
+            .json({ status: 'error', message: err.message || 'Error al consultar proyecto.' });
+    }
+});
+/**
+ * PUT /api/v1/client/projects/:id/briefing
+ * Anti-IDOR + Anti-XSS: Updates briefing data (Conditions C-044.4, C-044.7, OWASP A03)
+ */
+exports.clientRouter.put('/projects/:id/briefing', exports.clientBriefingRateLimiter, async (req, res) => {
+    try {
+        const userId = req.user?.userId;
+        const projectId = parseInt(req.params.id, 10);
+        if (isNaN(projectId) || projectId <= 0) {
+            res.status(400).json({ status: 'error', message: 'ID de proyecto inválido.' });
+            return;
+        }
+        // Check project existence & ownership (Anti-IDOR)
+        const projectRows = await (0, db_js_1.query)('SELECT id, status FROM client_projects WHERE id = ? AND user_id = ? LIMIT 1', [projectId, userId]);
+        if (!projectRows || projectRows.length === 0) {
+            res
+                .status(404)
+                .json({ status: 'error', error: 'Not Found', message: 'Proyecto no encontrado.' });
+            return;
+        }
+        const parsed = project_schema_js_1.clientBriefingSchema.safeParse(req.body);
+        if (!parsed.success) {
+            res.status(400).json({
+                status: 'error',
+                error: 'Validation Error',
+                details: parsed.error.format(),
+            });
+            return;
+        }
+        const { business_goals, target_audience, technical_stack_preferences, infrastructure_notes, reference_urls, contact_lead_notes, } = parsed.data;
+        // Sanitización anti-XSS (C-044 / A03)
+        const sanitizedBriefing = {
+            business_goals: (0, crm_js_1.escapeHtml)(business_goals),
+            target_audience: (0, crm_js_1.escapeHtml)(target_audience || ''),
+            technical_stack_preferences: (0, crm_js_1.escapeHtml)(technical_stack_preferences || ''),
+            infrastructure_notes: (0, crm_js_1.escapeHtml)(infrastructure_notes || ''),
+            reference_urls,
+            contact_lead_notes: (0, crm_js_1.escapeHtml)(contact_lead_notes || ''),
+            submitted_at: new Date().toISOString(),
+        };
+        const currentStatus = projectRows[0].status;
+        const newStatus = currentStatus === 'ONBOARDING_BRIEF' ? 'ARCHITECTURE_DESIGN' : currentStatus;
+        await (0, db_js_1.query)(`UPDATE client_projects
+         SET briefing_data = ?, status = ?, updated_at = NOW()
+         WHERE id = ? AND user_id = ?`, [JSON.stringify(sanitizedBriefing), newStatus, projectId, userId]);
+        res.json({
+            status: 'success',
+            message: 'Briefing técnico actualizado con éxito.',
+            briefing: sanitizedBriefing,
+            status_updated: newStatus,
+        });
+    }
+    catch (err) {
+        res
+            .status(500)
+            .json({ status: 'error', message: err.message || 'Error al actualizar el briefing.' });
     }
 });
 /**

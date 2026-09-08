@@ -5,6 +5,7 @@ import crypto from 'crypto';
 import bcrypt from 'bcryptjs';
 import { query, withTransaction } from '../db.js';
 import { getJwtSecret } from './auth.js';
+import { provisionClientProjectForLead } from '../utils/project.js';
 
 export const checkoutRouter = Router();
 
@@ -201,7 +202,8 @@ checkoutRouter.post('/webhook', async (req: Request, res: Response): Promise<voi
           res.status(400).json({
             status: 'error',
             error: 'Amount Or Currency Mismatch',
-            message: 'Discrepancia de monto o divisa en la sesión de pago respecto al registro pactado.',
+            message:
+              'Discrepancia de monto o divisa en la sesión de pago respecto al registro pactado.',
           });
           return;
         }
@@ -241,6 +243,11 @@ checkoutRouter.post('/webhook', async (req: Request, res: Response): Promise<voi
              VALUES (?, NULL, 'STATUS_CHANGE', 'Anticipo cobrado con éxito (Stripe)', ?)`,
             [leadId, activityDetails],
           );
+
+          // Auto-aprovisionamiento B2B: proyecto, usuario CLIENT, tenant e hitos canónicos (FC 044 / C-044)
+          await provisionClientProjectForLead(conn, leadId, {
+            paidAmountCents: leadPayment.amount_cents,
+          });
         });
 
         res.json({
@@ -330,14 +337,17 @@ checkoutRouter.post('/webhook', async (req: Request, res: Response): Promise<voi
         // Auto-provision tenant
         let tenantId: number | string = userId;
         try {
-          const tenantRows: any = await tx.query('SELECT id FROM tenants WHERE owner_user_id = ? LIMIT 1', [userId]);
+          const tenantRows: any = await tx.query(
+            'SELECT id FROM tenants WHERE owner_user_id = ? LIMIT 1',
+            [userId],
+          );
           if (tenantRows && tenantRows.length > 0) {
             tenantId = tenantRows[0].id;
           } else {
-            const tenantRes: any = await tx.query('INSERT INTO tenants (name, owner_user_id) VALUES (?, ?)', [
-              `Tenant ${session.customer_details?.name || email || userId}`,
-              userId,
-            ]);
+            const tenantRes: any = await tx.query(
+              'INSERT INTO tenants (name, owner_user_id) VALUES (?, ?)',
+              [`Tenant ${session.customer_details?.name || email || userId}`, userId],
+            );
             if (tenantRes?.insertId) {
               tenantId = tenantRes.insertId;
             }
@@ -353,9 +363,10 @@ checkoutRouter.post('/webhook', async (req: Request, res: Response): Promise<voi
             [tenantId],
           );
           if (!workspaceRows || workspaceRows.length === 0) {
-            await tx.query('INSERT INTO workspaces (tenant_id, name) VALUES (?, "Default Workspace")', [
-              tenantId,
-            ]);
+            await tx.query(
+              'INSERT INTO workspaces (tenant_id, name) VALUES (?, "Default Workspace")',
+              [tenantId],
+            );
           }
         } catch (_wsErr) {
           // Soft fallback
@@ -452,7 +463,7 @@ checkoutRouter.get('/verify', async (req: Request, res: Response): Promise<void>
       'SELECT status FROM orders WHERE payment_gateway_id = ? LIMIT 1',
       [session_id],
     );
-    const isPaid = orderRows && orderRows.length > 0 && orderRows[0].status === 'paid';
+    let isPaid = orderRows && orderRows.length > 0 && orderRows[0].status === 'paid';
 
     let token: string | undefined = undefined;
     if (isPaid) {
@@ -477,6 +488,37 @@ checkoutRouter.get('/verify', async (req: Request, res: Response): Promise<void>
         }
       } catch (_jwtErr) {
         // Soft ignore if joins/tables are mocked loosely
+      }
+    } else {
+      // Check B2B lead deposit payments (Condition C-044.1 / FC 044)
+      try {
+        const leadPayRows: any = await query(
+          `SELECT lp.status, l.email, u.id as user_id, u.full_name, u.role
+           FROM lead_payments lp
+           JOIN leads l ON l.id = lp.lead_id
+           LEFT JOIN users u ON u.email = l.email
+           WHERE lp.stripe_session_id = ? LIMIT 1`,
+          [session_id],
+        );
+        if (leadPayRows && leadPayRows.length > 0 && leadPayRows[0].status === 'PAID') {
+          isPaid = true;
+          const lp = leadPayRows[0];
+          if (lp.user_id) {
+            token = jwt.sign(
+              {
+                userId: lp.user_id,
+                uid: lp.user_id,
+                email: lp.email,
+                role: (lp.role || 'CLIENT').toUpperCase(),
+                name: lp.full_name || 'Cliente B2B',
+              },
+              getJwtSecret(),
+              { algorithm: 'HS512', expiresIn: '24h' },
+            );
+          }
+        }
+      } catch (_b2bErr) {
+        // Soft ignore
       }
     }
 

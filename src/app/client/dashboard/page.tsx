@@ -8,6 +8,7 @@ import { fetchClientDashboard, logoutUser, type ClientDashboardData } from '@/li
 import { EscoltaWidget } from '@/components/dashboard/escolta/EscoltaWidget';
 import { ArchonWidget } from '@/components/dashboard/archon/ArchonWidget';
 import { CyberAuditWidget } from '@/components/dashboard/cyber/CyberAuditWidget';
+import { B2BProjectWorkspaceWidget } from '@/components/dashboard/client/B2BProjectWorkspaceWidget';
 import { OmnipotentAdminPanel } from '@/components/dashboard/admin/OmnipotentAdminPanel';
 
 export default function ClientDashboardPage() {
@@ -97,7 +98,7 @@ export default function ClientDashboardPage() {
     );
   }
 
-  const { profile, services = [], sites = [] } = data;
+  const { profile, services = [], sites = [], projects = [] } = data;
   const isAdmin = profile.role === 'ADMIN';
   const hasArchon = services.some((s) => s.name?.toLowerCase().includes('archon')) || isAdmin;
 
@@ -201,6 +202,16 @@ export default function ClientDashboardPage() {
 
             {/* Módulos de Productos */}
             <div className="grid grid-cols-1 gap-6">
+              {/* Módulo B2B: Proyectos Corporativos & Workspace */}
+              <B2BProjectWorkspaceWidget
+                projects={projects}
+                onProjectUpdated={() => {
+                  fetchClientDashboard()
+                    .then((res) => setData(res))
+                    .catch(() => {});
+                }}
+              />
+
               {/* Módulo 1: Escolta WEB */}
               <EscoltaWidget
                 sites={sites}

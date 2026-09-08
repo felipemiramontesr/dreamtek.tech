@@ -1,6 +1,6 @@
 import { Router, Response, Request } from 'express';
 import rateLimit from 'express-rate-limit';
-import { query } from '../db.js';
+import { query, withTransaction } from '../db.js';
 import { requireAuth, requireRole, AuthenticatedRequest } from '../middleware/auth.js';
 import {
   updateLeadStatusSchema,
@@ -9,10 +9,12 @@ import {
   createLeadCheckoutSessionSchema,
 } from '../schemas/crm.schema.js';
 import {
-  escapeHtml,
-  escapeLikeWildcards,
-  renderLeadFollowUpEmail,
-} from '../utils/crm.js';
+  adminUpdateProjectSchema,
+  adminUpdateMilestoneSchema,
+  adminCreateProjectFromLeadSchema,
+} from '../schemas/project.schema.js';
+import { escapeHtml, escapeLikeWildcards, renderLeadFollowUpEmail } from '../utils/crm.js';
+import { provisionClientProjectForLead } from '../utils/project.js';
 import { getTransporter } from './contact.js';
 import { getStripe } from './checkout.js';
 
@@ -57,7 +59,8 @@ export const leadPaymentRateLimiter = rateLimit({
   message: {
     status: 'error',
     error: 'Too Many Requests',
-    message: 'Límite de generación de enlaces de pago alcanzado (máximo 10 por minuto). Intenta más tarde.',
+    message:
+      'Límite de generación de enlaces de pago alcanzado (máximo 10 por minuto). Intenta más tarde.',
   },
 });
 
@@ -159,7 +162,10 @@ adminRouter.get('/leads/:id', async (req: AuthenticatedRequest, res: Response): 
   } catch (err: any) {
     res
       .status(500)
-      .json({ status: 'error', message: err.message || 'Error al consultar expediente de prospecto.' });
+      .json({
+        status: 'error',
+        message: err.message || 'Error al consultar expediente de prospecto.',
+      });
   }
 });
 
@@ -167,112 +173,126 @@ adminRouter.get('/leads/:id', async (req: AuthenticatedRequest, res: Response): 
  * PATCH /api/v1/admin/leads/:id/status
  * Updates lead status and logs STATUS_CHANGE in lead_activities
  */
-adminRouter.patch('/leads/:id/status', async (req: AuthenticatedRequest, res: Response): Promise<void> => {
-  try {
-    const leadId = parseInt(req.params.id, 10);
-    if (isNaN(leadId) || leadId <= 0) {
-      res.status(400).json({ status: 'error', message: 'ID de prospecto inválido.' });
-      return;
-    }
+adminRouter.patch(
+  '/leads/:id/status',
+  async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+    try {
+      const leadId = parseInt(req.params.id, 10);
+      if (isNaN(leadId) || leadId <= 0) {
+        res.status(400).json({ status: 'error', message: 'ID de prospecto inválido.' });
+        return;
+      }
 
-    const parseResult = updateLeadStatusSchema.safeParse(req.body);
-    if (!parseResult.success) {
-      const errorMsg = parseResult.error.errors.map((e) => e.message).join(', ');
-      res.status(400).json({ status: 'error', error: 'Validation Error', message: errorMsg });
-      return;
-    }
+      const parseResult = updateLeadStatusSchema.safeParse(req.body);
+      if (!parseResult.success) {
+        const errorMsg = parseResult.error.errors.map((e) => e.message).join(', ');
+        res.status(400).json({ status: 'error', error: 'Validation Error', message: errorMsg });
+        return;
+      }
 
-    const { status: newStatus, note } = parseResult.data;
+      const { status: newStatus, note } = parseResult.data;
 
-    const leadRows = await query<any[]>('SELECT id, status, full_name, email FROM leads WHERE id = ?', [leadId]);
-    if (!leadRows || leadRows.length === 0) {
-      res.status(404).json({ status: 'error', message: 'Prospecto no encontrado.' });
-      return;
-    }
+      const leadRows = await query<any[]>(
+        'SELECT id, status, full_name, email FROM leads WHERE id = ?',
+        [leadId],
+      );
+      if (!leadRows || leadRows.length === 0) {
+        res.status(404).json({ status: 'error', message: 'Prospecto no encontrado.' });
+        return;
+      }
 
-    const previousStatus = leadRows[0].status;
+      const previousStatus = leadRows[0].status;
 
-    // Update lead status
-    await query(
-      'UPDATE leads SET status = ?, last_contacted_at = NOW(), updated_at = NOW() WHERE id = ?',
-      [newStatus, leadId],
-    );
+      // Update lead status
+      await query(
+        'UPDATE leads SET status = ?, last_contacted_at = NOW(), updated_at = NOW() WHERE id = ?',
+        [newStatus, leadId],
+      );
 
-    // Insert activity record
-    const noteDetail = note ? ` Nota: ${escapeHtml(note)}` : '';
-    await query(
-      `INSERT INTO lead_activities (lead_id, user_id, activity_type, title, details)
+      // Insert activity record
+      const noteDetail = note ? ` Nota: ${escapeHtml(note)}` : '';
+      await query(
+        `INSERT INTO lead_activities (lead_id, user_id, activity_type, title, details)
        VALUES (?, ?, 'STATUS_CHANGE', ?, ?)`,
-      [
-        leadId,
-        req.user!.userId,
-        `Transición a ${newStatus}`,
-        `Estado actualizado de ${previousStatus || 'NEW'} a ${newStatus}.${noteDetail}`,
-      ],
-    );
+        [
+          leadId,
+          req.user!.userId,
+          `Transición a ${newStatus}`,
+          `Estado actualizado de ${previousStatus || 'NEW'} a ${newStatus}.${noteDetail}`,
+        ],
+      );
 
-    res.json({
-      status: 'success',
-      message: 'Estado del prospecto actualizado con éxito.',
-      previous_status: previousStatus,
-      new_status: newStatus,
-    });
-  } catch (err: any) {
-    res
-      .status(500)
-      .json({ status: 'error', message: err.message || 'Error al actualizar estado del prospecto.' });
-  }
-});
+      res.json({
+        status: 'success',
+        message: 'Estado del prospecto actualizado con éxito.',
+        previous_status: previousStatus,
+        new_status: newStatus,
+      });
+    } catch (err: any) {
+      res
+        .status(500)
+        .json({
+          status: 'error',
+          message: err.message || 'Error al actualizar estado del prospecto.',
+        });
+    }
+  },
+);
 
 /**
  * POST /api/v1/admin/leads/:id/activities
  * Registers a manual note, call log, or meeting in lead_activities
  */
-adminRouter.post('/leads/:id/activities', async (req: AuthenticatedRequest, res: Response): Promise<void> => {
-  try {
-    const leadId = parseInt(req.params.id, 10);
-    if (isNaN(leadId) || leadId <= 0) {
-      res.status(400).json({ status: 'error', message: 'ID de prospecto inválido.' });
-      return;
-    }
+adminRouter.post(
+  '/leads/:id/activities',
+  async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+    try {
+      const leadId = parseInt(req.params.id, 10);
+      if (isNaN(leadId) || leadId <= 0) {
+        res.status(400).json({ status: 'error', message: 'ID de prospecto inválido.' });
+        return;
+      }
 
-    const parseResult = createLeadActivitySchema.safeParse(req.body);
-    if (!parseResult.success) {
-      const errorMsg = parseResult.error.errors.map((e) => e.message).join(', ');
-      res.status(400).json({ status: 'error', error: 'Validation Error', message: errorMsg });
-      return;
-    }
+      const parseResult = createLeadActivitySchema.safeParse(req.body);
+      if (!parseResult.success) {
+        const errorMsg = parseResult.error.errors.map((e) => e.message).join(', ');
+        res.status(400).json({ status: 'error', error: 'Validation Error', message: errorMsg });
+        return;
+      }
 
-    const { activity_type, title, details } = parseResult.data;
+      const { activity_type, title, details } = parseResult.data;
 
-    const leadRows = await query<any[]>('SELECT id FROM leads WHERE id = ?', [leadId]);
-    if (!leadRows || leadRows.length === 0) {
-      res.status(404).json({ status: 'error', message: 'Prospecto no encontrado.' });
-      return;
-    }
+      const leadRows = await query<any[]>('SELECT id FROM leads WHERE id = ?', [leadId]);
+      if (!leadRows || leadRows.length === 0) {
+        res.status(404).json({ status: 'error', message: 'Prospecto no encontrado.' });
+        return;
+      }
 
-    const sanitizedDetails = details ? escapeHtml(details) : null;
+      const sanitizedDetails = details ? escapeHtml(details) : null;
 
-    const insertResult = await query<any>(
-      `INSERT INTO lead_activities (lead_id, user_id, activity_type, title, details)
+      const insertResult = await query<any>(
+        `INSERT INTO lead_activities (lead_id, user_id, activity_type, title, details)
        VALUES (?, ?, ?, ?, ?)`,
-      [leadId, req.user!.userId, activity_type, title, sanitizedDetails],
-    );
+        [leadId, req.user!.userId, activity_type, title, sanitizedDetails],
+      );
 
-    // Update last_contacted_at on lead
-    await query('UPDATE leads SET last_contacted_at = NOW(), updated_at = NOW() WHERE id = ?', [leadId]);
+      // Update last_contacted_at on lead
+      await query('UPDATE leads SET last_contacted_at = NOW(), updated_at = NOW() WHERE id = ?', [
+        leadId,
+      ]);
 
-    res.status(201).json({
-      status: 'success',
-      message: 'Actividad registrada con éxito.',
-      activity_id: insertResult?.insertId || null,
-    });
-  } catch (err: any) {
-    res
-      .status(500)
-      .json({ status: 'error', message: err.message || 'Error al registrar actividad.' });
-  }
-});
+      res.status(201).json({
+        status: 'success',
+        message: 'Actividad registrada con éxito.',
+        activity_id: insertResult?.insertId || null,
+      });
+    } catch (err: any) {
+      res
+        .status(500)
+        .json({ status: 'error', message: err.message || 'Error al registrar actividad.' });
+    }
+  },
+);
 
 /**
  * POST /api/v1/admin/leads/:id/send-email
@@ -306,7 +326,12 @@ adminRouter.post(
 
       const lead = leadRows[0];
       if (!lead.email || typeof lead.email !== 'string' || !lead.email.includes('@')) {
-        res.status(400).json({ status: 'error', message: 'El prospecto no posee un correo electrónico válido.' });
+        res
+          .status(400)
+          .json({
+            status: 'error',
+            message: 'El prospecto no posee un correo electrónico válido.',
+          });
         return;
       }
 
@@ -343,7 +368,8 @@ adminRouter.post(
         res.status(502).json({
           status: 'error',
           error: 'Bad Gateway',
-          message: 'Error en el servidor de correo SMTP. No se pudo enviar el correo de seguimiento.',
+          message:
+            'Error en el servidor de correo SMTP. No se pudo enviar el correo de seguimiento.',
         });
         return;
       }
@@ -412,7 +438,12 @@ adminRouter.post(
 
       const lead = leadRows[0];
       if (!lead.email || typeof lead.email !== 'string' || !lead.email.includes('@')) {
-        res.status(400).json({ status: 'error', message: 'El prospecto no posee un correo electrónico válido.' });
+        res
+          .status(400)
+          .json({
+            status: 'error',
+            message: 'El prospecto no posee un correo electrónico válido.',
+          });
         return;
       }
 
@@ -423,7 +454,8 @@ adminRouter.post(
         if (!budgetMin || isNaN(budgetMin) || budgetMin <= 0) {
           res.status(400).json({
             status: 'error',
-            message: 'El prospecto no tiene un presupuesto mínimo estimado válido para calcular el 50%. Especifica un monto personalizado.',
+            message:
+              'El prospecto no tiene un presupuesto mínimo estimado válido para calcular el 50%. Especifica un monto personalizado.',
           });
           return;
         }
@@ -546,10 +578,9 @@ adminRouter.post(
       );
 
       // Update lead deposit_status
-      await query(
-        `UPDATE leads SET deposit_status = 'PENDING', updated_at = NOW() WHERE id = ?`,
-        [leadId],
-      );
+      await query(`UPDATE leads SET deposit_status = 'PENDING', updated_at = NOW() WHERE id = ?`, [
+        leadId,
+      ]);
 
       // Register activity
       const activityTitle =
@@ -575,12 +606,10 @@ adminRouter.post(
         expires_at: session.expires_at,
       });
     } catch (err: any) {
-      res
-        .status(500)
-        .json({
-          status: 'error',
-          message: err.message || 'Error al generar sesión de pago para el prospecto.',
-        });
+      res.status(500).json({
+        status: 'error',
+        message: err.message || 'Error al generar sesión de pago para el prospecto.',
+      });
     }
   },
 );
@@ -621,7 +650,10 @@ adminRouter.get(
     } catch (err: any) {
       res
         .status(500)
-        .json({ status: 'error', message: err.message || 'Error al consultar pagos del prospecto.' });
+        .json({
+          status: 'error',
+          message: err.message || 'Error al consultar pagos del prospecto.',
+        });
     }
   },
 );
@@ -688,3 +720,317 @@ adminRouter.get('/metrics', async (_req: AuthenticatedRequest, res: Response): P
       .json({ status: 'error', message: err.message || 'Error al consultar métricas.' });
   }
 });
+
+/**
+ * GET /api/v1/admin/projects
+ * Lists all B2B projects with optional filters and pagination (FC 044)
+ */
+adminRouter.get('/projects', async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+  try {
+    const { status, vertical, search, page: rawPage, limit: rawLimit } = req.query;
+    const page = Math.max(1, parseInt(String(rawPage || '1'), 10) || 1);
+    const limit = Math.min(100, Math.max(1, parseInt(String(rawLimit || '20'), 10) || 20));
+    const offset = (page - 1) * limit;
+
+    let sql = `
+      SELECT p.id, p.tenant_id, p.user_id, p.lead_id, p.project_name, p.vertical, p.status,
+             p.currency, p.budget_cents, p.paid_amount_cents, p.pending_balance_cents,
+             p.estimated_weeks, p.briefing_data, p.staging_url, p.repository_url,
+             p.created_at, p.updated_at,
+             t.name as tenant_name,
+             u.full_name as user_full_name, u.email as user_email
+      FROM client_projects p
+      LEFT JOIN tenants t ON p.tenant_id = t.id
+      LEFT JOIN users u ON p.user_id = u.id
+      WHERE 1=1
+    `;
+    const params: any[] = [];
+
+    if (status && typeof status === 'string' && status.trim() !== '' && status !== 'ALL') {
+      sql += ' AND p.status = ?';
+      params.push(status.trim());
+    }
+
+    if (vertical && typeof vertical === 'string' && vertical.trim() !== '' && vertical !== 'ALL') {
+      sql += ' AND p.vertical = ?';
+      params.push(vertical.trim());
+    }
+
+    if (search && typeof search === 'string' && search.trim() !== '') {
+      sql += ' AND (p.project_name LIKE ? OR t.name LIKE ? OR u.email LIKE ?)';
+      const term = `%${escapeLikeWildcards(search.trim())}%`;
+      params.push(term, term, term);
+    }
+
+    // Count query
+    const countSql = `SELECT COUNT(*) as total FROM (${sql}) as counted`;
+    const countRes = await query<any[]>(countSql, params).catch(() => [{ total: 0 }]);
+    const total = countRes[0]?.total || 0;
+
+    sql += ' ORDER BY p.created_at DESC LIMIT ? OFFSET ?';
+    params.push(limit, offset);
+
+    const projectRows = await query<any[]>(sql, params);
+
+    // Attach milestones summary
+    const projectsWithMilestones = [];
+    for (const proj of projectRows) {
+      const milestones = await query<any[]>(
+        `SELECT id, project_id, milestone_index, title, description, target_week, status, completed_at
+         FROM client_project_milestones
+         WHERE project_id = ?
+         ORDER BY milestone_index ASC`,
+        [proj.id],
+      ).catch(() => []);
+
+      const completedCount = milestones.filter((m) => m.status === 'COMPLETED').length;
+      const progressPercent =
+        milestones.length > 0 ? Math.round((completedCount / milestones.length) * 100) : 0;
+
+      let parsedBriefing = null;
+      if (proj.briefing_data) {
+        try {
+          parsedBriefing =
+            typeof proj.briefing_data === 'string'
+              ? JSON.parse(proj.briefing_data)
+              : proj.briefing_data;
+        } catch {
+          parsedBriefing = proj.briefing_data;
+        }
+      }
+
+      projectsWithMilestones.push({
+        ...proj,
+        briefing_data: parsedBriefing,
+        milestones,
+        progress_percent: progressPercent,
+      });
+    }
+
+    res.json({
+      status: 'success',
+      page,
+      limit,
+      total,
+      projects: projectsWithMilestones,
+    });
+  } catch (err: any) {
+    res
+      .status(500)
+      .json({ status: 'error', message: err.message || 'Error al consultar proyectos B2B.' });
+  }
+});
+
+/**
+ * POST /api/v1/admin/leads/:id/create-project
+ * Manually provisions a B2B project for a lead (e.g. wire transfer / offline agreement) (FC 044)
+ */
+adminRouter.post(
+  '/leads/:id/create-project',
+  async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+    try {
+      const leadId = parseInt(req.params.id, 10);
+      if (isNaN(leadId) || leadId <= 0) {
+        res.status(400).json({ status: 'error', message: 'ID de prospecto inválido.' });
+        return;
+      }
+
+      const parsed = adminCreateProjectFromLeadSchema.safeParse(req.body);
+      if (!parsed.success) {
+        res.status(400).json({
+          status: 'error',
+          error: 'Validation Error',
+          details: parsed.error.format(),
+        });
+        return;
+      }
+
+      const leadRows = await query<any[]>('SELECT * FROM leads WHERE id = ? LIMIT 1', [leadId]);
+      if (!leadRows || leadRows.length === 0) {
+        res.status(404).json({ status: 'error', message: 'Prospecto no encontrado.' });
+        return;
+      }
+
+      const result = await withTransaction(async (conn) => {
+        return await provisionClientProjectForLead(conn, leadId, parsed.data);
+      });
+
+      res.status(result.created ? 201 : 200).json({
+        status: 'success',
+        message: result.created
+          ? 'Proyecto B2B e hitos aprovisionados con éxito.'
+          : 'El proyecto ya existía para este prospecto (idempotente).',
+        ...result,
+      });
+    } catch (err: any) {
+      res
+        .status(500)
+        .json({ status: 'error', message: err.message || 'Error al aprovisionar proyecto B2B.' });
+    }
+  },
+);
+
+/**
+ * PUT /api/v1/admin/projects/:id
+ * Updates B2B project status, name, or URLs with anti-SSRF protection (Conditions C-044.4, C-044.5)
+ */
+adminRouter.put(
+  '/projects/:id',
+  async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+    try {
+      const projectId = parseInt(req.params.id, 10);
+      if (isNaN(projectId) || projectId <= 0) {
+        res.status(400).json({ status: 'error', message: 'ID de proyecto inválido.' });
+        return;
+      }
+
+      const projectRows = await query<any[]>(
+        'SELECT id FROM client_projects WHERE id = ? LIMIT 1',
+        [projectId],
+      );
+      if (!projectRows || projectRows.length === 0) {
+        res.status(404).json({ status: 'error', message: 'Proyecto no encontrado.' });
+        return;
+      }
+
+      const parsed = adminUpdateProjectSchema.safeParse(req.body);
+      if (!parsed.success) {
+        res.status(400).json({
+          status: 'error',
+          error: 'Validation Error',
+          details: parsed.error.format(),
+        });
+        return;
+      }
+
+      const fields: string[] = [];
+      const values: any[] = [];
+
+      if (parsed.data.status !== undefined) {
+        fields.push('status = ?');
+        values.push(parsed.data.status);
+      }
+      if (parsed.data.staging_url !== undefined) {
+        fields.push('staging_url = ?');
+        values.push(parsed.data.staging_url);
+      }
+      if (parsed.data.repository_url !== undefined) {
+        fields.push('repository_url = ?');
+        values.push(parsed.data.repository_url);
+      }
+      if (parsed.data.project_name !== undefined) {
+        fields.push('project_name = ?');
+        values.push(parsed.data.project_name);
+      }
+
+      if (fields.length === 0) {
+        res
+          .status(400)
+          .json({ status: 'error', message: 'No se enviaron campos válidos para actualizar.' });
+        return;
+      }
+
+      fields.push('updated_at = NOW()');
+      values.push(projectId);
+
+      await query(`UPDATE client_projects SET ${fields.join(', ')} WHERE id = ?`, values);
+
+      const updated = await query<any[]>('SELECT * FROM client_projects WHERE id = ? LIMIT 1', [
+        projectId,
+      ]);
+
+      res.json({
+        status: 'success',
+        message: 'Proyecto actualizado con éxito.',
+        project: updated[0],
+      });
+    } catch (err: any) {
+      res
+        .status(500)
+        .json({ status: 'error', message: err.message || 'Error al actualizar proyecto.' });
+    }
+  },
+);
+
+/**
+ * PUT /api/v1/admin/projects/:id/milestones/:milestoneId
+ * Updates milestone status, title, description or target week (Condition C-044.4)
+ */
+adminRouter.put(
+  '/projects/:id/milestones/:milestoneId',
+  async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+    try {
+      const projectId = parseInt(req.params.id, 10);
+      const milestoneId = parseInt(req.params.milestoneId, 10);
+
+      if (isNaN(projectId) || projectId <= 0 || isNaN(milestoneId) || milestoneId <= 0) {
+        res.status(400).json({ status: 'error', message: 'IDs de proyecto o hito inválidos.' });
+        return;
+      }
+
+      const milestoneRows = await query<any[]>(
+        'SELECT id FROM client_project_milestones WHERE id = ? AND project_id = ? LIMIT 1',
+        [milestoneId, projectId],
+      );
+      if (!milestoneRows || milestoneRows.length === 0) {
+        res.status(404).json({ status: 'error', message: 'Hito no encontrado en este proyecto.' });
+        return;
+      }
+
+      const parsed = adminUpdateMilestoneSchema.safeParse(req.body);
+      if (!parsed.success) {
+        res.status(400).json({
+          status: 'error',
+          error: 'Validation Error',
+          details: parsed.error.format(),
+        });
+        return;
+      }
+
+      const { status, title, description, target_week } = parsed.data;
+      const fields: string[] = ['status = ?'];
+      const values: any[] = [status];
+
+      if (status === 'COMPLETED') {
+        fields.push('completed_at = NOW()');
+      } else {
+        fields.push('completed_at = NULL');
+      }
+
+      if (title !== undefined) {
+        fields.push('title = ?');
+        values.push(title);
+      }
+      if (description !== undefined) {
+        fields.push('description = ?');
+        values.push(description);
+      }
+      if (target_week !== undefined) {
+        fields.push('target_week = ?');
+        values.push(target_week);
+      }
+
+      values.push(milestoneId, projectId);
+
+      await query(
+        `UPDATE client_project_milestones SET ${fields.join(', ')} WHERE id = ? AND project_id = ?`,
+        values,
+      );
+
+      const updated = await query<any[]>(
+        'SELECT * FROM client_project_milestones WHERE id = ? LIMIT 1',
+        [milestoneId],
+      );
+
+      res.json({
+        status: 'success',
+        message: 'Hito actualizado con éxito.',
+        milestone: updated[0],
+      });
+    } catch (err: any) {
+      res
+        .status(500)
+        .json({ status: 'error', message: err.message || 'Error al actualizar hito.' });
+    }
+  },
+);

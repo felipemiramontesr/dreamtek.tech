@@ -107,6 +107,55 @@ export async function getCurrentUser(): Promise<AuthResponse> {
   return data;
 }
 
+export interface ClientProjectMilestone {
+  id: number;
+  project_id: number;
+  milestone_index: number;
+  title: string;
+  description?: string | null;
+  target_week: number;
+  status: 'PENDING' | 'IN_PROGRESS' | 'REVIEW' | 'COMPLETED';
+  completed_at?: string | null;
+}
+
+export interface ClientProjectBriefing {
+  business_goals: string;
+  target_audience?: string;
+  technical_stack_preferences?: string;
+  infrastructure_notes?: string;
+  reference_urls?: string[];
+  contact_lead_notes?: string;
+  submitted_at?: string;
+}
+
+export interface ClientProject {
+  id: number;
+  tenant_id: number;
+  user_id: number;
+  lead_id?: number | null;
+  project_name: string;
+  vertical: string;
+  status:
+    | 'ONBOARDING_BRIEF'
+    | 'ARCHITECTURE_DESIGN'
+    | 'IN_DEVELOPMENT'
+    | 'STAGING_REVIEW'
+    | 'COMPLETED_DELIVERED'
+    | 'ON_HOLD';
+  currency: 'MXN' | 'USD';
+  budget_cents: number;
+  paid_amount_cents: number;
+  pending_balance_cents: number;
+  estimated_weeks: number;
+  briefing_data?: ClientProjectBriefing | null;
+  staging_url?: string | null;
+  repository_url?: string | null;
+  milestones?: ClientProjectMilestone[];
+  progress_percent?: number;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface ClientDashboardData {
   status: string;
   profile: {
@@ -132,6 +181,7 @@ export interface ClientDashboardData {
     ssl?: boolean | number | string;
     ssl_status?: string;
   }>;
+  projects?: ClientProject[];
 }
 
 /**
@@ -321,6 +371,118 @@ export async function fetchAdminLeadPayments(leadId: number | string): Promise<u
     throw new Error(
       data.message || data.error || 'Error al obtener historial de pagos del prospecto.',
     );
+  }
+  return data;
+}
+
+/**
+ * Fetch a specific client project with milestones and progress (FC 044)
+ */
+export async function fetchClientProject(
+  id: number | string,
+): Promise<{ status: string; project: ClientProject }> {
+  const response = await fetch(`${API_BASE}/client/projects/${id}`, {
+    method: 'GET',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
+  });
+  const data = await response.json();
+  if (!response.ok) {
+    throw new Error(data.message || data.error || 'Error al obtener el proyecto.');
+  }
+  return data;
+}
+
+/**
+ * Update client project briefing with anti-XSS validation (FC 044)
+ */
+export async function updateClientProjectBriefing(
+  id: number | string,
+  briefing: ClientProjectBriefing,
+): Promise<{
+  status: string;
+  message: string;
+  briefing: ClientProjectBriefing;
+  status_updated: string;
+}> {
+  const response = await fetch(`${API_BASE}/client/projects/${id}/briefing`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
+    body: JSON.stringify(briefing),
+  });
+  const data = await response.json();
+  if (!response.ok) {
+    throw new Error(data.message || data.error || 'Error al actualizar el briefing del proyecto.');
+  }
+  return data;
+}
+
+/**
+ * Fetch admin B2B projects with optional filters (FC 044)
+ */
+export async function fetchAdminProjects(filters?: {
+  status?: string;
+  vertical?: string;
+  search?: string;
+}): Promise<{ status: string; total: number; projects: ClientProject[] }> {
+  const params = new URLSearchParams();
+  if (filters?.status) params.append('status', filters.status);
+  if (filters?.vertical) params.append('vertical', filters.vertical);
+  if (filters?.search) params.append('search', filters.search);
+
+  const response = await fetch(`${API_BASE}/admin/projects?${params.toString()}`, {
+    method: 'GET',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
+  });
+  const data = await response.json();
+  if (!response.ok) {
+    throw new Error(data.message || data.error || 'Error al obtener proyectos administrativos.');
+  }
+  return data;
+}
+
+/**
+ * Admin update project details (status, staging_url, repository_url) (FC 044)
+ */
+export async function adminUpdateProject(
+  id: number | string,
+  payload: Partial<ClientProject>,
+): Promise<{ status: string; message: string; project: ClientProject }> {
+  const response = await fetch(`${API_BASE}/admin/projects/${id}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
+    body: JSON.stringify(payload),
+  });
+  const data = await response.json();
+  if (!response.ok) {
+    throw new Error(data.message || data.error || 'Error al actualizar el proyecto.');
+  }
+  return data;
+}
+
+/**
+ * Admin update milestone status (FC 044)
+ */
+export async function adminUpdateMilestone(
+  projectId: number | string,
+  milestoneId: number | string,
+  payload: { status: string; title?: string; description?: string; target_week?: number },
+): Promise<{ status: string; message: string; milestone: ClientProjectMilestone }> {
+  const response = await fetch(
+    `${API_BASE}/admin/projects/${projectId}/milestones/${milestoneId}`,
+    {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify(payload),
+    },
+  );
+  const data = await response.json();
+  if (!response.ok) {
+    throw new Error(data.message || data.error || 'Error al actualizar el hito.');
   }
   return data;
 }
