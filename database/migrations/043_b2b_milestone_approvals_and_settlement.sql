@@ -24,3 +24,10 @@ ALTER TABLE client_project_milestones
 ALTER TABLE lead_payments
   ADD COLUMN IF NOT EXISTS project_id BIGINT UNSIGNED NULL AFTER lead_id,
   MODIFY COLUMN payment_type ENUM('DEPOSIT_50', 'FULL_PAYMENT', 'CUSTOM', 'SETTLEMENT') NOT NULL DEFAULT 'DEPOSIT_50';
+
+-- 4. Claves foráneas (Integridad referencial)
+ALTER TABLE client_project_milestones
+  ADD CONSTRAINT fk_milestones_approved_by FOREIGN KEY (client_approved_by) REFERENCES users(id) ON DELETE SET NULL;
+
+ALTER TABLE lead_payments
+  ADD CONSTRAINT fk_lead_payments_project FOREIGN KEY (project_id) REFERENCES client_projects(id) ON DELETE SET NULL;
