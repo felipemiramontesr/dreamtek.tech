@@ -63,7 +63,7 @@ export const sendLeadFollowUpEmailSchema = z.object({
     .optional(),
 });
 
-export const LEAD_PAYMENT_TYPES = ['DEPOSIT_50', 'FULL_PAYMENT', 'CUSTOM'] as const;
+export const LEAD_PAYMENT_TYPES = ['DEPOSIT_50', 'FULL_PAYMENT', 'CUSTOM', 'SETTLEMENT'] as const;
 export type LeadPaymentType = (typeof LEAD_PAYMENT_TYPES)[number];
 
 export const LEAD_PAYMENT_STATUSES = ['PENDING', 'PAID', 'EXPIRED', 'CANCELLED'] as const;

@@ -23,4 +23,4 @@ ALTER TABLE client_project_milestones
 -- 3. Ampliación de lead_payments para soportar finiquitos vinculados a project_id
 ALTER TABLE lead_payments
   ADD COLUMN IF NOT EXISTS project_id BIGINT UNSIGNED NULL AFTER lead_id,
-  MODIFY COLUMN payment_type ENUM('DEPOSIT_50', 'CUSTOM', 'SETTLEMENT') NOT NULL DEFAULT 'DEPOSIT_50';
+  MODIFY COLUMN payment_type ENUM('DEPOSIT_50', 'FULL_PAYMENT', 'CUSTOM', 'SETTLEMENT') NOT NULL DEFAULT 'DEPOSIT_50';

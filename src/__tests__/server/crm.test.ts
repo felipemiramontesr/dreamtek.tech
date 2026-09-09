@@ -86,7 +86,7 @@ describe('CRM Pipeline Backend & Formal Verification Suite (FC 041 100% Coverage
         'CUSTOM_FOLLOWUP',
         'PAYMENT_LINK_INVITATION',
       ]);
-      expect(LEAD_PAYMENT_TYPES).toEqual(['DEPOSIT_50', 'FULL_PAYMENT', 'CUSTOM']);
+      expect(LEAD_PAYMENT_TYPES).toEqual(['DEPOSIT_50', 'FULL_PAYMENT', 'CUSTOM', 'SETTLEMENT']);
       expect(LEAD_PAYMENT_STATUSES).toEqual(['PENDING', 'PAID', 'EXPIRED', 'CANCELLED']);
       expect(LEAD_DEPOSIT_STATUSES).toEqual(['UNPAID', 'PENDING', 'PAID']);
     });
