@@ -288,3 +288,153 @@ export function renderLeadFollowUpEmail(
     text: bodyText,
   };
 }
+
+export interface MilestoneReviewEmailContext {
+  fullName: string;
+  email: string;
+  projectName: string;
+  milestoneTitle: string;
+  milestoneIndex: number;
+  stagingUrl?: string | null;
+  dashboardUrl: string;
+  locale?: 'es' | 'en' | string | null;
+}
+
+export function renderMilestoneReviewEmail(context: MilestoneReviewEmailContext): RenderedLeadEmail {
+  const isEn = context.locale === 'en';
+  const safeName = escapeHtml(context.fullName || (isEn ? 'Valued Client' : 'Estimado/a Cliente'));
+  const safeProject = escapeHtml(context.projectName);
+  const safeMilestone = escapeHtml(context.milestoneTitle);
+  const safeStaging = context.stagingUrl ? escapeHtml(context.stagingUrl) : null;
+  const safeDashboard = escapeHtml(context.dashboardUrl);
+
+  const subject = isEn
+    ? `Deliverable Ready for Review: ${safeMilestone} — ${safeProject}`
+    : `Entregable listo para revisión: ${safeMilestone} — ${safeProject}`;
+
+  const bodyHtml = isEn
+    ? `
+      <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 600px; margin: 0 auto; color: #1e293b; line-height: 1.6;">
+        <div style="background: linear-gradient(135deg, #0f172a 0%, #1e1b4b 100%); padding: 32px 24px; text-align: center; border-radius: 12px 12px 0 0;">
+          <h1 style="color: #38bdf8; margin: 0; font-size: 24px; font-weight: 800; letter-spacing: 0.5px;">DREAMTEK</h1>
+          <p style="color: #94a3b8; margin: 8px 0 0 0; font-size: 14px;">B2B Project Workspace</p>
+        </div>
+        <div style="background: #ffffff; padding: 32px 24px; border: 1px solid #e2e8f0; border-top: none; border-radius: 0 0 12px 12px;">
+          <p style="font-size: 16px; margin-top: 0;">Hello <strong>${safeName}</strong>,</p>
+          <p>We are pleased to inform you that milestone <strong>#${context.milestoneIndex}: ${safeMilestone}</strong> for project <strong>${safeProject}</strong> is ready for your review.</p>
+          ${safeStaging ? `<div style="margin: 20px 0; padding: 16px; background: #f0fdf4; border-left: 4px solid #22c55e; border-radius: 4px;"><p style="margin: 0; font-size: 14px; color: #15803d;"><strong>Staging Environment URL:</strong> <a href="${safeStaging}" style="color: #0284c7; word-break: break-all;" target="_blank">${safeStaging}</a></p></div>` : ''}
+          <p>Please log in to your Client Portal to review the progress and provide your formal sign-off:</p>
+          <div style="text-align: center; margin: 28px 0;">
+            <a href="${safeDashboard}" style="background: #0284c7; color: #ffffff; padding: 12px 28px; text-decoration: none; border-radius: 8px; font-weight: 700; display: inline-block;">Access Project Portal</a>
+          </div>
+          <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 24px 0;" />
+          <p style="font-size: 12px; color: #64748b; margin-bottom: 0;">Dreamtek Sovereign Tech · Automated Project Notification</p>
+        </div>
+      </div>
+    `
+    : `
+      <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 600px; margin: 0 auto; color: #1e293b; line-height: 1.6;">
+        <div style="background: linear-gradient(135deg, #0f172a 0%, #1e1b4b 100%); padding: 32px 24px; text-align: center; border-radius: 12px 12px 0 0;">
+          <h1 style="color: #38bdf8; margin: 0; font-size: 24px; font-weight: 800; letter-spacing: 0.5px;">DREAMTEK</h1>
+          <p style="color: #94a3b8; margin: 8px 0 0 0; font-size: 14px;">Portal de Proyectos B2B</p>
+        </div>
+        <div style="background: #ffffff; padding: 32px 24px; border: 1px solid #e2e8f0; border-top: none; border-radius: 0 0 12px 12px;">
+          <p style="font-size: 16px; margin-top: 0;">Hola <strong>${safeName}</strong>,</p>
+          <p>Te informamos que el hito <strong>#${context.milestoneIndex}: ${safeMilestone}</strong> para el proyecto <strong>${safeProject}</strong> está listo para tu revisión.</p>
+          ${safeStaging ? `<div style="margin: 20px 0; padding: 16px; background: #f0fdf4; border-left: 4px solid #22c55e; border-radius: 4px;"><p style="margin: 0; font-size: 14px; color: #15803d;"><strong>Ambiente de Staging:</strong> <a href="${safeStaging}" style="color: #0284c7; word-break: break-all;" target="_blank">${safeStaging}</a></p></div>` : ''}
+          <p>Por favor ingresa a tu Portal de Cliente para revisar el avance y otorgar tu visto bueno formal:</p>
+          <div style="text-align: center; margin: 28px 0;">
+            <a href="${safeDashboard}" style="background: #0284c7; color: #ffffff; padding: 12px 28px; text-decoration: none; border-radius: 8px; font-weight: 700; display: inline-block;">Ingresar al Portal</a>
+          </div>
+          <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 24px 0;" />
+          <p style="font-size: 12px; color: #64748b; margin-bottom: 0;">Dreamtek Sovereign Tech · Notificación de Proyecto Automatizada</p>
+        </div>
+      </div>
+    `;
+
+  const bodyText = isEn
+    ? `Hello ${context.fullName || 'Valued Client'},\n\nMilestone #${context.milestoneIndex}: ${context.milestoneTitle} for project "${context.projectName}" is ready for your review.\n\n${context.stagingUrl ? `Staging URL: ${context.stagingUrl}\n\n` : ''}Access your project portal: ${context.dashboardUrl}\n\nBest regards,\nDreamtek Team`
+    : `Hola ${context.fullName || 'Estimado/a Cliente'},\n\nEl hito #${context.milestoneIndex}: ${context.milestoneTitle} del proyecto "${context.projectName}" está listo para tu revisión.\n\n${context.stagingUrl ? `URL de Staging: ${context.stagingUrl}\n\n` : ''}Accede a tu portal: ${context.dashboardUrl}\n\nAtentamente,\nEquipo Dreamtek`;
+
+  return { subject, html: bodyHtml, text: bodyText };
+}
+
+export interface FinalSettlementReceiptEmailContext {
+  fullName: string;
+  email: string;
+  projectName: string;
+  amountCents: number;
+  currency: string;
+  dashboardUrl: string;
+  locale?: 'es' | 'en' | string | null;
+}
+
+export function renderFinalSettlementReceiptEmail(context: FinalSettlementReceiptEmailContext): RenderedLeadEmail {
+  const isEn = context.locale === 'en';
+  const currency = context.currency.toUpperCase();
+  const formattedAmount = (context.amountCents / 100).toLocaleString(isEn ? 'en-US' : 'es-MX', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
+  const safeName = escapeHtml(context.fullName || (isEn ? 'Valued Client' : 'Estimado/a Cliente'));
+  const safeProject = escapeHtml(context.projectName);
+  const safeDashboard = escapeHtml(context.dashboardUrl);
+
+  const subject = isEn
+    ? `Final Settlement Confirmation & Delivery: ${safeProject} — Dreamtek`
+    : `Constancia de Finiquito y Entrega Final: ${safeProject} — Dreamtek`;
+
+  const bodyHtml = isEn
+    ? `
+      <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 600px; margin: 0 auto; color: #1e293b; line-height: 1.6;">
+        <div style="background: linear-gradient(135deg, #0f172a 0%, #1e1b4b 100%); padding: 32px 24px; text-align: center; border-radius: 12px 12px 0 0;">
+          <h1 style="color: #38bdf8; margin: 0; font-size: 24px; font-weight: 800; letter-spacing: 0.5px;">DREAMTEK</h1>
+          <p style="color: #22c55e; margin: 8px 0 0 0; font-size: 15px; font-weight: 700;">PROYECTO ENTREGADO & FINIQUITADO</p>
+        </div>
+        <div style="background: #ffffff; padding: 32px 24px; border: 1px solid #e2e8f0; border-top: none; border-radius: 0 0 12px 12px;">
+          <p style="font-size: 16px; margin-top: 0;">Hello <strong>${safeName}</strong>,</p>
+          <p>We confirm receipt of the final settlement payment for project <strong>${safeProject}</strong>.</p>
+          <div style="margin: 24px 0; padding: 20px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; text-align: center;">
+            <p style="margin: 0; font-size: 13px; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px;">Final Settlement Amount Paid</p>
+            <p style="margin: 8px 0 0 0; font-size: 28px; font-weight: 800; color: #0f172a;">$${formattedAmount} ${currency}</p>
+            <p style="margin: 4px 0 0 0; font-size: 13px; color: #16a34a; font-weight: 600;">Status: 100% Fully Settled</p>
+          </div>
+          <p>All project deliverables, repository assets, and deployment environments have been released and marked as Delivered in your workspace.</p>
+          <div style="text-align: center; margin: 28px 0;">
+            <a href="${safeDashboard}" style="background: #0284c7; color: #ffffff; padding: 12px 28px; text-decoration: none; border-radius: 8px; font-weight: 700; display: inline-block;">View Workspace Deliverables</a>
+          </div>
+          <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 24px 0;" />
+          <p style="font-size: 12px; color: #64748b; margin-bottom: 0;">Dreamtek Sovereign Tech · Official Settlement Receipt</p>
+        </div>
+      </div>
+    `
+    : `
+      <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 600px; margin: 0 auto; color: #1e293b; line-height: 1.6;">
+        <div style="background: linear-gradient(135deg, #0f172a 0%, #1e1b4b 100%); padding: 32px 24px; text-align: center; border-radius: 12px 12px 0 0;">
+          <h1 style="color: #38bdf8; margin: 0; font-size: 24px; font-weight: 800; letter-spacing: 0.5px;">DREAMTEK</h1>
+          <p style="color: #22c55e; margin: 8px 0 0 0; font-size: 15px; font-weight: 700;">PROYECTO ENTREGADO & FINIQUITADO</p>
+        </div>
+        <div style="background: #ffffff; padding: 32px 24px; border: 1px solid #e2e8f0; border-top: none; border-radius: 0 0 12px 12px;">
+          <p style="font-size: 16px; margin-top: 0;">Hola <strong>${safeName}</strong>,</p>
+          <p>Confirmamos la recepción del pago de finiquito para el proyecto <strong>${safeProject}</strong>.</p>
+          <div style="margin: 24px 0; padding: 20px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; text-align: center;">
+            <p style="margin: 0; font-size: 13px; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px;">Monto de Finiquito Liquidado</p>
+            <p style="margin: 8px 0 0 0; font-size: 28px; font-weight: 800; color: #0f172a;">$${formattedAmount} ${currency}</p>
+            <p style="margin: 4px 0 0 0; font-size: 13px; color: #16a34a; font-weight: 600;">Estado: 100% Finiquitado</p>
+          </div>
+          <p>Todos los entregables, repositorio de código y accesos de despliegue han sido formalmente liberados y marcados como Entregados en tu workspace.</p>
+          <div style="text-align: center; margin: 28px 0;">
+            <a href="${safeDashboard}" style="background: #0284c7; color: #ffffff; padding: 12px 28px; text-decoration: none; border-radius: 8px; font-weight: 700; display: inline-block;">Ver Entregables en Portal</a>
+          </div>
+          <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 24px 0;" />
+          <p style="font-size: 12px; color: #64748b; margin-bottom: 0;">Dreamtek Sovereign Tech · Constancia Oficial de Finiquito</p>
+        </div>
+      </div>
+    `;
+
+  const bodyText = isEn
+    ? `Hello ${context.fullName || 'Valued Client'},\n\nWe confirm receipt of the final settlement for "${context.projectName}": $${formattedAmount} ${currency}.\n\nYour project is now 100% settled and delivered. Access your workspace: ${context.dashboardUrl}\n\nBest regards,\nDreamtek Team`
+    : `Hola ${context.fullName || 'Estimado/a Cliente'},\n\nConfirmamos la recepción del pago de finiquito para "${context.projectName}": $${formattedAmount} ${currency}.\n\nTu proyecto está 100% finiquitado y entregado. Accede a tu workspace: ${context.dashboardUrl}\n\nAtentamente,\nEquipo Dreamtek`;
+
+  return { subject, html: bodyHtml, text: bodyText };
+}

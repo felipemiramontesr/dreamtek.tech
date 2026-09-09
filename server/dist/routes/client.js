@@ -3,7 +3,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.clientBriefingRateLimiter = exports.clientRouter = void 0;
+exports.projectSettlementRateLimiter = exports.milestoneSignOffRateLimiter = exports.clientBriefingRateLimiter = exports.clientRouter = void 0;
 exports.getArchonSsoSecret = getArchonSsoSecret;
 const express_1 = require("express");
 const express_rate_limit_1 = __importDefault(require("express-rate-limit"));
@@ -12,6 +12,7 @@ const db_js_1 = require("../db.js");
 const auth_js_1 = require("../middleware/auth.js");
 const project_schema_js_1 = require("../schemas/project.schema.js");
 const crm_js_1 = require("../utils/crm.js");
+const checkout_js_1 = require("./checkout.js");
 exports.clientRouter = (0, express_1.Router)();
 // Rate limiter for briefing updates (15 req/min per IP)
 exports.clientBriefingRateLimiter = (0, express_rate_limit_1.default)({
@@ -23,6 +24,30 @@ exports.clientBriefingRateLimiter = (0, express_rate_limit_1.default)({
         status: 'error',
         error: 'Too Many Requests',
         message: 'Demasiadas solicitudes de actualización de briefing. Intenta de nuevo en un momento.',
+    },
+});
+// Rate limiter for milestone sign-offs (FC 045 / C-045.5): 15 req/min per IP
+exports.milestoneSignOffRateLimiter = (0, express_rate_limit_1.default)({
+    windowMs: 60 * 1000,
+    max: 15,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: {
+        status: 'error',
+        error: 'Too Many Requests',
+        message: 'Demasiadas solicitudes de visto bueno de hito. Intenta de nuevo en un momento.',
+    },
+});
+// Rate limiter for project settlement sessions (FC 045 / C-045.5): 10 req/15 min per IP
+exports.projectSettlementRateLimiter = (0, express_rate_limit_1.default)({
+    windowMs: 15 * 60 * 1000,
+    max: 10,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: {
+        status: 'error',
+        error: 'Too Many Requests',
+        message: 'Demasiadas solicitudes de liquidación de proyecto. Intenta de nuevo en un momento.',
     },
 });
 // Protect all client routes with requireAuth middleware
@@ -81,7 +106,7 @@ exports.clientRouter.get('/dashboard', async (req, res) => {
          WHERE user_id = ?
          ORDER BY created_at DESC`, [userId]);
             for (const proj of projectRows) {
-                const milestones = await (0, db_js_1.query)(`SELECT id, project_id, milestone_index, title, description, target_week, status, completed_at
+                const milestones = await (0, db_js_1.query)(`SELECT id, project_id, milestone_index, title, description, target_week, status, completed_at, client_approved_at, client_feedback
            FROM client_project_milestones
            WHERE project_id = ?
            ORDER BY milestone_index ASC`, [proj.id]).catch(() => []);
@@ -184,7 +209,7 @@ exports.clientRouter.get('/projects/:id', async (req, res) => {
             return;
         }
         const proj = projectRows[0];
-        const milestones = await (0, db_js_1.query)(`SELECT id, project_id, milestone_index, title, description, target_week, status, completed_at
+        const milestones = await (0, db_js_1.query)(`SELECT id, project_id, milestone_index, title, description, target_week, status, completed_at, client_approved_at, client_feedback
        FROM client_project_milestones
        WHERE project_id = ?
        ORDER BY milestone_index ASC`, [proj.id]).catch(() => []);
@@ -274,6 +299,211 @@ exports.clientRouter.put('/projects/:id/briefing', exports.clientBriefingRateLim
         res
             .status(500)
             .json({ status: 'error', message: err.message || 'Error al actualizar el briefing.' });
+    }
+});
+/**
+ * POST /api/v1/client/projects/:id/milestones/:milestoneId/sign-off
+ * Client formal sign-off on deliverable / milestone (FC 045 Phase 1 / Conditions C-045.1, C-045.2, C-045.5)
+ */
+exports.clientRouter.post('/projects/:id/milestones/:milestoneId/sign-off', exports.milestoneSignOffRateLimiter, async (req, res) => {
+    try {
+        const userId = req.user?.userId;
+        const userRole = req.user?.role;
+        const projectId = parseInt(req.params.id, 10);
+        const milestoneId = parseInt(req.params.milestoneId, 10);
+        if (isNaN(projectId) || projectId <= 0 || isNaN(milestoneId) || milestoneId <= 0) {
+            res.status(400).json({ status: 'error', message: 'ID de proyecto o hito inválido.' });
+            return;
+        }
+        const parsed = project_schema_js_1.milestoneSignOffSchema.safeParse(req.body);
+        if (!parsed.success) {
+            res.status(400).json({
+                status: 'error',
+                error: 'Validation Error',
+                message: parsed.error.issues[0].message,
+            });
+            return;
+        }
+        // IDOR check: project belongs to user (C-045.1) or user is ADMIN
+        const projectRows = await (0, db_js_1.query)('SELECT id, user_id, pending_balance_cents, status FROM client_projects WHERE id = ? LIMIT 1', [projectId]);
+        if (!projectRows || projectRows.length === 0) {
+            res.status(404).json({ status: 'error', message: 'Proyecto no encontrado.' });
+            return;
+        }
+        const project = projectRows[0];
+        if (project.user_id !== userId && userRole !== 'ADMIN') {
+            res.status(403).json({
+                status: 'error',
+                message: 'No tienes permiso para aprobar hitos de este proyecto.',
+            });
+            return;
+        }
+        // Check milestone (C-045.2)
+        const milestoneRows = await (0, db_js_1.query)('SELECT id, project_id, status FROM client_project_milestones WHERE id = ? AND project_id = ? LIMIT 1', [milestoneId, projectId]);
+        if (!milestoneRows || milestoneRows.length === 0) {
+            res.status(404).json({ status: 'error', message: 'Hito no encontrado en este proyecto.' });
+            return;
+        }
+        const milestone = milestoneRows[0];
+        if (milestone.status === 'COMPLETED') {
+            res.status(400).json({
+                status: 'error',
+                message: 'El hito ya ha sido completado y aprobado previamente.',
+            });
+            return;
+        }
+        if (milestone.status !== 'REVIEW' && milestone.status !== 'IN_PROGRESS') {
+            res.status(400).json({
+                status: 'error',
+                message: 'El hito debe estar en revisión o en progreso para otorgar visto bueno.',
+            });
+            return;
+        }
+        const safeFeedback = parsed.data.feedback ? (0, crm_js_1.escapeHtml)(parsed.data.feedback) : '';
+        const clientIp = req.ip;
+        await (0, db_js_1.withTransaction)(async (conn) => {
+            await conn.query(`UPDATE client_project_milestones
+           SET status = 'COMPLETED', completed_at = NOW(), client_approved_at = NOW(),
+               client_approved_by = ?, client_feedback = ?, client_ip = ?
+           WHERE id = ?`, [userId, safeFeedback, clientIp, milestoneId]);
+            // Check if all milestones are completed
+            const counts = await conn.query(`SELECT COUNT(*) as total, SUM(CASE WHEN status = 'COMPLETED' THEN 1 ELSE 0 END) as completed
+           FROM client_project_milestones WHERE project_id = ?`, [projectId]);
+            const countsRow = counts[0];
+            const total = Number(countsRow.total);
+            const completed = Number(countsRow.completed);
+            if (total > 0 && total === completed) {
+                if (project.pending_balance_cents > 0) {
+                    await conn.query("UPDATE client_projects SET status = 'SETTLEMENT_PENDING' WHERE id = ?", [projectId]);
+                }
+                else {
+                    await conn.query("UPDATE client_projects SET status = 'COMPLETED_DELIVERED' WHERE id = ?", [projectId]);
+                }
+            }
+        });
+        console.log(`[SECURITY] MILESTONE_SIGNED_OFF: user ${userId} approved milestone ${milestoneId} of project ${projectId} from IP ${clientIp}`);
+        res.json({
+            status: 'success',
+            message: 'Entregable aprobado con éxito.',
+        });
+    }
+    catch (err) {
+        res
+            .status(500)
+            .json({ status: 'error', message: err.message || 'Error al aprobar entregable.' });
+    }
+});
+/**
+ * POST /api/v1/client/projects/:id/settle-balance
+ * Generates Stripe Checkout Session for final project settlement (FC 045 Phase 2 / Conditions C-045.1, C-045.3, C-045.5)
+ */
+exports.clientRouter.post('/projects/:id/settle-balance', exports.projectSettlementRateLimiter, async (req, res) => {
+    try {
+        const userId = req.user?.userId;
+        const userRole = req.user?.role;
+        const projectId = parseInt(req.params.id, 10);
+        if (isNaN(projectId) || projectId <= 0) {
+            res.status(400).json({ status: 'error', message: 'ID de proyecto inválido.' });
+            return;
+        }
+        const projectRows = await (0, db_js_1.query)(`SELECT id, tenant_id, user_id, lead_id, project_name, currency, budget_cents,
+                paid_amount_cents, pending_balance_cents, status
+         FROM client_projects WHERE id = ? LIMIT 1`, [projectId]);
+        if (!projectRows || projectRows.length === 0) {
+            res.status(404).json({ status: 'error', message: 'Proyecto no encontrado.' });
+            return;
+        }
+        const project = projectRows[0];
+        if (project.user_id !== userId && userRole !== 'ADMIN') {
+            res.status(403).json({
+                status: 'error',
+                message: 'No tienes permiso para liquidar este proyecto.',
+            });
+            return;
+        }
+        if (project.pending_balance_cents <= 0) {
+            res.status(400).json({
+                status: 'error',
+                message: 'El proyecto no tiene saldo pendiente por liquidar.',
+            });
+            return;
+        }
+        const currentKey = process.env.STRIPE_SECRET_KEY || 'sk_test_mock';
+        if (process.env.NODE_ENV === 'production' && (!currentKey || currentKey === 'sk_test_mock')) {
+            res.status(503).json({
+                status: 'error',
+                message: 'Configuración de pasarela de pago Stripe no disponible en producción.',
+            });
+            return;
+        }
+        const stripeInstance = (0, checkout_js_1.getStripe)(currentKey);
+        let session;
+        if (currentKey === 'sk_test_mock' && !stripeInstance?.checkout?.sessions?.create) {
+            const mockSessionId = `cs_test_settle_${Date.now()}_${projectId}`;
+            session = {
+                id: mockSessionId,
+                url: `https://checkout.stripe.com/c/pay/${mockSessionId}`,
+                expires_at: Math.floor(Date.now() / 1000) + 72 * 3600,
+            };
+        }
+        else {
+            const baseUrl = process.env.CORS_ORIGIN || process.env.FRONTEND_URL || 'https://dreamtek.tech';
+            const userEmail = req.user?.email || 'client@dreamtek.tech';
+            const currency = (project.currency || 'USD').toLowerCase();
+            const stripeSession = await stripeInstance.checkout.sessions.create({
+                payment_method_types: ['card'],
+                customer_email: userEmail,
+                client_reference_id: String(project.id),
+                metadata: {
+                    tenant_type: 'B2B_PROJECT_SETTLEMENT',
+                    project_id: String(project.id),
+                    lead_id: project.lead_id ? String(project.lead_id) : '',
+                    tenant_id: String(project.tenant_id),
+                },
+                line_items: [
+                    {
+                        price_data: {
+                            currency,
+                            product_data: {
+                                name: `Finiquito y Liquidación Final — ${project.project_name}`,
+                                description: 'Liquidación final del 100% del balance de desarrollo y entrega de proyecto.',
+                            },
+                            unit_amount: project.pending_balance_cents,
+                        },
+                        quantity: 1,
+                    },
+                ],
+                mode: 'payment',
+                success_url: `${baseUrl}/client/dashboard?settlement=success&session_id={CHECKOUT_SESSION_ID}`,
+                cancel_url: `${baseUrl}/client/dashboard?settlement=cancelled`,
+            });
+            session = {
+                id: stripeSession.id,
+                url: stripeSession.url || '',
+                expires_at: stripeSession.expires_at,
+            };
+        }
+        // Persist PENDING row in lead_payments (Anti-TOCTOU Condition C-045.3)
+        await (0, db_js_1.query)(`INSERT INTO lead_payments (project_id, lead_id, stripe_session_id, amount_cents, currency, payment_type, status, notes)
+         VALUES (?, ?, ?, ?, ?, 'SETTLEMENT', 'PENDING', ?)`, [
+            project.id,
+            project.lead_id || null,
+            session.id,
+            project.pending_balance_cents,
+            project.currency,
+            `Liquidación final de proyecto ID ${project.id}`,
+        ]);
+        res.status(201).json({
+            status: 'success',
+            message: 'Sesión de finiquito generada con éxito.',
+            checkout_url: session.url,
+            session_id: session.id,
+            amount_cents: project.pending_balance_cents,
+            currency: project.currency,
+        });
+    }
+    catch (err) {
+        res.status(500).json({ status: 'error', message: err.message || 'Error al generar finiquito.' });
     }
 });
 /**

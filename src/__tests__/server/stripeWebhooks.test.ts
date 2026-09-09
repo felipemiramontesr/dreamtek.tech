@@ -841,4 +841,340 @@ describe('Stripe Webhooks & Subscription Engine (Comprehensive Suite)', () => {
       expect(resNullPi.status).toBe(200);
     });
   });
+
+  describe('B2B Project Final Settlement Webhook Processing (FC 045)', () => {
+    it('debe rechazar si falta project_id válido en metadata', async () => {
+      const rawPayload = JSON.stringify({
+        id: 'evt_settlement_no_project_id',
+        type: 'checkout.session.completed',
+        data: {
+          object: {
+            id: 'cs_settlement_no_pid',
+            metadata: { tenant_type: 'B2B_PROJECT_SETTLEMENT' },
+          },
+        },
+      });
+      mockStripe.webhooks.constructEvent.mockReturnValue(JSON.parse(rawPayload));
+
+      const res = await request(app)
+        .post('/api/v1/checkout/webhook')
+        .set('stripe-signature', 't=123,v1=valid_sig')
+        .send(Buffer.from(rawPayload));
+
+      expect(res.status).toBe(400);
+      expect(res.body.message).toContain('Falta project_id válido en metadata de finiquito B2B.');
+    });
+
+    it('debe retornar 404 si el registro de finiquito no existe en lead_payments', async () => {
+      const rawPayload = JSON.stringify({
+        id: 'evt_settlement_not_found',
+        type: 'checkout.session.completed',
+        data: {
+          object: {
+            id: 'cs_settlement_not_found',
+            metadata: {
+              tenant_type: 'B2B_PROJECT_SETTLEMENT',
+              project_id: '12',
+            },
+          },
+        },
+      });
+      mockStripe.webhooks.constructEvent.mockReturnValue(JSON.parse(rawPayload));
+      vi.mocked(db.query).mockResolvedValueOnce([]); // lead_payments empty
+
+      const res = await request(app)
+        .post('/api/v1/checkout/webhook')
+        .set('stripe-signature', 't=123,v1=valid_sig')
+        .send(Buffer.from(rawPayload));
+
+      expect(res.status).toBe(404);
+      expect(res.body.message).toContain(
+        'Registro de pago de finiquito B2B no encontrado para esta sesión.',
+      );
+    });
+
+    it('debe procesar de forma idempotente un finiquito ya liquidado (PAID)', async () => {
+      const rawPayload = JSON.stringify({
+        id: 'evt_settlement_idempotent',
+        type: 'checkout.session.completed',
+        data: {
+          object: {
+            id: 'cs_settlement_idempotent',
+            metadata: {
+              tenant_type: 'B2B_PROJECT_SETTLEMENT',
+              project_id: '10',
+            },
+          },
+        },
+      });
+      mockStripe.webhooks.constructEvent.mockReturnValue(JSON.parse(rawPayload));
+
+      vi.mocked(db.query).mockImplementation((sql: string) => {
+        if (sql.includes('FROM lead_payments WHERE stripe_session_id = ?')) {
+          return Promise.resolve([
+            { id: 99, project_id: 10, status: 'PAID', amount_cents: 500000, currency: 'USD' },
+          ]);
+        }
+        return Promise.resolve([]);
+      });
+
+      const res = await request(app)
+        .post('/api/v1/checkout/webhook')
+        .set('stripe-signature', 't=123,v1=valid_sig')
+        .send(Buffer.from(rawPayload));
+
+      expect(res.status).toBe(200);
+      expect(res.body.message).toContain('Finiquito ya procesado previamente.');
+    });
+
+    it('debe fallar cerrado (400) si hay discrepancia de monto o divisa contra fila almacenada (C-045.3)', async () => {
+      // Discrepancia de monto
+      const rawPayloadAmountMismatch = JSON.stringify({
+        id: 'evt_settlement_amount_mismatch',
+        type: 'checkout.session.completed',
+        data: {
+          object: {
+            id: 'cs_settlement_amt_bad',
+            amount_total: 10000, // 100 USD en vez de 5000 USD
+            currency: 'usd',
+            metadata: {
+              tenant_type: 'B2B_PROJECT_SETTLEMENT',
+              project_id: '15',
+            },
+          },
+        },
+      });
+      mockStripe.webhooks.constructEvent.mockReturnValue(JSON.parse(rawPayloadAmountMismatch));
+
+      vi.mocked(db.query).mockImplementation((sql: string) => {
+        if (sql.includes('FROM lead_payments WHERE stripe_session_id = ?')) {
+          return Promise.resolve([
+            { id: 101, project_id: 15, status: 'PENDING', amount_cents: 500000, currency: 'USD' },
+          ]);
+        }
+        return Promise.resolve([]);
+      });
+
+      const resAmount = await request(app)
+        .post('/api/v1/checkout/webhook')
+        .set('stripe-signature', 't=123,v1=valid_sig')
+        .send(Buffer.from(rawPayloadAmountMismatch));
+
+      expect(resAmount.status).toBe(400);
+      expect(resAmount.body.error).toBe('Amount Or Currency Mismatch');
+
+      // Discrepancia de divisa
+      const rawPayloadCurMismatch = JSON.stringify({
+        id: 'evt_settlement_cur_bad',
+        type: 'checkout.session.completed',
+        data: {
+          object: {
+            id: 'cs_settlement_cur_bad',
+            amount_total: 500000,
+            currency: 'mxn',
+            metadata: {
+              tenant_type: 'B2B_PROJECT_SETTLEMENT',
+              project_id: '15',
+            },
+          },
+        },
+      });
+      mockStripe.webhooks.constructEvent.mockReturnValue(JSON.parse(rawPayloadCurMismatch));
+
+      vi.mocked(db.query).mockImplementation((sql: string) => {
+        if (sql.includes('FROM lead_payments WHERE stripe_session_id = ?')) {
+          return Promise.resolve([
+            { id: 101, project_id: 15, status: 'PENDING', amount_cents: 500000, currency: 'USD' },
+          ]);
+        }
+        return Promise.resolve([]);
+      });
+
+      const resCur = await request(app)
+        .post('/api/v1/checkout/webhook')
+        .set('stripe-signature', 't=123,v1=valid_sig')
+        .send(Buffer.from(rawPayloadCurMismatch));
+
+      expect(resCur.status).toBe(400);
+      expect(resCur.body.error).toBe('Amount Or Currency Mismatch');
+
+      // Discrepancia con currency null
+      const rawPayloadNoCur = JSON.stringify({
+        id: 'evt_settlement_no_cur',
+        type: 'checkout.session.completed',
+        data: {
+          object: {
+            id: 'cs_settlement_cur_null',
+            amount_total: 500000,
+            currency: null,
+            metadata: {
+              tenant_type: 'B2B_PROJECT_SETTLEMENT',
+              project_id: '15',
+            },
+          },
+        },
+      });
+      mockStripe.webhooks.constructEvent.mockReturnValue(JSON.parse(rawPayloadNoCur));
+      const resNoCur = await request(app)
+        .post('/api/v1/checkout/webhook')
+        .set('stripe-signature', 't=123,v1=valid_sig')
+        .send(Buffer.from(rawPayloadNoCur));
+      expect(resNoCur.status).toBe(400);
+    });
+
+    it('debe procesar exitosamente la liquidación final de finiquito (B2B_PROJECT_SETTLEMENT) atómicamente', async () => {
+      const rawPayloadSuccess = JSON.stringify({
+        id: 'evt_settlement_success',
+        type: 'checkout.session.completed',
+        data: {
+          object: {
+            id: 'cs_settlement_ok_123',
+            amount_total: 750000,
+            currency: 'usd',
+            payment_intent: 'pi_settlement_real_123',
+            customer_details: { email: 'client_settle@empresa.com' },
+            metadata: {
+              tenant_type: 'B2B_PROJECT_SETTLEMENT',
+              project_id: '30',
+            },
+          },
+        },
+      });
+      mockStripe.webhooks.constructEvent.mockReturnValue(JSON.parse(rawPayloadSuccess));
+
+      vi.mocked(db.query).mockImplementation((sql: string) => {
+        if (sql.includes('FROM lead_payments WHERE stripe_session_id = ?')) {
+          return Promise.resolve([
+            {
+              id: 202,
+              project_id: 30,
+              status: 'PENDING',
+              amount_cents: 750000,
+              currency: 'USD',
+            },
+          ]);
+        }
+        if (sql.includes('FROM client_projects p') && sql.includes('JOIN users u')) {
+          return Promise.resolve([
+            {
+              id: 30,
+              lead_id: 12,
+              project_name: 'Plataforma Enterprise B2B',
+              budget_cents: 1500000,
+              paid_amount_cents: 750000,
+              pending_balance_cents: 750000,
+              currency: 'USD',
+              full_name: 'Cliente Empresa',
+              email: 'client_settle@empresa.com',
+              locale: 'es',
+            },
+          ]);
+        }
+        return Promise.resolve({ affectedRows: 1 });
+      });
+
+      const res = await request(app)
+        .post('/api/v1/checkout/webhook')
+        .set('stripe-signature', 't=123,v1=valid_sig')
+        .send(Buffer.from(rawPayloadSuccess));
+
+      expect(res.status).toBe(200);
+      expect(res.body.status).toBe('success');
+      expect(res.body.message).toContain('Finiquito de proyecto procesado y entregado con éxito.');
+      expect(db.withTransaction).toHaveBeenCalled();
+
+      // Caso: Proyecto no encontrado en DB tras pago (404)
+      const rawPayloadMissingProject = JSON.stringify({
+        id: 'evt_settlement_missing_proj',
+        type: 'checkout.session.completed',
+        data: {
+          object: {
+            id: 'cs_settlement_missing_proj',
+            amount_total: 5000,
+            currency: 'usd',
+            metadata: {
+              tenant_type: 'B2B_PROJECT_SETTLEMENT',
+              project_id: '999',
+            },
+          },
+        },
+      });
+      mockStripe.webhooks.constructEvent.mockReturnValue(JSON.parse(rawPayloadMissingProject));
+      vi.mocked(db.query).mockImplementation((sql: string) => {
+        if (sql.includes('FROM lead_payments WHERE stripe_session_id = ?')) {
+          return Promise.resolve([
+            {
+              id: 203,
+              project_id: 999,
+              status: 'PENDING',
+              amount_cents: 5000,
+              currency: 'USD',
+            },
+          ]);
+        }
+        if (sql.includes('FROM client_projects p')) {
+          return Promise.resolve([]); // No project
+        }
+        return Promise.resolve([]);
+      });
+
+      const resMissing = await request(app)
+        .post('/api/v1/checkout/webhook')
+        .set('stripe-signature', 't=123,v1=valid_sig')
+        .send(Buffer.from(rawPayloadMissingProject));
+
+      expect(resMissing.status).toBe(404);
+      expect(resMissing.body.message).toContain('Proyecto a finiquitar no encontrado.');
+
+      // Caso: Finiquito exitoso sin lead_id y sin locale (fallback 'es')
+      const rawPayloadNoLeadId = JSON.stringify({
+        id: 'evt_settlement_no_lead',
+        type: 'checkout.session.completed',
+        data: {
+          object: {
+            id: 'cs_settlement_no_lead_ok',
+            amount_total: 20000,
+            currency: 'usd',
+            metadata: {
+              tenant_type: 'B2B_PROJECT_SETTLEMENT',
+              project_id: '45',
+            },
+          },
+        },
+      });
+      mockStripe.webhooks.constructEvent.mockReturnValue(JSON.parse(rawPayloadNoLeadId));
+      vi.mocked(db.query).mockImplementation((sql: string) => {
+        if (sql.includes('FROM lead_payments WHERE stripe_session_id = ?')) {
+          return Promise.resolve([
+            { id: 204, project_id: 45, status: 'PENDING', amount_cents: 20000, currency: 'USD' },
+          ]);
+        }
+        if (sql.includes('FROM client_projects p') && sql.includes('JOIN users u')) {
+          return Promise.resolve([
+            {
+              id: 45,
+              lead_id: null, // Sin lead_id (cubre branch 361 false)
+              project_name: 'Proyecto Directo',
+              budget_cents: 20000,
+              paid_amount_cents: 0,
+              pending_balance_cents: 20000,
+              currency: 'USD',
+              full_name: 'Cliente Sin Lead',
+              email: 'sinlead@cliente.com',
+              locale: undefined, // Sin locale (cubre branch 389 fallback 'es')
+            },
+          ]);
+        }
+        return Promise.resolve({ affectedRows: 1 });
+      });
+
+      const resNoLead = await request(app)
+        .post('/api/v1/checkout/webhook')
+        .set('stripe-signature', 't=123,v1=valid_sig')
+        .send(Buffer.from(rawPayloadNoLeadId));
+
+      expect(resNoLead.status).toBe(200);
+      expect(resNoLead.body.status).toBe('success');
+    });
+  });
 });

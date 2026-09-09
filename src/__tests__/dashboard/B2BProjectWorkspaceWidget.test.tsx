@@ -9,6 +9,8 @@ vi.mock('@/lib/auth/client', async () => {
   return {
     ...actual,
     updateClientProjectBriefing: vi.fn(),
+    signOffClientMilestone: vi.fn(),
+    createProjectSettlementSession: vi.fn(),
   };
 });
 
@@ -492,5 +494,400 @@ describe('B2BProjectWorkspaceWidget Component Suite (FC 044 100% Coverage)', () 
       },
       { timeout: 3000 },
     );
+  });
+
+  describe('FC 045: Milestone Sign-Off & Final Settlement Suite', () => {
+    it('debe abrir modal de visto bueno (Sign-Off), validar checkbox obligatorio y enviar aprobación exitosa', async () => {
+      const handleUpdate = vi.fn();
+      const mockProjects: ClientProject[] = [
+        {
+          id: 50,
+          tenant_id: 1,
+          user_id: 42,
+          project_name: 'Proyecto SignOff Test',
+          vertical: 'custom_dev',
+          status: 'IN_DEVELOPMENT',
+          currency: 'USD',
+          budget_cents: 1000000,
+          paid_amount_cents: 500000,
+          pending_balance_cents: 500000,
+          estimated_weeks: 4,
+          milestones: [
+            {
+              id: 501,
+              project_id: 50,
+              milestone_index: 1,
+              title: 'Hito en Revisión',
+              description: 'Entregables del sprint 1 listos en staging',
+              target_week: 2,
+              status: 'REVIEW',
+            },
+          ],
+          created_at: '2026-09-01',
+          updated_at: '2026-09-01',
+        },
+      ];
+
+      render(<B2BProjectWorkspaceWidget projects={mockProjects} onProjectUpdated={handleUpdate} />);
+
+      // Botón "Revisar & Aprobar" presente
+      const reviewBtn = screen.getByRole('button', { name: 'Revisar & Aprobar' });
+      fireEvent.click(reviewBtn);
+
+      expect(screen.getByText('Visto Bueno & Sign-Off Formal')).toBeInTheDocument();
+      expect(screen.getByText('Alcance del Entregable')).toBeInTheDocument();
+      expect(
+        screen.getAllByText('Entregables del sprint 1 listos en staging').length,
+      ).toBeGreaterThanOrEqual(1);
+
+      // Botón enviar deshabilitado hasta marcar checkbox
+      const submitBtn = screen.getByRole('button', { name: 'Aprobar Hito Formalmente' });
+      expect(submitBtn).toBeDisabled();
+
+      // Forzar click en form sin checkbox
+      const checkbox = screen.getByLabelText(
+        /Confirmo haber revisado y validado a entera satisfacción técnica/,
+      );
+      expect(checkbox).not.toBeChecked();
+
+      // Marcar checkbox
+      fireEvent.click(checkbox);
+      expect(checkbox).toBeChecked();
+      expect(submitBtn).not.toBeDisabled();
+
+      // Añadir feedback opcional
+      const feedbackInput = screen.getByPlaceholderText(/e.g. Aprobado conforme a la demo/);
+      fireEvent.change(feedbackInput, {
+        target: { value: 'Todo conforme y probado en staging.' },
+      });
+
+      vi.mocked(authClient.signOffClientMilestone).mockResolvedValueOnce({
+        status: 'success',
+        message: 'Hito aprobado',
+        milestone: {
+          id: 501,
+          project_id: 50,
+          milestone_index: 1,
+          title: 'Hito en Revisión',
+          status: 'COMPLETED',
+          client_approved_at: '2026-09-08T12:00:00Z',
+          client_feedback: 'Todo conforme y probado en staging.',
+        },
+      });
+
+      fireEvent.click(submitBtn);
+
+      await waitFor(() => {
+        expect(authClient.signOffClientMilestone).toHaveBeenCalledWith(50, 501, {
+          accepted: true,
+          feedback: 'Todo conforme y probado en staging.',
+        });
+      });
+
+      expect(
+        screen.getByText('Hito aprobado formalmente con éxito. Registro de auditoría asentado.'),
+      ).toBeInTheDocument();
+
+      await waitFor(
+        () => {
+          expect(handleUpdate).toHaveBeenCalledTimes(1);
+        },
+        { timeout: 3000 },
+      );
+    });
+
+    it('debe manejar errores y cancelación en modal de visto bueno (Sign-Off)', async () => {
+      const mockProjects: ClientProject[] = [
+        {
+          id: 55,
+          tenant_id: 1,
+          user_id: 42,
+          project_name: 'Proyecto Error SignOff',
+          vertical: 'custom_dev',
+          status: 'IN_DEVELOPMENT',
+          currency: 'USD',
+          budget_cents: 1000000,
+          paid_amount_cents: 500000,
+          pending_balance_cents: 500000,
+          estimated_weeks: 4,
+          milestones: [
+            {
+              id: 551,
+              project_id: 55,
+              milestone_index: 1,
+              title: 'Hito en Progreso con Sign-Off',
+              status: 'IN_PROGRESS',
+            },
+          ],
+          created_at: '2026-09-01',
+          updated_at: '2026-09-01',
+        },
+      ];
+
+      render(<B2BProjectWorkspaceWidget projects={mockProjects} />);
+
+      // Abrir modal
+      fireEvent.click(screen.getByRole('button', { name: 'Revisar & Aprobar' }));
+      expect(screen.getByText('Visto Bueno & Sign-Off Formal')).toBeInTheDocument();
+
+      // Cancelar con botón "Cancelar"
+      fireEvent.click(screen.getByRole('button', { name: 'Cancelar' }));
+      expect(screen.queryByText('Visto Bueno & Sign-Off Formal')).not.toBeInTheDocument();
+
+      // Reabrir modal
+      fireEvent.click(screen.getByRole('button', { name: 'Revisar & Aprobar' }));
+
+      // Cerrar con "✕"
+      const closeButtons = screen.getAllByText('✕');
+      fireEvent.click(closeButtons[0]);
+      expect(screen.queryByText('Visto Bueno & Sign-Off Formal')).not.toBeInTheDocument();
+
+      // Reabrir modal
+      fireEvent.click(screen.getByRole('button', { name: 'Revisar & Aprobar' }));
+
+      // Intentar enviar sin marcar el checkbox obligatorio (líneas 147-148)
+      const signOffForm = screen
+        .getByRole('button', { name: 'Aprobar Hito Formalmente' })
+        .closest('form')!;
+      fireEvent.submit(signOffForm);
+      expect(
+        screen.getByText('Debes confirmar y aceptar formalmente los entregables para proceder.'),
+      ).toBeInTheDocument();
+
+      // Ahora marcar el checkbox y simular error estándar
+      const checkbox = screen.getByLabelText(/Confirmo haber revisado y validado/);
+      fireEvent.click(checkbox);
+
+      vi.mocked(authClient.signOffClientMilestone).mockRejectedValueOnce(
+        new Error('Hito ya completado previamente (C-045.2)'),
+      );
+
+      fireEvent.click(screen.getByRole('button', { name: 'Aprobar Hito Formalmente' }));
+
+      await waitFor(() => {
+        expect(screen.getByText('Hito ya completado previamente (C-045.2)')).toBeInTheDocument();
+      });
+
+      // Simular error no-Error (string)
+      vi.mocked(authClient.signOffClientMilestone).mockRejectedValueOnce('Error de red plano');
+
+      fireEvent.click(screen.getByRole('button', { name: 'Aprobar Hito Formalmente' }));
+
+      await waitFor(() => {
+        expect(screen.getByText('Error al registrar el visto bueno del hito.')).toBeInTheDocument();
+      });
+    });
+
+    it('debe renderizar badge de hito aprobado con feedback y fecha', () => {
+      const mockProjects: ClientProject[] = [
+        {
+          id: 60,
+          tenant_id: 1,
+          user_id: 42,
+          project_name: 'Proyecto Aprobado',
+          vertical: 'custom_dev',
+          status: 'IN_DEVELOPMENT',
+          currency: 'USD',
+          budget_cents: 1000000,
+          paid_amount_cents: 500000,
+          pending_balance_cents: 500000,
+          estimated_weeks: 4,
+          milestones: [
+            {
+              id: 601,
+              project_id: 60,
+              milestone_index: 1,
+              title: 'Hito Aprobado Previamente',
+              status: 'COMPLETED',
+              completed_at: '2026-09-05T00:00:00Z',
+              client_approved_at: '2026-09-05T10:00:00Z',
+              client_feedback: 'Aprobado excelente calidad de código',
+            },
+          ],
+          created_at: '2026-09-01',
+          updated_at: '2026-09-01',
+        },
+      ];
+
+      render(<B2BProjectWorkspaceWidget projects={mockProjects} />);
+
+      expect(screen.getByText(/✓ Visto Bueno Cliente:/)).toBeInTheDocument();
+      expect(screen.getByText('“Aprobado excelente calidad de código”')).toBeInTheDocument();
+      // No debe haber botón de revisar en hito completado y aprobado
+      expect(screen.queryByRole('button', { name: 'Revisar & Aprobar' })).not.toBeInTheDocument();
+    });
+
+    it('debe renderizar banner de liquidación de finiquito y redirigir a Stripe Checkout al pulsar botón', async () => {
+      const originalLocation = window.location;
+      delete (window as unknown as { location?: unknown }).location;
+      window.location = { ...originalLocation, href: '' } as unknown as Location;
+
+      const mockProjects: ClientProject[] = [
+        {
+          id: 70,
+          tenant_id: 1,
+          user_id: 42,
+          project_name: 'Proyecto Finiquito',
+          vertical: 'saas_platform',
+          status: 'SETTLEMENT_PENDING',
+          currency: 'USD',
+          budget_cents: 2000000,
+          paid_amount_cents: 1000000,
+          pending_balance_cents: 1000000,
+          estimated_weeks: 6,
+          milestones: [
+            {
+              id: 701,
+              project_id: 70,
+              milestone_index: 1,
+              title: 'Entrega Final',
+              status: 'COMPLETED',
+            },
+          ],
+          created_at: '2026-09-01',
+          updated_at: '2026-09-01',
+        },
+      ];
+
+      render(<B2BProjectWorkspaceWidget projects={mockProjects} />);
+
+      expect(screen.getByText('Liquidación Final & Finiquito de Entrega')).toBeInTheDocument();
+      expect(screen.getByText('Fase: Finiquito Pendiente')).toBeInTheDocument();
+
+      const settleBtn = screen.getByRole('button', {
+        name: 'Liquidar Saldo en Stripe (Finiquito)',
+      });
+
+      vi.mocked(authClient.createProjectSettlementSession).mockResolvedValueOnce({
+        status: 'success',
+        checkout_url: 'https://checkout.stripe.com/pay/cs_test_settlement_123',
+        session_id: 'cs_test_settlement_123',
+        amount_cents: 1000000,
+        currency: 'USD',
+      });
+
+      fireEvent.click(settleBtn);
+
+      await waitFor(() => {
+        expect(authClient.createProjectSettlementSession).toHaveBeenCalledWith(70);
+        expect(window.location.href).toBe('https://checkout.stripe.com/pay/cs_test_settlement_123');
+      });
+
+      window.location = originalLocation;
+    });
+
+    it('debe manejar errores en la pasarela de liquidación final (sin url y excepción)', async () => {
+      const mockProjects: ClientProject[] = [
+        {
+          id: 75,
+          tenant_id: 1,
+          user_id: 42,
+          project_name: 'Proyecto Error Settle',
+          vertical: 'saas_platform',
+          status: 'IN_DEVELOPMENT',
+          currency: 'USD',
+          budget_cents: 2000000,
+          paid_amount_cents: 1000000,
+          pending_balance_cents: 1000000,
+          estimated_weeks: 6,
+          milestones: [
+            {
+              id: 751,
+              project_id: 75,
+              milestone_index: 1,
+              title: 'Hito Completado',
+              status: 'COMPLETED',
+            },
+          ],
+          created_at: '2026-09-01',
+          updated_at: '2026-09-01',
+        },
+      ];
+
+      render(<B2BProjectWorkspaceWidget projects={mockProjects} />);
+
+      const settleBtn = screen.getByRole('button', {
+        name: 'Liquidar Saldo en Stripe (Finiquito)',
+      });
+
+      // Caso 1: respuesta sin URL
+      vi.mocked(authClient.createProjectSettlementSession).mockResolvedValueOnce({
+        status: 'success',
+        checkout_url: '',
+        session_id: 'cs_test_settlement_124',
+        amount_cents: 1000000,
+        currency: 'USD',
+      });
+
+      fireEvent.click(settleBtn);
+
+      await waitFor(() => {
+        expect(
+          screen.getByText('No se recibió la URL de la pasarela de pago.'),
+        ).toBeInTheDocument();
+      });
+
+      // Caso 2: excepción en backend
+      vi.mocked(authClient.createProjectSettlementSession).mockRejectedValueOnce(
+        new Error('Stripe API Timeout'),
+      );
+
+      fireEvent.click(settleBtn);
+
+      await waitFor(() => {
+        expect(screen.getByText('Stripe API Timeout')).toBeInTheDocument();
+      });
+
+      // Caso 3: excepción no-Error (string)
+      vi.mocked(authClient.createProjectSettlementSession).mockRejectedValueOnce(
+        'Error desconocido',
+      );
+
+      fireEvent.click(settleBtn);
+
+      await waitFor(() => {
+        expect(screen.getByText('Error al iniciar la pasarela de finiquito.')).toBeInTheDocument();
+      });
+    });
+
+    it('debe renderizar banner de proyecto entregado cuando status es COMPLETED_DELIVERED y saldo 0', () => {
+      const mockProjects: ClientProject[] = [
+        {
+          id: 80,
+          tenant_id: 1,
+          user_id: 42,
+          project_name: 'Proyecto Entregado Formalmente',
+          vertical: 'saas_platform',
+          status: 'COMPLETED_DELIVERED',
+          currency: 'USD',
+          budget_cents: 2000000,
+          paid_amount_cents: 2000000,
+          pending_balance_cents: 0,
+          estimated_weeks: 6,
+          milestones: [
+            {
+              id: 801,
+              project_id: 80,
+              milestone_index: 1,
+              title: 'Hito 1',
+              status: 'COMPLETED',
+            },
+          ],
+          created_at: '2026-09-01',
+          updated_at: '2026-09-01',
+        },
+      ];
+
+      render(<B2BProjectWorkspaceWidget projects={mockProjects} />);
+
+      expect(
+        screen.getByText('Proyecto Entregado & Finiquito Liquidado al 100%'),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByText(
+          'Garantías y código entregados formalmente a conformidad del cliente. Balance en cero.',
+        ),
+      ).toBeInTheDocument();
+    });
   });
 });

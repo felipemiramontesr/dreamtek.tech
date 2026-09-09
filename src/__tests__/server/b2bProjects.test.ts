@@ -8,14 +8,20 @@ import * as db from '../../../server/src/db';
 import { clientRouter } from '../../../server/src/routes/client';
 import { adminRouter } from '../../../server/src/routes/admin';
 import { authRouter } from '../../../server/src/routes/auth';
-import { checkoutRouter } from '../../../server/src/routes/checkout';
+import { checkoutRouter, setStripeForTest } from '../../../server/src/routes/checkout';
+import { setTransporterForTest } from '../../../server/src/routes/contact';
 import {
   httpsUrlSchema,
   clientBriefingSchema,
   adminUpdateProjectSchema,
   adminUpdateMilestoneSchema,
   adminCreateProjectFromLeadSchema,
+  milestoneSignOffSchema,
 } from '../../../server/src/schemas/project.schema';
+import {
+  renderMilestoneReviewEmail,
+  renderFinalSettlementReceiptEmail,
+} from '../../../server/src/utils/crm';
 import {
   seedProjectMilestones,
   provisionClientProjectForLead,
@@ -60,6 +66,8 @@ app.use('/api/v1/checkout', checkoutRouter);
 describe('FC 044 B2B Client Projects & Onboarding Workspace Engine Suite', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    process.env.NODE_ENV = 'test';
+    process.env.JWT_SECRET = TEST_SECRET;
   });
 
   describe('1. Zod Schemas & Anti-SSRF Validation (Conditions C-044.4 & C-044.5)', () => {
@@ -1634,6 +1642,936 @@ describe('FC 044 B2B Client Projects & Onboarding Workspace Engine Suite', () =>
       const resCatch = await supertest(app).get('/api/v1/checkout/verify?session_id=cs_b2b_catch');
       expect(resCatch.status).toBe(200);
       expect(resCatch.body.verified).toBe(false);
+    });
+  });
+
+  describe('9. FC 045 Milestone Sign-Off & Final Settlement Suite', () => {
+    describe('9.1 Schemas & Templates Validation', () => {
+      it('milestoneSignOffSchema debe validar aceptación obligatoria y longitud de feedback', () => {
+        expect(milestoneSignOffSchema.safeParse({ accepted: true }).success).toBe(true);
+        expect(
+          milestoneSignOffSchema.safeParse({
+            accepted: true,
+            feedback: 'Aprobado a entera satisfacción técnica.',
+          }).success,
+        ).toBe(true);
+
+        // Rechaza accepted false
+        const falseRes = milestoneSignOffSchema.safeParse({ accepted: false });
+        expect(falseRes.success).toBe(false);
+
+        // Rechaza feedback excesivo (> 2000)
+        const longRes = milestoneSignOffSchema.safeParse({
+          accepted: true,
+          feedback: 'A'.repeat(2001),
+        });
+        expect(longRes.success).toBe(false);
+      });
+
+      it('adminUpdateProjectSchema debe aceptar status SETTLEMENT_PENDING', () => {
+        const res = adminUpdateProjectSchema.safeParse({
+          status: 'SETTLEMENT_PENDING',
+        });
+        expect(res.success).toBe(true);
+      });
+
+      it('renderMilestoneReviewEmail debe generar versión en español, inglés y sanitizar XSS', () => {
+        const maliciousTitle = '<script>alert("xss")</script> Sprint 2';
+        const maliciousDesc = '<img src=x onerror=alert(1)> Entregable Staging';
+
+        const emailEs = renderMilestoneReviewEmail({
+          fullName: 'Alejandro Ramos',
+          projectName: 'Portal B2B',
+          milestoneIndex: 2,
+          milestoneTitle: maliciousTitle,
+          milestoneDescription: maliciousDesc,
+          targetWeek: 4,
+          stagingUrl: 'https://staging.test.com',
+          dashboardUrl: 'https://portal.dreamtek.tech',
+          locale: 'es',
+        });
+
+        expect(emailEs.subject).toContain('Entregable listo para revisión');
+        expect(emailEs.html).toContain('&lt;script&gt;');
+        expect(emailEs.html).not.toContain('<script>');
+        expect(emailEs.html).toContain('Alejandro Ramos');
+        expect(emailEs.html).toContain('https://staging.test.com');
+
+        const emailEn = renderMilestoneReviewEmail({
+          fullName: 'John Doe',
+          projectName: 'B2B Core',
+          milestoneIndex: 1,
+          milestoneTitle: 'Architecture Setup',
+          milestoneDescription: 'Infrastructure ready',
+          targetWeek: 2,
+          dashboardUrl: 'https://portal.dreamtek.tech',
+          locale: 'en',
+        });
+
+        expect(emailEn.subject).toContain('Deliverable Ready for Review');
+        expect(emailEn.html).toContain('John Doe');
+
+        const emailEnWithStaging = renderMilestoneReviewEmail({
+          fullName: 'Alice Walker',
+          projectName: 'SaaS Platform',
+          milestoneIndex: 3,
+          milestoneTitle: 'Deployment',
+          stagingUrl: 'https://staging.saas.com',
+          dashboardUrl: 'https://portal.dreamtek.tech',
+          locale: 'en',
+        });
+        expect(emailEnWithStaging.html).toContain('Staging Environment URL:');
+        expect(emailEnWithStaging.text).toContain('Staging URL: https://staging.saas.com');
+      });
+
+      it('renderFinalSettlementReceiptEmail debe generar constancia bilingüe con montos formateados', () => {
+        const receiptEs = renderFinalSettlementReceiptEmail({
+          fullName: 'Directora Logística',
+          email: 'directora@logistica.com',
+          projectName: 'ERP Corporativo',
+          amountCents: 1500000,
+          currency: 'USD',
+          dashboardUrl: 'https://portal.dreamtek.tech/dashboard',
+          locale: 'es',
+        });
+
+        expect(receiptEs.subject).toContain('Constancia de Finiquito y Entrega Final');
+        expect(receiptEs.html).toContain('$15,000.00 USD');
+        expect(receiptEs.html).toContain('ERP Corporativo');
+
+        const receiptEn = renderFinalSettlementReceiptEmail({
+          fullName: 'Jane Smith',
+          email: 'jane@smith.com',
+          projectName: 'Global ERP',
+          amountCents: 2000000,
+          currency: 'USD',
+          dashboardUrl: 'https://portal.dreamtek.tech/dashboard',
+          locale: 'en',
+        });
+
+        expect(receiptEn.subject).toContain('Final Settlement Confirmation & Delivery');
+        expect(receiptEn.html).toContain('100% Fully Settled');
+      });
+
+      it('debe cubrir ramas de fallback en templates cuando fullName o stagingUrl son nulos o vacíos', () => {
+        // Fallbacks en español (Estimado/a Cliente)
+        const emailEsFallback = renderMilestoneReviewEmail({
+          fullName: '',
+          projectName: 'Proyecto Alpha',
+          milestoneIndex: 1,
+          milestoneTitle: 'Fase 1',
+          dashboardUrl: 'https://portal.dreamtek.tech',
+          locale: 'es',
+        });
+        expect(emailEsFallback.html).toContain('Estimado/a Cliente');
+        expect(emailEsFallback.text).toContain('Estimado/a Cliente');
+        expect(emailEsFallback.html).not.toContain('Ambiente de Staging');
+
+        // Fallbacks en inglés (Valued Client)
+        const emailEnFallback = renderMilestoneReviewEmail({
+          fullName: '',
+          projectName: 'Project Alpha',
+          milestoneIndex: 1,
+          milestoneTitle: 'Phase 1',
+          dashboardUrl: 'https://portal.dreamtek.tech',
+          locale: 'en',
+        });
+        expect(emailEnFallback.html).toContain('Valued Client');
+        expect(emailEnFallback.text).toContain('Valued Client');
+        expect(emailEnFallback.html).not.toContain('Staging Environment');
+
+        // Receipt fallbacks
+        const receiptEsFallback = renderFinalSettlementReceiptEmail({
+          fullName: '',
+          email: 'test@client.com',
+          projectName: 'Proyecto Alpha',
+          amountCents: 100000,
+          currency: 'USD',
+          dashboardUrl: 'https://portal.dreamtek.tech',
+          locale: 'es',
+        });
+        expect(receiptEsFallback.html).toContain('Estimado/a Cliente');
+        expect(receiptEsFallback.text).toContain('Estimado/a Cliente');
+
+        const receiptEnFallback = renderFinalSettlementReceiptEmail({
+          fullName: '',
+          email: 'test@client.com',
+          projectName: 'Project Alpha',
+          amountCents: 100000,
+          currency: 'USD',
+          dashboardUrl: 'https://portal.dreamtek.tech',
+          locale: 'en',
+        });
+        expect(receiptEnFallback.html).toContain('Valued Client');
+        expect(receiptEnFallback.text).toContain('Valued Client');
+      });
+    });
+
+    describe('9.2 POST /api/v1/client/projects/:id/milestones/:milestoneId/sign-off', () => {
+      it('debe rechazar sin autenticación o con IDOR mismatch (C-045.1)', async () => {
+        // 401 Sin auth
+        const resNoAuth = await supertest(app)
+          .post('/api/v1/client/projects/1/milestones/10/sign-off')
+          .send({ accepted: true });
+        expect(resNoAuth.status).toBe(401);
+
+        // 403 IDOR mismatch (user_id del proyecto no coincide con token client 42)
+        vi.mocked(db.query).mockImplementationOnce((sql: string) => {
+          if (sql.includes('FROM client_projects WHERE id = ?')) {
+            return Promise.resolve([
+              { id: 1, user_id: 999 }, // Otro usuario
+            ]);
+          }
+          return Promise.resolve([]);
+        });
+
+        const resIdor = await supertest(app)
+          .post('/api/v1/client/projects/1/milestones/10/sign-off')
+          .set('Authorization', `Bearer ${clientToken}`)
+          .send({ accepted: true });
+
+        expect(resIdor.status).toBe(403);
+        expect(resIdor.body.message).toContain(
+          'No tienes permiso para aprobar hitos de este proyecto.',
+        );
+
+        // 400 ID inválido (projectId o milestoneId)
+        const resInvalidProjId = await supertest(app)
+          .post('/api/v1/client/projects/0/milestones/10/sign-off')
+          .set('Authorization', `Bearer ${clientToken}`)
+          .send({ accepted: true });
+        expect(resInvalidProjId.status).toBe(400);
+
+        const resInvalidMileId = await supertest(app)
+          .post('/api/v1/client/projects/1/milestones/0/sign-off')
+          .set('Authorization', `Bearer ${clientToken}`)
+          .send({ accepted: true });
+        expect(resInvalidMileId.status).toBe(400);
+
+        // 400 Schema inválido (accepted: false o ausente)
+        const resBadSchema = await supertest(app)
+          .post('/api/v1/client/projects/1/milestones/10/sign-off')
+          .set('Authorization', `Bearer ${clientToken}`)
+          .send({ accepted: false });
+        expect(resBadSchema.status).toBe(400);
+        expect(resBadSchema.body.error).toBe('Validation Error');
+      });
+
+      it('debe rechazar si el hito no existe o ya está completado previamente (C-045.2)', async () => {
+        // Proyecto no encontrado (404)
+        vi.mocked(db.query).mockResolvedValueOnce([]);
+        const resProjNotFound = await supertest(app)
+          .post('/api/v1/client/projects/999/milestones/101/sign-off')
+          .set('Authorization', `Bearer ${clientToken}`)
+          .send({ accepted: true });
+        expect(resProjNotFound.status).toBe(404);
+        expect(resProjNotFound.body.message).toContain('Proyecto no encontrado');
+
+        // Milestone no existe en el proyecto
+        vi.mocked(db.query).mockImplementation((sql: string) => {
+          if (sql.includes('FROM client_projects WHERE id = ?')) {
+            return Promise.resolve([{ id: 10, user_id: 42 }]);
+          }
+          if (sql.includes('FROM client_project_milestones WHERE id = ?')) {
+            return Promise.resolve([]); // No encontrado
+          }
+          return Promise.resolve([]);
+        });
+
+        const resNotFound = await supertest(app)
+          .post('/api/v1/client/projects/10/milestones/999/sign-off')
+          .set('Authorization', `Bearer ${clientToken}`)
+          .send({ accepted: true });
+
+        expect(resNotFound.status).toBe(404);
+        expect(resNotFound.body.message).toContain('Hito no encontrado en este proyecto');
+
+        // Milestone con status no permitido (ej. PENDING) (400)
+        vi.mocked(db.query).mockImplementation((sql: string) => {
+          if (sql.includes('FROM client_projects WHERE id = ?')) {
+            return Promise.resolve([{ id: 10, user_id: 42 }]);
+          }
+          if (sql.includes('FROM client_project_milestones WHERE id = ?')) {
+            return Promise.resolve([
+              {
+                id: 102,
+                project_id: 10,
+                status: 'PENDING',
+              },
+            ]);
+          }
+          return Promise.resolve([]);
+        });
+
+        const resPendingStatus = await supertest(app)
+          .post('/api/v1/client/projects/10/milestones/102/sign-off')
+          .set('Authorization', `Bearer ${clientToken}`)
+          .send({ accepted: true });
+
+        expect(resPendingStatus.status).toBe(400);
+        expect(resPendingStatus.body.message).toContain(
+          'El hito debe estar en revisión o en progreso',
+        );
+
+        // Milestone ya completado previamente (C-045.2 fail-closed)
+        vi.mocked(db.query).mockImplementation((sql: string) => {
+          if (sql.includes('FROM client_projects WHERE id = ?')) {
+            return Promise.resolve([{ id: 10, user_id: 42 }]);
+          }
+          if (sql.includes('FROM client_project_milestones WHERE id = ?')) {
+            return Promise.resolve([
+              {
+                id: 101,
+                project_id: 10,
+                status: 'COMPLETED',
+                client_approved_at: '2026-09-01T12:00:00Z',
+              },
+            ]);
+          }
+          return Promise.resolve([]);
+        });
+
+        const resAlreadyCompleted = await supertest(app)
+          .post('/api/v1/client/projects/10/milestones/101/sign-off')
+          .set('Authorization', `Bearer ${clientToken}`)
+          .send({ accepted: true });
+
+        expect(resAlreadyCompleted.status).toBe(400);
+        expect(resAlreadyCompleted.body.message).toContain('completado y aprobado previamente');
+      });
+
+      it('debe aprobar hito y transicionar proyecto a SETTLEMENT_PENDING si todos los hitos están completados con saldo pendiente', async () => {
+        vi.mocked(db.query).mockImplementation((sql: string) => {
+          if (sql.includes('FROM client_projects WHERE id = ?')) {
+            return Promise.resolve([
+              {
+                id: 15,
+                user_id: 42,
+                status: 'STAGING_REVIEW',
+                pending_balance_cents: 500000, // Hay saldo
+              },
+            ]);
+          }
+          if (sql.includes('FROM client_project_milestones WHERE id = ?')) {
+            return Promise.resolve([
+              {
+                id: 202,
+                project_id: 15,
+                milestone_index: 3,
+                title: 'Hito Final',
+                status: 'REVIEW',
+                client_approved_at: null,
+              },
+            ]);
+          }
+          if (sql.includes('SELECT COUNT(*) as total, SUM(CASE WHEN status')) {
+            return Promise.resolve([{ total: 3, completed: 3 }]); // Todos completados
+          }
+          return Promise.resolve({ affectedRows: 1 });
+        });
+
+        const res = await supertest(app)
+          .post('/api/v1/client/projects/15/milestones/202/sign-off')
+          .set('Authorization', `Bearer ${clientToken}`)
+          .send({ accepted: true, feedback: 'Excelente entrega en staging' });
+
+        expect(res.status).toBe(200);
+        expect(res.body.status).toBe('success');
+        expect(res.body.message).toBe('Entregable aprobado con éxito.');
+      });
+
+      it('debe transicionar a COMPLETED_DELIVERED si todos los hitos están completados y saldo es cero', async () => {
+        vi.mocked(db.query).mockImplementation((sql: string) => {
+          if (sql.includes('FROM client_projects WHERE id = ?')) {
+            return Promise.resolve([
+              {
+                id: 16,
+                user_id: 42,
+                status: 'STAGING_REVIEW',
+                pending_balance_cents: 0, // Saldo liquidado
+              },
+            ]);
+          }
+          if (sql.includes('FROM client_project_milestones WHERE id = ?')) {
+            return Promise.resolve([
+              {
+                id: 203,
+                project_id: 16,
+                milestone_index: 2,
+                title: 'Hito Cierre',
+                status: 'REVIEW',
+                client_approved_at: null,
+              },
+            ]);
+          }
+          if (sql.includes('SELECT COUNT(*) as total, SUM(CASE WHEN status')) {
+            return Promise.resolve([{ total: 2, completed: 2 }]);
+          }
+          return Promise.resolve({ affectedRows: 1 });
+        });
+
+        const res = await supertest(app)
+          .post('/api/v1/client/projects/16/milestones/203/sign-off')
+          .set('Authorization', `Bearer ${clientToken}`)
+          .send({ accepted: true });
+
+        expect(res.status).toBe(200);
+        expect(res.body.status).toBe('success');
+        expect(res.body.message).toBe('Entregable aprobado con éxito.');
+      });
+
+      it('debe mantener estado del proyecto si quedan otros hitos pendientes y manejar errores DB', async () => {
+        // Quedan otros hitos
+        vi.mocked(db.query).mockImplementation((sql: string) => {
+          if (sql.includes('FROM client_projects WHERE id = ?')) {
+            return Promise.resolve([
+              {
+                id: 17,
+                user_id: 42,
+                status: 'IN_DEVELOPMENT',
+                pending_balance_cents: 1000000,
+              },
+            ]);
+          }
+          if (sql.includes('FROM client_project_milestones WHERE id = ?')) {
+            return Promise.resolve([
+              {
+                id: 204,
+                project_id: 17,
+                milestone_index: 1,
+                title: 'Hito 1',
+                status: 'IN_PROGRESS',
+                client_approved_at: null,
+              },
+            ]);
+          }
+          if (sql.includes('SELECT COUNT(*) as total, SUM(CASE WHEN status')) {
+            return Promise.resolve([{ total: 3, completed: 1 }]); // Faltan 2 hitos
+          }
+          return Promise.resolve({ affectedRows: 1 });
+        });
+
+        const res = await supertest(app)
+          .post('/api/v1/client/projects/17/milestones/204/sign-off')
+          .set('Authorization', `Bearer ${clientToken}`)
+          .send({ accepted: true });
+
+        expect(res.status).toBe(200);
+        expect(res.body.status).toBe('success');
+        expect(res.body.message).toBe('Entregable aprobado con éxito.');
+
+        // Error DB con message
+        vi.mocked(db.query).mockRejectedValueOnce(new Error('Crash DB signoff'));
+        const resCrash = await supertest(app)
+          .post('/api/v1/client/projects/17/milestones/204/sign-off')
+          .set('Authorization', `Bearer ${clientToken}`)
+          .send({ accepted: true });
+
+        expect(resCrash.status).toBe(500);
+
+        // Error DB sin message (cubre fallback línea 498 client.ts)
+        vi.mocked(db.query).mockRejectedValueOnce({});
+        const resCrashNoMsg = await supertest(app)
+          .post('/api/v1/client/projects/17/milestones/204/sign-off')
+          .set('Authorization', `Bearer ${clientToken}`)
+          .send({ accepted: true });
+
+        expect(resCrashNoMsg.status).toBe(500);
+        expect(resCrashNoMsg.body.message).toBe('Error al aprobar entregable.');
+      });
+    });
+
+    describe('9.3 Settlement Checkout Sessions (Client & Admin)', () => {
+      beforeEach(() => {
+        setStripeForTest({
+          checkout: {
+            sessions: {
+              create: vi.fn().mockResolvedValue({
+                id: 'cs_test_mock_settlement',
+                url: 'https://checkout.stripe.com/pay/cs_test_mock_settlement',
+              }),
+            },
+          },
+        });
+      });
+
+      it('POST /api/v1/client/projects/:id/settle-balance debe validar IDOR, saldo y crear sesión con PENDING previo', async () => {
+        // 401 sin auth
+        const resNoAuth = await supertest(app).post('/api/v1/client/projects/20/settle-balance');
+        expect(resNoAuth.status).toBe(401);
+
+        // 400 ID inválido
+        const resInvalidId = await supertest(app)
+          .post('/api/v1/client/projects/0/settle-balance')
+          .set('Authorization', `Bearer ${clientToken}`);
+        expect(resInvalidId.status).toBe(400);
+
+        // 404 Proyecto no encontrado
+        vi.mocked(db.query).mockResolvedValueOnce([]);
+        const resNotFound = await supertest(app)
+          .post('/api/v1/client/projects/999/settle-balance')
+          .set('Authorization', `Bearer ${clientToken}`);
+        expect(resNotFound.status).toBe(404);
+
+        // 403 IDOR mismatch
+        vi.mocked(db.query).mockImplementationOnce((sql: string) => {
+          if (sql.includes('FROM client_projects WHERE id = ?')) {
+            return Promise.resolve([{ id: 20, user_id: 999 }]);
+          }
+          return Promise.resolve([]);
+        });
+        const resIdor = await supertest(app)
+          .post('/api/v1/client/projects/20/settle-balance')
+          .set('Authorization', `Bearer ${clientToken}`);
+        expect(resIdor.status).toBe(403);
+        expect(resIdor.body.message).toContain('No tienes permiso para liquidar este proyecto.');
+
+        // 400 Si saldo pendiente <= 0
+        vi.mocked(db.query).mockImplementationOnce((sql: string) => {
+          if (sql.includes('FROM client_projects WHERE id = ?')) {
+            return Promise.resolve([
+              { id: 20, user_id: 42, pending_balance_cents: 0, currency: 'USD' },
+            ]);
+          }
+          return Promise.resolve([]);
+        });
+        const resZero = await supertest(app)
+          .post('/api/v1/client/projects/20/settle-balance')
+          .set('Authorization', `Bearer ${clientToken}`);
+        expect(resZero.status).toBe(400);
+        expect(resZero.body.message).toContain('no tiene saldo pendiente');
+
+        // 200 Éxito: Rama 1 con token sin email, lead_id no nulo, currency nulo, url nulo (líneas 572-608 client.ts)
+        const tokenNoEmail = jwt.sign({ userId: 42, uid: 42, role: 'CLIENT' }, TEST_SECRET, {
+          algorithm: 'HS512',
+        });
+        setStripeForTest({
+          checkout: {
+            sessions: {
+              create: vi.fn().mockResolvedValue({
+                id: 'cs_client_settle_real_1',
+                url: null, // Cubre stripeSession.url || ''
+                expires_at: 1700000000,
+              }),
+            },
+          },
+        });
+        vi.mocked(db.query).mockImplementation((sql: string) => {
+          if (sql.includes('FROM client_projects WHERE id = ?')) {
+            return Promise.resolve([
+              {
+                id: 20,
+                user_id: 42,
+                lead_id: 99, // Cubre lead_id no nulo
+                project_name: 'App Logística',
+                pending_balance_cents: 600000,
+                currency: null, // Cubre project.currency || 'USD'
+              },
+            ]);
+          }
+          if (sql.includes('INSERT INTO lead_payments')) {
+            return Promise.resolve({ insertId: 777 });
+          }
+          return Promise.resolve({ affectedRows: 1 });
+        });
+
+        const resSuccess1 = await supertest(app)
+          .post('/api/v1/client/projects/20/settle-balance')
+          .set('Authorization', `Bearer ${tokenNoEmail}`);
+
+        expect(resSuccess1.status).toBe(201);
+        expect(resSuccess1.body.status).toBe('success');
+        expect(resSuccess1.body.checkout_url).toBe('');
+        expect(resSuccess1.body.session_id).toBeDefined();
+
+        // 200 Éxito: Rama 2 con lead_id nulo (cubre lead_id: ''), currency explícito y url provisto
+        setStripeForTest({
+          checkout: {
+            sessions: {
+              create: vi.fn().mockResolvedValue({
+                id: 'cs_client_settle_real_2',
+                url: 'https://checkout.stripe.com/pay/cs_client_settle_real_2',
+                expires_at: 1700000000,
+              }),
+            },
+          },
+        });
+        vi.mocked(db.query).mockImplementation((sql: string) => {
+          if (sql.includes('FROM client_projects WHERE id = ?')) {
+            return Promise.resolve([
+              {
+                id: 20,
+                user_id: 42,
+                lead_id: null, // Cubre lead_id nulo -> ''
+                project_name: 'App Logística',
+                pending_balance_cents: 600000,
+                currency: 'USD',
+              },
+            ]);
+          }
+          return Promise.resolve({ affectedRows: 1 });
+        });
+        const resSuccess2 = await supertest(app)
+          .post('/api/v1/client/projects/20/settle-balance')
+          .set('Authorization', `Bearer ${clientToken}`);
+        expect(resSuccess2.status).toBe(201);
+        expect(resSuccess2.body.checkout_url).toContain('https://checkout.stripe.com/pay/');
+        setStripeForTest(null);
+
+        // 503 En producción si la clave de Stripe es mock
+        const _prevEnv = process.env.NODE_ENV;
+        const prevKey = process.env.STRIPE_SECRET_KEY;
+        const _prevJwt = process.env.JWT_SECRET;
+        try {
+          process.env.NODE_ENV = 'production';
+          process.env.JWT_SECRET = TEST_SECRET;
+          process.env.STRIPE_SECRET_KEY = 'sk_test_mock';
+          vi.mocked(db.query).mockResolvedValueOnce([
+            { id: 20, user_id: 42, pending_balance_cents: 600000, currency: 'USD' },
+          ]);
+          const resProd503 = await supertest(app)
+            .post('/api/v1/client/projects/20/settle-balance')
+            .set('Authorization', `Bearer ${clientToken}`);
+          expect(resProd503.status).toBe(503);
+          expect(resProd503.body.message).toContain('no disponible en producción');
+        } finally {
+          process.env.NODE_ENV = 'test';
+          process.env.JWT_SECRET = TEST_SECRET;
+          if (prevKey === undefined) delete process.env.STRIPE_SECRET_KEY;
+          else process.env.STRIPE_SECRET_KEY = prevKey;
+        }
+
+        // Mock session fallback si no hay método create en test
+        setStripeForTest({});
+        vi.mocked(db.query).mockImplementationOnce((sql: string) => {
+          if (sql.includes('FROM client_projects WHERE id = ?')) {
+            return Promise.resolve([
+              { id: 20, user_id: 42, pending_balance_cents: 600000, currency: 'USD' },
+            ]);
+          }
+          return Promise.resolve([]);
+        });
+        const resMockFallback = await supertest(app)
+          .post('/api/v1/client/projects/20/settle-balance')
+          .set('Authorization', `Bearer ${clientToken}`);
+        expect(resMockFallback.status).toBe(201);
+        expect(resMockFallback.body.checkout_url).toContain('https://checkout.stripe.com/c/pay/');
+        setStripeForTest(null);
+
+        // Error DB / Stripe con message
+        vi.mocked(db.query).mockRejectedValueOnce(new Error('Stripe error'));
+        const resErr = await supertest(app)
+          .post('/api/v1/client/projects/20/settle-balance')
+          .set('Authorization', `Bearer ${clientToken}`);
+        expect(resErr.status).toBe(500);
+
+        // Error DB / Stripe sin message (línea 634 client.ts)
+        vi.mocked(db.query).mockRejectedValueOnce({});
+        const resErrNoMsg = await supertest(app)
+          .post('/api/v1/client/projects/20/settle-balance')
+          .set('Authorization', `Bearer ${clientToken}`);
+        expect(resErrNoMsg.status).toBe(500);
+        expect(resErrNoMsg.body.message).toBe('Error al generar finiquito.');
+      });
+
+      it('POST /api/v1/admin/projects/:id/settlement-session debe requerir admin y generar sesión de finiquito', async () => {
+        vi.mocked(db.query).mockReset();
+
+        // 403 Con token CLIENT
+        const resForbidden = await supertest(app)
+          .post('/api/v1/admin/projects/25/settlement-session')
+          .set('Authorization', `Bearer ${clientToken}`);
+        expect(resForbidden.status).toBe(403);
+
+        // 400 ID inválido
+        const resInvalidId = await supertest(app)
+          .post('/api/v1/admin/projects/0/settlement-session')
+          .set('Authorization', `Bearer ${adminToken}`);
+        expect(resInvalidId.status).toBe(400);
+
+        // 404 Si proyecto no existe
+        vi.mocked(db.query).mockResolvedValueOnce([]);
+        const resNotFound = await supertest(app)
+          .post('/api/v1/admin/projects/999/settlement-session')
+          .set('Authorization', `Bearer ${adminToken}`);
+        expect(resNotFound.status).toBe(404);
+
+        // 400 Si saldo <= 0
+        vi.mocked(db.query).mockImplementationOnce((sql: string) => {
+          if (sql.includes('FROM client_projects p') && sql.includes('JOIN users u')) {
+            return Promise.resolve([{ id: 25, pending_balance_cents: 0, currency: 'USD' }]);
+          }
+          return Promise.resolve([]);
+        });
+        const resZero = await supertest(app)
+          .post('/api/v1/admin/projects/25/settlement-session')
+          .set('Authorization', `Bearer ${adminToken}`);
+        expect(resZero.status).toBe(400);
+
+        // 200 Éxito
+        vi.mocked(db.query).mockImplementation((sql: string) => {
+          if (sql.includes('FROM client_projects p') && sql.includes('JOIN users u')) {
+            return Promise.resolve([
+              {
+                id: 25,
+                lead_id: null,
+                project_name: 'Plataforma B2B',
+                pending_balance_cents: 800000,
+                currency: 'USD',
+              },
+            ]);
+          }
+          if (sql.includes('INSERT INTO lead_payments')) {
+            return Promise.resolve({ insertId: 888 });
+          }
+          return Promise.resolve({ affectedRows: 1 });
+        });
+
+        const resOk = await supertest(app)
+          .post('/api/v1/admin/projects/25/settlement-session')
+          .set('Authorization', `Bearer ${adminToken}`);
+
+        expect(resOk.status).toBe(201);
+        expect(resOk.body.status).toBe('success');
+        expect(resOk.body.checkout_url).toBeDefined();
+
+        // Llamada con stripeInstance activo (cubre ramas 1153-1186 con lead_id, fallback currency y url nulo)
+        setStripeForTest({
+          checkout: {
+            sessions: {
+              create: vi.fn().mockResolvedValue({
+                id: 'cs_real_admin_settle',
+                url: null, // Cubre stripeSession.url || ''
+                expires_at: 1700000000,
+              }),
+            },
+          },
+        });
+        vi.mocked(db.query).mockImplementation((sql: string) => {
+          if (sql.includes('FROM client_projects p') && sql.includes('JOIN users u')) {
+            return Promise.resolve([
+              {
+                id: 25,
+                lead_id: 123, // Cubre lead_id no nulo
+                project_name: 'Plataforma B2B Stripe',
+                pending_balance_cents: 800000,
+                currency: null, // Cubre (project.currency || 'USD')
+              },
+            ]);
+          }
+          return Promise.resolve({ affectedRows: 1 });
+        });
+        const resStripeOk = await supertest(app)
+          .post('/api/v1/admin/projects/25/settlement-session')
+          .set('Authorization', `Bearer ${adminToken}`);
+        expect(resStripeOk.status).toBe(201);
+        expect(resStripeOk.body.checkout_url).toBe('');
+        setStripeForTest(null);
+
+        // 503 En producción si la clave de Stripe es mock
+        const _prevEnvAdmin = process.env.NODE_ENV;
+        const prevKeyAdmin = process.env.STRIPE_SECRET_KEY;
+        const _prevJwtAdmin = process.env.JWT_SECRET;
+        try {
+          process.env.NODE_ENV = 'production';
+          process.env.JWT_SECRET = TEST_SECRET;
+          process.env.STRIPE_SECRET_KEY = 'sk_test_mock';
+          vi.mocked(db.query).mockResolvedValueOnce([
+            { id: 25, pending_balance_cents: 800000, currency: 'USD' },
+          ]);
+          const resProdAdmin503 = await supertest(app)
+            .post('/api/v1/admin/projects/25/settlement-session')
+            .set('Authorization', `Bearer ${adminToken}`);
+          expect(resProdAdmin503.status).toBe(503);
+        } finally {
+          process.env.NODE_ENV = 'test';
+          process.env.JWT_SECRET = TEST_SECRET;
+          if (prevKeyAdmin === undefined) delete process.env.STRIPE_SECRET_KEY;
+          else process.env.STRIPE_SECRET_KEY = prevKeyAdmin;
+        }
+
+        // Mock session fallback si no hay método create en test
+        setStripeForTest({});
+        vi.mocked(db.query).mockImplementationOnce((sql: string) => {
+          if (sql.includes('FROM client_projects p') && sql.includes('JOIN users u')) {
+            return Promise.resolve([{ id: 25, pending_balance_cents: 800000, currency: 'USD' }]);
+          }
+          return Promise.resolve([]);
+        });
+        const resMockAdmin = await supertest(app)
+          .post('/api/v1/admin/projects/25/settlement-session')
+          .set('Authorization', `Bearer ${adminToken}`);
+        expect(resMockAdmin.status).toBe(201);
+        expect(resMockAdmin.body.checkout_url).toContain('https://checkout.stripe.com/c/pay/');
+        setStripeForTest(null);
+
+        // Error general con message
+        vi.mocked(db.query).mockRejectedValueOnce(new Error('Crash admin settlement'));
+        const resErr = await supertest(app)
+          .post('/api/v1/admin/projects/25/settlement-session')
+          .set('Authorization', `Bearer ${adminToken}`);
+        expect(resErr.status).toBe(500);
+
+        // Error general sin message (cubre fallback línea 1216)
+        vi.mocked(db.query).mockRejectedValueOnce({});
+        const resErrNoMsg = await supertest(app)
+          .post('/api/v1/admin/projects/25/settlement-session')
+          .set('Authorization', `Bearer ${adminToken}`);
+        expect(resErrNoMsg.status).toBe(500);
+        expect(resErrNoMsg.body.message).toBe('Error al generar sesión de finiquito.');
+      });
+
+      it('PUT /api/v1/admin/projects/:id/milestones/:milestoneId debe notificar al cliente cuando pasa a REVIEW', async () => {
+        vi.mocked(db.query).mockImplementation((sql: string) => {
+          if (sql.includes('SELECT * FROM client_project_milestones WHERE id = ?')) {
+            return Promise.resolve([
+              {
+                id: 301,
+                project_id: 30,
+                milestone_index: 2,
+                title: 'Hito en Staging',
+                description: 'Pruebas listas',
+                status: 'IN_PROGRESS',
+              },
+            ]);
+          }
+          if (sql.includes('SELECT p.project_name, p.staging_url')) {
+            return Promise.resolve([
+              {
+                id: 30,
+                project_name: 'E-Commerce B2B',
+                staging_url: 'https://staging.b2b.com',
+                full_name: 'Cliente Director',
+                email: 'director@cliente.com',
+                locale: 'es',
+              },
+            ]);
+          }
+          return Promise.resolve({ affectedRows: 1 });
+        });
+
+        const res = await supertest(app)
+          .put('/api/v1/admin/projects/30/milestones/301')
+          .set('Authorization', `Bearer ${adminToken}`)
+          .send({
+            status: 'REVIEW',
+          });
+
+        expect(res.status).toBe(200);
+        expect(res.body.status).toBe('success');
+
+        // Rama catch del transporter.sendMail (línea 1068 admin.ts)
+        setTransporterForTest({
+          sendMail: vi.fn().mockRejectedValue(new Error('SMTP Transport Offline')),
+        });
+
+        const resMailFail = await supertest(app)
+          .put('/api/v1/admin/projects/30/milestones/301')
+          .set('Authorization', `Bearer ${adminToken}`)
+          .send({
+            status: 'REVIEW',
+          });
+
+        expect(resMailFail.status).toBe(200);
+        // Esperamos un tick para que el .catch asíncrono se ejecute
+        await new Promise((r) => setTimeout(r, 50));
+        setTransporterForTest(null);
+
+        // Rama catch: error al consultar información para notificación
+        vi.mocked(db.query).mockImplementation((sql: string) => {
+          if (sql.includes('SELECT * FROM client_project_milestones WHERE id = ?')) {
+            return Promise.resolve([
+              {
+                id: 301,
+                project_id: 30,
+                milestone_index: 2,
+                title: 'Hito en Staging',
+                description: 'Pruebas listas',
+                status: 'IN_PROGRESS',
+              },
+            ]);
+          }
+          if (sql.includes('SELECT p.project_name, p.staging_url')) {
+            return Promise.reject(new Error('Project query DB crash'));
+          }
+          return Promise.resolve({ affectedRows: 1 });
+        });
+
+        const resCatch = await supertest(app)
+          .put('/api/v1/admin/projects/30/milestones/301')
+          .set('Authorization', `Bearer ${adminToken}`)
+          .send({
+            status: 'REVIEW',
+          });
+
+        expect(resCatch.status).toBe(200);
+        expect(resCatch.body.status).toBe('success');
+
+        // Rama: projectInfo vacío (línea 1042 admin.ts)
+        vi.mocked(db.query).mockImplementation((sql: string) => {
+          if (sql.includes('SELECT * FROM client_project_milestones WHERE id = ?')) {
+            return Promise.resolve([
+              {
+                id: 301,
+                project_id: 30,
+                milestone_index: 2,
+                title: 'Hito en Staging',
+                description: 'Pruebas listas',
+                status: 'IN_PROGRESS',
+              },
+            ]);
+          }
+          if (sql.includes('SELECT p.project_name, p.staging_url')) {
+            return Promise.resolve([]); // Vacío
+          }
+          return Promise.resolve({ affectedRows: 1 });
+        });
+
+        const resEmptyInfo = await supertest(app)
+          .put('/api/v1/admin/projects/30/milestones/301')
+          .set('Authorization', `Bearer ${adminToken}`)
+          .send({
+            status: 'REVIEW',
+          });
+        expect(resEmptyInfo.status).toBe(200);
+
+        // Rama: locale nulo (línea 1054 admin.ts)
+        vi.mocked(db.query).mockImplementation((sql: string) => {
+          if (sql.includes('SELECT * FROM client_project_milestones WHERE id = ?')) {
+            return Promise.resolve([
+              {
+                id: 301,
+                project_id: 30,
+                milestone_index: 2,
+                title: 'Hito en Staging',
+                description: 'Pruebas listas',
+                status: 'IN_PROGRESS',
+              },
+            ]);
+          }
+          if (sql.includes('SELECT p.project_name, p.staging_url')) {
+            return Promise.resolve([
+              {
+                id: 30,
+                project_name: 'E-Commerce B2B Sin Locale',
+                staging_url: 'https://staging.b2b.com',
+                full_name: 'Cliente Director',
+                email: 'director@cliente.com',
+                locale: null, // Cubre p.locale || 'es'
+              },
+            ]);
+          }
+          return Promise.resolve({ affectedRows: 1 });
+        });
+
+        const resNullLocale = await supertest(app)
+          .put('/api/v1/admin/projects/30/milestones/301')
+          .set('Authorization', `Bearer ${adminToken}`)
+          .send({
+            status: 'REVIEW',
+          });
+        expect(resNullLocale.status).toBe(200);
+      });
     });
   });
 });

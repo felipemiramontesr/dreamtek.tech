@@ -5,6 +5,8 @@ import {
   fetchAdminProjects,
   adminUpdateProject,
   adminUpdateMilestone,
+  signOffClientMilestone,
+  createProjectSettlementSession,
 } from '@/lib/auth/client';
 
 describe('Client Project Auth Helper Functions Suite (FC 044 100% Coverage)', () => {
@@ -190,6 +192,83 @@ describe('Client Project Auth Helper Functions Suite (FC 044 100% Coverage)', ()
 
       await expect(adminUpdateMilestone(1, 999, { status: 'COMPLETED' })).rejects.toThrow(
         'Error al actualizar el hito.',
+      );
+    });
+  });
+
+  describe('signOffClientMilestone (FC 045 Phase 1)', () => {
+    it('debe enviar aprobación de hito exitosamente', async () => {
+      const mockRes = { status: 'success', message: 'Entregable aprobado con éxito.' };
+      globalThis.fetch = vi.fn().mockResolvedValue({
+        ok: true,
+        json: vi.fn().mockResolvedValue(mockRes),
+      });
+
+      const res = await signOffClientMilestone(1, 10, {
+        accepted: true,
+        feedback: 'Todo en orden',
+      });
+      expect(res).toEqual(mockRes);
+    });
+
+    it('debe lanzar error cuando respuesta no es ok con mensaje', async () => {
+      globalThis.fetch = vi.fn().mockResolvedValue({
+        ok: false,
+        json: vi.fn().mockResolvedValue({ message: 'Hito no encontrado' }),
+      });
+
+      await expect(signOffClientMilestone(1, 999, { accepted: true })).rejects.toThrow(
+        'Hito no encontrado',
+      );
+    });
+
+    it('debe lanzar error fallback cuando respuesta no es ok sin mensaje', async () => {
+      globalThis.fetch = vi.fn().mockResolvedValue({
+        ok: false,
+        json: vi.fn().mockResolvedValue({}),
+      });
+
+      await expect(signOffClientMilestone(1, 999, { accepted: true })).rejects.toThrow(
+        'Error al aprobar el hito.',
+      );
+    });
+  });
+
+  describe('createProjectSettlementSession (FC 045 Phase 2)', () => {
+    it('debe generar sesión de finiquito exitosamente', async () => {
+      const mockRes = {
+        status: 'success',
+        checkout_url: 'https://checkout.stripe.com/pay/cs_123',
+        session_id: 'cs_123',
+        amount_cents: 500000,
+        currency: 'USD',
+      };
+      globalThis.fetch = vi.fn().mockResolvedValue({
+        ok: true,
+        json: vi.fn().mockResolvedValue(mockRes),
+      });
+
+      const res = await createProjectSettlementSession(1);
+      expect(res).toEqual(mockRes);
+    });
+
+    it('debe lanzar error cuando respuesta no es ok con mensaje', async () => {
+      globalThis.fetch = vi.fn().mockResolvedValue({
+        ok: false,
+        json: vi.fn().mockResolvedValue({ message: 'No hay saldo pendiente' }),
+      });
+
+      await expect(createProjectSettlementSession(1)).rejects.toThrow('No hay saldo pendiente');
+    });
+
+    it('debe lanzar error fallback cuando respuesta no es ok sin mensaje', async () => {
+      globalThis.fetch = vi.fn().mockResolvedValue({
+        ok: false,
+        json: vi.fn().mockResolvedValue({}),
+      });
+
+      await expect(createProjectSettlementSession(1)).rejects.toThrow(
+        'Error al generar sesión de finiquito.',
       );
     });
   });

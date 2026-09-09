@@ -834,6 +834,45 @@ exports.adminRouter.put('/projects/:id/milestones/:milestoneId', async (req, res
         values.push(milestoneId, projectId);
         await (0, db_js_1.query)(`UPDATE client_project_milestones SET ${fields.join(', ')} WHERE id = ? AND project_id = ?`, values);
         const updated = await (0, db_js_1.query)('SELECT * FROM client_project_milestones WHERE id = ? LIMIT 1', [milestoneId]);
+        // Despacho de notificación bilingüe de revisión si pasa a REVIEW (FC 045 Fase 1)
+        if (status === 'REVIEW') {
+            try {
+                const projectInfo = await (0, db_js_1.query)(`SELECT p.project_name, p.staging_url, u.full_name, u.email, l.locale
+             FROM client_projects p
+             JOIN users u ON u.id = p.user_id
+             LEFT JOIN leads l ON l.id = p.lead_id
+             WHERE p.id = ? LIMIT 1`, [projectId]);
+                if (projectInfo && projectInfo.length > 0) {
+                    const p = projectInfo[0];
+                    const baseUrl = process.env.CORS_ORIGIN || process.env.FRONTEND_URL || 'https://dreamtek.tech';
+                    const emailContent = (0, crm_js_1.renderMilestoneReviewEmail)({
+                        fullName: p.full_name,
+                        email: p.email,
+                        projectName: p.project_name,
+                        milestoneTitle: updated[0].title,
+                        milestoneIndex: updated[0].milestone_index,
+                        stagingUrl: p.staging_url,
+                        dashboardUrl: `${baseUrl}/client/dashboard`,
+                        locale: p.locale || 'es',
+                    });
+                    const transporter = (0, contact_js_1.getTransporter)();
+                    transporter
+                        .sendMail({
+                        from: process.env.SMTP_FROM || 'Dreamtek Sovereign Tech <no-reply@dreamtek.tech>',
+                        to: p.email,
+                        subject: emailContent.subject,
+                        text: emailContent.text,
+                        html: emailContent.html,
+                    })
+                        .catch((mailErr) => {
+                        console.warn('[CRM_MAIL_WARNING] Failed to dispatch milestone review notification:', mailErr.message);
+                    });
+                }
+            }
+            catch (mailErr) {
+                console.warn('[CRM_MAIL_WARNING] Error querying project info for milestone review notification:', mailErr.message);
+            }
+        }
         res.json({
             status: 'success',
             message: 'Hito actualizado con éxito.',
@@ -844,5 +883,112 @@ exports.adminRouter.put('/projects/:id/milestones/:milestoneId', async (req, res
         res
             .status(500)
             .json({ status: 'error', message: err.message || 'Error al actualizar hito.' });
+    }
+});
+/**
+ * POST /api/v1/admin/projects/:id/settlement-session
+ * Generates Stripe Checkout Session for final project settlement from admin (FC 045 Phase 2 / C-045.3)
+ */
+exports.adminRouter.post('/projects/:id/settlement-session', async (req, res) => {
+    try {
+        const projectId = parseInt(req.params.id, 10);
+        if (isNaN(projectId) || projectId <= 0) {
+            res.status(400).json({ status: 'error', message: 'ID de proyecto inválido.' });
+            return;
+        }
+        const projectRows = await (0, db_js_1.query)(`SELECT p.*, u.email as client_email, u.full_name as client_name
+         FROM client_projects p
+         JOIN users u ON u.id = p.user_id
+         WHERE p.id = ? LIMIT 1`, [projectId]);
+        if (!projectRows || projectRows.length === 0) {
+            res.status(404).json({ status: 'error', message: 'Proyecto no encontrado.' });
+            return;
+        }
+        const project = projectRows[0];
+        if (project.pending_balance_cents <= 0) {
+            res.status(400).json({
+                status: 'error',
+                message: 'El proyecto no tiene saldo pendiente por liquidar.',
+            });
+            return;
+        }
+        const currentKey = process.env.STRIPE_SECRET_KEY || 'sk_test_mock';
+        if (process.env.NODE_ENV === 'production' && (!currentKey || currentKey === 'sk_test_mock')) {
+            res.status(503).json({
+                status: 'error',
+                message: 'Configuración de pasarela de pago Stripe no disponible en producción.',
+            });
+            return;
+        }
+        const stripeInstance = (0, checkout_js_1.getStripe)(currentKey);
+        let session;
+        if (currentKey === 'sk_test_mock' && !stripeInstance?.checkout?.sessions?.create) {
+            const mockSessionId = `cs_test_admin_settle_${Date.now()}_${projectId}`;
+            session = {
+                id: mockSessionId,
+                url: `https://checkout.stripe.com/c/pay/${mockSessionId}`,
+                expires_at: Math.floor(Date.now() / 1000) + 72 * 3600,
+            };
+        }
+        else {
+            const baseUrl = process.env.CORS_ORIGIN || process.env.FRONTEND_URL || 'https://dreamtek.tech';
+            const currency = (project.currency || 'USD').toLowerCase();
+            const stripeSession = await stripeInstance.checkout.sessions.create({
+                payment_method_types: ['card'],
+                customer_email: project.client_email,
+                client_reference_id: String(project.id),
+                metadata: {
+                    tenant_type: 'B2B_PROJECT_SETTLEMENT',
+                    project_id: String(project.id),
+                    lead_id: project.lead_id ? String(project.lead_id) : '',
+                    tenant_id: String(project.tenant_id),
+                },
+                line_items: [
+                    {
+                        price_data: {
+                            currency,
+                            product_data: {
+                                name: `Finiquito y Liquidación Final — ${project.project_name}`,
+                                description: 'Liquidación final del 100% del balance de desarrollo y entrega de proyecto.',
+                            },
+                            unit_amount: project.pending_balance_cents,
+                        },
+                        quantity: 1,
+                    },
+                ],
+                mode: 'payment',
+                success_url: `${baseUrl}/client/dashboard?settlement=success&session_id={CHECKOUT_SESSION_ID}`,
+                cancel_url: `${baseUrl}/client/dashboard?settlement=cancelled`,
+            });
+            session = {
+                id: stripeSession.id,
+                url: stripeSession.url || '',
+                expires_at: stripeSession.expires_at,
+            };
+        }
+        // Persistir fila PENDING en lead_payments (Anti-TOCTOU C-045.3)
+        await (0, db_js_1.query)(`INSERT INTO lead_payments (project_id, lead_id, stripe_session_id, amount_cents, currency, payment_type, status, notes)
+         VALUES (?, ?, ?, ?, ?, 'SETTLEMENT', 'PENDING', ?)`, [
+            project.id,
+            project.lead_id || null,
+            session.id,
+            project.pending_balance_cents,
+            project.currency,
+            `Liquidación final emitida por admin para proyecto ID ${project.id}`,
+        ]);
+        res.status(201).json({
+            status: 'success',
+            message: 'Sesión de finiquito generada con éxito por administración.',
+            checkout_url: session.url,
+            session_id: session.id,
+            amount_cents: project.pending_balance_cents,
+            currency: project.currency,
+        });
+    }
+    catch (err) {
+        res.status(500).json({
+            status: 'error',
+            message: err.message || 'Error al generar sesión de finiquito.',
+        });
     }
 });

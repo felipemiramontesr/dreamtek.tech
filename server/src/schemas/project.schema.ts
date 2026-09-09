@@ -32,6 +32,7 @@ export const adminUpdateProjectSchema = z.object({
       'ARCHITECTURE_DESIGN',
       'IN_DEVELOPMENT',
       'STAGING_REVIEW',
+      'SETTLEMENT_PENDING',
       'COMPLETED_DELIVERED',
       'ON_HOLD',
     ])
@@ -42,6 +43,15 @@ export const adminUpdateProjectSchema = z.object({
 });
 
 export type AdminUpdateProjectInput = z.infer<typeof adminUpdateProjectSchema>;
+
+export const milestoneSignOffSchema = z.object({
+  accepted: z.literal(true, {
+    errorMap: () => ({ message: 'Debe aceptar formalmente el entregable' }),
+  }),
+  feedback: z.string().max(2000).optional().default(''),
+});
+
+export type MilestoneSignOffInput = z.infer<typeof milestoneSignOffSchema>;
 
 export const adminUpdateMilestoneSchema = z.object({
   status: z.enum(['PENDING', 'IN_PROGRESS', 'REVIEW', 'COMPLETED']),

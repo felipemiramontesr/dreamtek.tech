@@ -14,6 +14,8 @@ const bcryptjs_1 = __importDefault(require("bcryptjs"));
 const db_js_1 = require("../db.js");
 const auth_js_1 = require("./auth.js");
 const project_js_1 = require("../utils/project.js");
+const crm_js_1 = require("../utils/crm.js");
+const contact_js_1 = require("./contact.js");
 exports.checkoutRouter = (0, express_1.Router)();
 let testStripe = null;
 function setStripeForTest(stripe) {
@@ -212,6 +214,114 @@ exports.checkoutRouter.post('/webhook', async (req, res) => {
                 res.json({
                     status: 'success',
                     message: 'Anticipo B2B procesado con éxito y prospecto transicionado a WON.',
+                });
+                return;
+            }
+            // Ramificación B2B: Liquidación Final y Finiquito de Proyecto (FC 045 / C-045.3)
+            if (session.metadata?.tenant_type === 'B2B_PROJECT_SETTLEMENT') {
+                const rawProjectId = session.metadata?.project_id || session.client_reference_id;
+                const projectId = rawProjectId ? parseInt(rawProjectId, 10) : null;
+                if (!projectId || isNaN(projectId) || projectId <= 0) {
+                    res.status(400).json({
+                        status: 'error',
+                        message: 'Falta project_id válido en metadata de finiquito B2B.',
+                    });
+                    return;
+                }
+                // Buscar registro de pago PENDING correspondiente (Anti-TOCTOU C-045.3)
+                const paymentRows = await (0, db_js_1.query)('SELECT * FROM lead_payments WHERE stripe_session_id = ? AND project_id = ? LIMIT 1', [session.id, projectId]);
+                if (!paymentRows || paymentRows.length === 0) {
+                    res.status(404).json({
+                        status: 'error',
+                        message: 'Registro de pago de finiquito B2B no encontrado para esta sesión.',
+                    });
+                    return;
+                }
+                const settlementPayment = paymentRows[0];
+                if (settlementPayment.status === 'PAID') {
+                    // Idempotencia absoluta
+                    res.status(200).json({
+                        status: 'success',
+                        message: 'Finiquito ya procesado previamente.',
+                    });
+                    return;
+                }
+                // Validación Fail-Closed de Monto y Divisa contra fila almacenada (C-045.3)
+                const sessionAmount = session.amount_total;
+                const sessionCurrency = session.currency ? session.currency.toUpperCase() : null;
+                if (sessionAmount !== settlementPayment.amount_cents ||
+                    sessionCurrency !== settlementPayment.currency) {
+                    console.warn(`[SECURITY_ALERT_FAIL_CLOSED] Webhook Finiquito discrepancia en monto/divisa. Esperado: ${settlementPayment.amount_cents} ${settlementPayment.currency}, Recibido: ${sessionAmount} ${sessionCurrency}. Sesión: ${session.id}`);
+                    res.status(400).json({
+                        status: 'error',
+                        error: 'Amount Or Currency Mismatch',
+                        message: 'Discrepancia de monto o divisa en la sesión de finiquito respecto al registro pactado.',
+                    });
+                    return;
+                }
+                const paymentIntentId = typeof session.payment_intent === 'string'
+                    ? session.payment_intent
+                    : session.payment_intent?.id || null;
+                const projectRows = await (0, db_js_1.query)(`SELECT p.*, u.full_name, u.email, l.locale
+           FROM client_projects p
+           JOIN users u ON u.id = p.user_id
+           LEFT JOIN leads l ON l.id = p.lead_id
+           WHERE p.id = ? LIMIT 1`, [projectId]);
+                if (!projectRows || projectRows.length === 0) {
+                    res.status(404).json({ status: 'error', message: 'Proyecto a finiquitar no encontrado.' });
+                    return;
+                }
+                const project = projectRows[0];
+                await (0, db_js_1.withTransaction)(async (conn) => {
+                    await conn.query(`UPDATE lead_payments
+             SET status = 'PAID',
+                 stripe_payment_intent_id = ?,
+                 paid_at = NOW(),
+                 updated_at = NOW()
+             WHERE id = ?`, [paymentIntentId, settlementPayment.id]);
+                    await conn.query(`UPDATE client_projects
+             SET paid_amount_cents = paid_amount_cents + ?,
+                 pending_balance_cents = 0,
+                 status = 'COMPLETED_DELIVERED',
+                 updated_at = NOW()
+             WHERE id = ?`, [settlementPayment.amount_cents, projectId]);
+                    if (project.lead_id) {
+                        await conn.query("UPDATE leads SET deposit_status = 'PAID', updated_at = NOW() WHERE id = ?", [project.lead_id]);
+                        await conn.query(`INSERT INTO lead_activities (lead_id, user_id, activity_type, title, details)
+               VALUES (?, NULL, 'STATUS_CHANGE', 'Finiquito liquidado con éxito (Stripe)', ?)`, [
+                            project.lead_id,
+                            `Finiquito por $${(settlementPayment.amount_cents / 100).toLocaleString()} ${settlementPayment.currency}. Proyecto ID ${projectId} completado y entregado al 100%.`,
+                        ]);
+                    }
+                });
+                // Enviar constancia de finiquito bilingüe (Fail-open)
+                try {
+                    const baseUrl = process.env.CORS_ORIGIN || process.env.FRONTEND_URL || 'https://dreamtek.tech';
+                    const receiptEmail = (0, crm_js_1.renderFinalSettlementReceiptEmail)({
+                        fullName: project.full_name,
+                        email: project.email,
+                        projectName: project.project_name,
+                        amountCents: settlementPayment.amount_cents,
+                        currency: settlementPayment.currency,
+                        dashboardUrl: `${baseUrl}/client/dashboard`,
+                        locale: project.locale || 'es',
+                    });
+                    const transporter = (0, contact_js_1.getTransporter)();
+                    await transporter.sendMail({
+                        from: process.env.SMTP_FROM || 'Dreamtek Sovereign Tech <no-reply@dreamtek.tech>',
+                        to: project.email,
+                        subject: receiptEmail.subject,
+                        text: receiptEmail.text,
+                        html: receiptEmail.html,
+                    });
+                }
+                catch (mailErr) {
+                    console.warn('[CRM_MAIL_WARNING] Error sending final settlement receipt:', mailErr.message);
+                }
+                console.log(`[SECURITY] PROJECT_FINAL_SETTLEMENT_PAID: Project ${projectId} successfully settled for ${settlementPayment.amount_cents} ${settlementPayment.currency}`);
+                res.status(200).json({
+                    status: 'success',
+                    message: 'Finiquito de proyecto procesado y entregado con éxito.',
                 });
                 return;
             }

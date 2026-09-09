@@ -116,6 +116,8 @@ export interface ClientProjectMilestone {
   target_week: number;
   status: 'PENDING' | 'IN_PROGRESS' | 'REVIEW' | 'COMPLETED';
   completed_at?: string | null;
+  client_approved_at?: string | null;
+  client_feedback?: string | null;
 }
 
 export interface ClientProjectBriefing {
@@ -140,6 +142,7 @@ export interface ClientProject {
     | 'ARCHITECTURE_DESIGN'
     | 'IN_DEVELOPMENT'
     | 'STAGING_REVIEW'
+    | 'SETTLEMENT_PENDING'
     | 'COMPLETED_DELIVERED'
     | 'ON_HOLD';
   currency: 'MXN' | 'USD';
@@ -485,4 +488,58 @@ export async function adminUpdateMilestone(
     throw new Error(data.message || data.error || 'Error al actualizar el hito.');
   }
   return data;
+}
+
+/**
+ * Sign off / approve a milestone deliverable (FC 045 Phase 1)
+ */
+export async function signOffClientMilestone(
+  projectId: number | string,
+  milestoneId: number | string,
+  data: { accepted: true; feedback?: string },
+): Promise<{ status: string; message: string }> {
+  const response = await fetch(
+    `${API_BASE}/client/projects/${projectId}/milestones/${milestoneId}/sign-off`,
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      credentials: 'include',
+      body: JSON.stringify(data),
+    },
+  );
+
+  const resData = await response.json();
+  if (!response.ok) {
+    throw new Error(resData.message || 'Error al aprobar el hito.');
+  }
+
+  return resData;
+}
+
+/**
+ * Generate final settlement session for a project (FC 045 Phase 2)
+ */
+export async function createProjectSettlementSession(projectId: number | string): Promise<{
+  status: string;
+  checkout_url: string;
+  session_id: string;
+  amount_cents: number;
+  currency: string;
+}> {
+  const response = await fetch(`${API_BASE}/client/projects/${projectId}/settle-balance`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    credentials: 'include',
+  });
+
+  const resData = await response.json();
+  if (!response.ok) {
+    throw new Error(resData.message || 'Error al generar sesión de finiquito.');
+  }
+
+  return resData;
 }

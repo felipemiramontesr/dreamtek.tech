@@ -6,7 +6,10 @@ import { Button } from '@/components/ui/Button';
 import {
   ClientProject,
   ClientProjectBriefing,
+  ClientProjectMilestone,
   updateClientProjectBriefing,
+  signOffClientMilestone,
+  createProjectSettlementSession,
 } from '@/lib/auth/client';
 
 interface B2BProjectWorkspaceWidgetProps {
@@ -22,6 +25,21 @@ export function B2BProjectWorkspaceWidget({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+
+  // Sign-off modal state
+  const [activeSignOff, setActiveSignOff] = useState<{
+    project: ClientProject;
+    milestone: ClientProjectMilestone;
+  } | null>(null);
+  const [signOffAccepted, setSignOffAccepted] = useState(false);
+  const [signOffFeedback, setSignOffFeedback] = useState('');
+  const [isSubmittingSignOff, setIsSubmittingSignOff] = useState(false);
+  const [signOffError, setSignOffError] = useState<string | null>(null);
+  const [signOffSuccess, setSignOffSuccess] = useState<string | null>(null);
+
+  // Settlement checkout state
+  const [isSettlingId, setIsSettlingId] = useState<number | null>(null);
+  const [settleError, setSettleError] = useState<string | null>(null);
 
   // Form state for briefing modal
   const [formData, setFormData] = useState({
@@ -105,6 +123,73 @@ export function B2BProjectWorkspaceWidget({
     }
   };
 
+  const handleOpenSignOff = (project: ClientProject, milestone: ClientProjectMilestone) => {
+    setActiveSignOff({ project, milestone });
+    setSignOffAccepted(false);
+    setSignOffFeedback('');
+    setSignOffError(null);
+    setSignOffSuccess(null);
+  };
+
+  const handleCloseSignOff = () => {
+    setActiveSignOff(null);
+    setSignOffAccepted(false);
+    setSignOffFeedback('');
+    setSignOffError(null);
+    setSignOffSuccess(null);
+  };
+
+  const handleSubmitSignOff = async (e: React.FormEvent) => {
+    e.preventDefault();
+    /* v8 ignore next */
+    if (!activeSignOff) return;
+
+    if (!signOffAccepted) {
+      setSignOffError('Debes confirmar y aceptar formalmente los entregables para proceder.');
+      return;
+    }
+
+    setIsSubmittingSignOff(true);
+    setSignOffError(null);
+    setSignOffSuccess(null);
+
+    try {
+      await signOffClientMilestone(activeSignOff.project.id, activeSignOff.milestone.id, {
+        accepted: true,
+        feedback: signOffFeedback.trim() || undefined,
+      });
+      setSignOffSuccess('Hito aprobado formalmente con éxito. Registro de auditoría asentado.');
+      setTimeout(() => {
+        handleCloseSignOff();
+        onProjectUpdated?.();
+      }, 1200);
+    } catch (err: unknown) {
+      const msg =
+        err instanceof Error ? err.message : 'Error al registrar el visto bueno del hito.';
+      setSignOffError(msg);
+    } finally {
+      setIsSubmittingSignOff(false);
+    }
+  };
+
+  const handleSettleBalance = async (projectId: number) => {
+    setIsSettlingId(projectId);
+    setSettleError(null);
+    try {
+      const res = await createProjectSettlementSession(projectId);
+      if (res.checkout_url) {
+        window.location.href = res.checkout_url;
+      } else {
+        setSettleError('No se recibió la URL de la pasarela de pago.');
+      }
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Error al iniciar la pasarela de finiquito.';
+      setSettleError(msg);
+    } finally {
+      setIsSettlingId(null);
+    }
+  };
+
   const formatCurrency = (cents: number, currency: string) => {
     return `$${(cents / 100).toLocaleString()} ${currency}`;
   };
@@ -133,6 +218,12 @@ export function B2BProjectWorkspaceWidget({
         return (
           <span className="px-2.5 py-1 text-xs font-bold rounded-full bg-teal-500/10 text-teal-400 border border-teal-500/30">
             Fase: Revisión en Staging
+          </span>
+        );
+      case 'SETTLEMENT_PENDING':
+        return (
+          <span className="px-2.5 py-1 text-xs font-bold rounded-full bg-purple-500/10 text-purple-400 border border-purple-500/30 animate-pulse">
+            Fase: Finiquito Pendiente
           </span>
         );
       case 'COMPLETED_DELIVERED':
@@ -397,6 +488,63 @@ export function B2BProjectWorkspaceWidget({
               </Button>
             </div>
 
+            {/* Banner de Liquidación Final & Finiquito */}
+            {(proj.status === 'SETTLEMENT_PENDING' ||
+              (proj.pending_balance_cents > 0 &&
+                milestones.length > 0 &&
+                milestones.every((m) => m.status === 'COMPLETED'))) && (
+              <div className="bg-gradient-to-r from-purple-950/40 via-cyan-950/40 to-slate-900 border border-purple-500/40 p-5 rounded-2xl flex flex-col md:flex-row md:items-center justify-between gap-4 shadow-lg shadow-purple-950/20">
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2">
+                    <span className="flex h-2 w-2 rounded-full bg-purple-400 animate-ping" />
+                    <h4 className="text-sm font-black text-white uppercase tracking-wider">
+                      Liquidación Final & Finiquito de Entrega
+                    </h4>
+                  </div>
+                  <p className="text-xs text-slate-300">
+                    Todos los hitos del proyecto han sido aprobados formalmente. Procede a liquidar
+                    el saldo final de{' '}
+                    <span className="font-bold text-amber-300">
+                      {formatCurrency(proj.pending_balance_cents, proj.currency)}
+                    </span>{' '}
+                    para liberar la constancia de finiquito y el cierre formal de entrega.
+                  </p>
+                  {settleError && (
+                    <p className="text-xs text-red-400 font-semibold">{settleError}</p>
+                  )}
+                </div>
+                <Button
+                  variant="primary"
+                  size="sm"
+                  disabled={isSettlingId === proj.id}
+                  onClick={() => handleSettleBalance(proj.id)}
+                  className="bg-gradient-to-r from-purple-600 to-cyan-600 hover:from-purple-500 hover:to-cyan-500 text-white font-bold whitespace-nowrap shadow-md"
+                >
+                  {isSettlingId === proj.id
+                    ? 'Iniciando Checkout...'
+                    : 'Liquidar Saldo en Stripe (Finiquito)'}
+                </Button>
+              </div>
+            )}
+
+            {/* Banner de Proyecto Entregado & Liquidado */}
+            {proj.status === 'COMPLETED_DELIVERED' && proj.pending_balance_cents === 0 && (
+              <div className="bg-emerald-950/30 border border-emerald-500/30 p-4 rounded-xl flex items-center gap-3">
+                <div className="w-8 h-8 rounded-full bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center text-emerald-400 font-bold">
+                  ✓
+                </div>
+                <div>
+                  <h4 className="text-sm font-bold text-emerald-300">
+                    Proyecto Entregado & Finiquito Liquidado al 100%
+                  </h4>
+                  <p className="text-xs text-slate-400">
+                    Garantías y código entregados formalmente a conformidad del cliente. Balance en
+                    cero.
+                  </p>
+                </div>
+              </div>
+            )}
+
             {/* Cronograma de Hitos y Sprints */}
             <div className="space-y-3">
               <h4 className="text-sm font-bold text-slate-200 tracking-wide">
@@ -426,6 +574,34 @@ export function B2BProjectWorkspaceWidget({
                         <p className="text-[11px] text-slate-400 line-clamp-2">{m.description}</p>
                       )}
                     </div>
+
+                    {/* Botón de Visto Bueno / Sign-off para cliente si el hito está en REVIEW o IN_PROGRESS y aún no tiene client_approved_at */}
+                    {(m.status === 'REVIEW' || m.status === 'IN_PROGRESS') &&
+                      !m.client_approved_at && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => handleOpenSignOff(proj, m)}
+                          className="mt-2 w-full border-purple-500/40 text-purple-300 hover:bg-purple-500/20 text-[11px] font-bold py-1"
+                        >
+                          Revisar & Aprobar
+                        </Button>
+                      )}
+
+                    {/* Indicador de Aprobación por Cliente */}
+                    {m.client_approved_at && (
+                      <div className="mt-2 pt-2 border-t border-white/5 space-y-0.5">
+                        <p className="text-[10px] text-emerald-400 font-mono font-semibold">
+                          ✓ Visto Bueno Cliente:{' '}
+                          {new Date(m.client_approved_at).toLocaleDateString()}
+                        </p>
+                        {m.client_feedback && (
+                          <p className="text-[10px] text-slate-400 italic line-clamp-2">
+                            &ldquo;{m.client_feedback}&rdquo;
+                          </p>
+                        )}
+                      </div>
+                    )}
 
                     {m.completed_at && (
                       <p className="text-[10px] text-emerald-400/80 font-mono">
@@ -577,6 +753,122 @@ export function B2BProjectWorkspaceWidget({
                   className="bg-cyan-600 hover:bg-cyan-500 text-white font-bold"
                 >
                   {isSubmitting ? 'Guardando...' : 'Guardar Briefing'}
+                </Button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Interactivo de Aprobación Formal de Hito (Sign-Off) */}
+      {activeSignOff && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md">
+          <div className="relative w-full max-w-lg bg-slate-900 border border-purple-500/40 rounded-2xl shadow-2xl overflow-hidden flex flex-col">
+            {/* Modal Header */}
+            <div className="flex items-center justify-between p-6 border-b border-white/10 bg-slate-900/90">
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="w-2 h-2 rounded-full bg-purple-400" />
+                  <h3 className="text-base font-black text-white uppercase tracking-wider">
+                    Visto Bueno & Sign-Off Formal
+                  </h3>
+                </div>
+                <p className="text-xs text-slate-400 mt-1">
+                  Hito #{activeSignOff.milestone.milestone_index}:{' '}
+                  <span className="text-purple-300 font-semibold">
+                    {activeSignOff.milestone.title}
+                  </span>
+                </p>
+                <p className="text-[11px] text-slate-500 font-mono">
+                  {activeSignOff.project.project_name} (DTK-PRJ-{activeSignOff.project.id})
+                </p>
+              </div>
+              <button
+                onClick={handleCloseSignOff}
+                className="text-slate-400 hover:text-white p-2 rounded-lg hover:bg-slate-800"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Modal Form */}
+            <form onSubmit={handleSubmitSignOff} className="p-6 space-y-4">
+              {signOffError && (
+                <div className="p-3 bg-red-500/10 border border-red-500/30 rounded-lg text-xs text-red-400">
+                  {signOffError}
+                </div>
+              )}
+              {signOffSuccess && (
+                <div className="p-3 bg-emerald-500/10 border border-emerald-500/30 rounded-lg text-xs text-emerald-400">
+                  {signOffSuccess}
+                </div>
+              )}
+
+              {activeSignOff.milestone.description && (
+                <div className="p-3 bg-slate-800/60 rounded-xl border border-white/5 text-xs text-slate-300">
+                  <p className="text-[10px] font-bold text-slate-400 uppercase mb-1">
+                    Alcance del Entregable
+                  </p>
+                  {activeSignOff.milestone.description}
+                </div>
+              )}
+
+              {/* Checkbox de Aceptación Legal/Técnica */}
+              <div className="flex items-start gap-3 p-3 bg-purple-950/20 border border-purple-500/30 rounded-xl">
+                <input
+                  type="checkbox"
+                  id="signoff_accept"
+                  required
+                  checked={signOffAccepted}
+                  onChange={(e) => setSignOffAccepted(e.target.checked)}
+                  className="mt-1 h-4 w-4 rounded border-slate-700 bg-slate-800 text-purple-600 focus:ring-purple-500 cursor-pointer"
+                />
+                <label
+                  htmlFor="signoff_accept"
+                  className="text-xs text-slate-200 cursor-pointer leading-relaxed"
+                >
+                  Confirmo haber revisado y validado a entera satisfacción técnica los entregables
+                  correspondientes a este hito de desarrollo.
+                </label>
+              </div>
+
+              {/* Feedback o Comentarios Opcionales */}
+              <div>
+                <label className="block text-xs font-semibold text-slate-300 mb-1">
+                  Comentarios, visto bueno o notas de entrega{' '}
+                  <span className="text-slate-500 font-normal">
+                    (opcional, máx 2000 caracteres)
+                  </span>
+                </label>
+                <textarea
+                  rows={3}
+                  maxLength={2000}
+                  value={signOffFeedback}
+                  onChange={(e) => setSignOffFeedback(e.target.value)}
+                  placeholder="e.g. Aprobado conforme a la demo del sprint y pruebas en staging..."
+                  className="w-full bg-slate-800/80 border border-slate-700 rounded-lg p-2.5 text-xs text-white focus:outline-none focus:border-purple-500"
+                />
+              </div>
+
+              {/* Modal Footer */}
+              <div className="pt-4 border-t border-white/10 flex justify-end gap-3">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={handleCloseSignOff}
+                  className="border-slate-700 text-slate-300 hover:bg-slate-800"
+                >
+                  Cancelar
+                </Button>
+                <Button
+                  type="submit"
+                  variant="primary"
+                  size="sm"
+                  disabled={isSubmittingSignOff || !signOffAccepted}
+                  className="bg-purple-600 hover:bg-purple-500 text-white font-bold disabled:opacity-50"
+                >
+                  {isSubmittingSignOff ? 'Aprobando...' : 'Aprobar Hito Formalmente'}
                 </Button>
               </div>
             </form>
