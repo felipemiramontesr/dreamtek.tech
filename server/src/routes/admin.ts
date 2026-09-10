@@ -14,12 +14,20 @@ import {
   adminCreateProjectFromLeadSchema,
 } from '../schemas/project.schema.js';
 import {
+  adminHandoverSchema,
+  adminUpdateInvoiceStatusSchema,
+} from '../schemas/handover.schema.js';
+import {
   escapeHtml,
   escapeLikeWildcards,
   renderLeadFollowUpEmail,
   renderMilestoneReviewEmail,
 } from '../utils/crm.js';
 import { provisionClientProjectForLead } from '../utils/project.js';
+import {
+  encryptVaultCredentials,
+  generateCanonicalCertificate,
+} from '../utils/handoverVault.js';
 import { getTransporter } from './contact.js';
 import { getStripe } from './checkout.js';
 
@@ -1218,3 +1226,177 @@ adminRouter.post(
     }
   },
 );
+
+/**
+ * POST /api/v1/admin/projects/:id/handover
+ * Configura o actualiza la entrega del proyecto y cifra credenciales con AES-256-GCM
+ */
+adminRouter.post(
+  '/projects/:id/handover',
+  async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+    try {
+      const projectId = Number(req.params.id);
+      if (!projectId || isNaN(projectId)) {
+        res.status(400).json({ status: 'error', message: 'ID de proyecto inválido.' });
+        return;
+      }
+
+      const parseResult = adminHandoverSchema.safeParse(req.body);
+      if (!parseResult.success) {
+        res.status(400).json({
+          status: 'error',
+          error: 'Validation Error',
+          details: parseResult.error.errors,
+        });
+        return;
+      }
+
+      const projects = await query<any[]>(
+        'SELECT id, status, pending_balance_cents FROM client_projects WHERE id = ? LIMIT 1',
+        [projectId],
+      );
+
+      if (projects.length === 0) {
+        res.status(404).json({ status: 'error', message: 'Proyecto no encontrado.' });
+        return;
+      }
+
+      const project = projects[0];
+      const data = parseResult.data;
+
+      let encryptedCreds: string | null = null;
+      if (data.access_credentials && data.access_credentials.trim().length > 0) {
+        encryptedCreds = encryptVaultCredentials(data.access_credentials.trim());
+      }
+
+      const safeNotes = data.handover_notes ? escapeHtml(data.handover_notes) : null;
+
+      const paidPayments = await query<any[]>(
+        'SELECT id, amount_cents, currency FROM lead_payments WHERE project_id = ? AND status = "PAID"',
+        [projectId],
+      );
+
+      const certResult = generateCanonicalCertificate(project, paidPayments);
+
+      await query(
+        `INSERT INTO client_project_handovers
+          (project_id, repository_url, deployment_url, documentation_url, access_credentials_encrypted, handover_notes, certificate_sha256)
+         VALUES (?, ?, ?, ?, ?, ?, ?)
+         ON DUPLICATE KEY UPDATE
+           repository_url = VALUES(repository_url),
+           deployment_url = VALUES(deployment_url),
+           documentation_url = VALUES(documentation_url),
+           access_credentials_encrypted = COALESCE(VALUES(access_credentials_encrypted), access_credentials_encrypted),
+           handover_notes = VALUES(handover_notes),
+           certificate_sha256 = VALUES(certificate_sha256),
+           updated_at = NOW()`,
+        [
+          projectId,
+          data.repository_url ?? null,
+          data.deployment_url ?? null,
+          data.documentation_url ?? null,
+          encryptedCreds,
+          safeNotes,
+          certResult.certificate_sha256,
+        ],
+      );
+
+      res.json({
+        status: 'success',
+        message: 'Paquete de entrega y bóveda configurados exitosamente.',
+        certificate_sha256: certResult.certificate_sha256,
+      });
+    } catch (err: any) {
+      res.status(500).json({ status: 'error', message: err.message || 'Error al configurar entrega de proyecto.' });
+    }
+  },
+);
+
+/**
+ * GET /api/v1/admin/tax-invoices
+ * Lista las solicitudes de facturación corporativa
+ */
+adminRouter.get(
+  '/tax-invoices',
+  async (_req: AuthenticatedRequest, res: Response): Promise<void> => {
+    try {
+      const rows = await query<any[]>(
+        `SELECT tir.id, tir.payment_id, tir.project_id, tir.tax_profile_id, tir.status, tir.cfdi_uuid, tir.invoice_notes, tir.created_at, tir.updated_at,
+                ctp.rfc, ctp.legal_name, ctp.tax_regime, ctp.cfdi_use, ctp.postal_code, ctp.invoice_email,
+                lp.amount_cents, lp.currency, lp.payment_type, lp.paid_at,
+                cp.project_name
+         FROM tax_invoice_requests tir
+         INNER JOIN client_tax_profiles ctp ON tir.tax_profile_id = ctp.id
+         INNER JOIN lead_payments lp ON tir.payment_id = lp.id
+         LEFT JOIN client_projects cp ON tir.project_id = cp.id
+         ORDER BY tir.created_at DESC`,
+      );
+
+      res.json({
+        status: 'success',
+        tax_invoices: rows,
+      });
+    } catch (err: any) {
+      res.status(500).json({ status: 'error', message: err.message || 'Error al listar facturas fiscales.' });
+    }
+  },
+);
+
+/**
+ * PATCH /api/v1/admin/tax-invoices/:id/status
+ * Actualiza el estado de una solicitud de factura (REQUESTED, ISSUED, REJECTED)
+ * Honestidad Does: Registro administrativo de emisión externa / folio SAT
+ */
+adminRouter.patch(
+  '/tax-invoices/:id/status',
+  async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+    try {
+      const requestId = Number(req.params.id);
+      if (!requestId || isNaN(requestId)) {
+        res.status(400).json({ status: 'error', message: 'ID de solicitud inválido.' });
+        return;
+      }
+
+      const parseResult = adminUpdateInvoiceStatusSchema.safeParse(req.body);
+      if (!parseResult.success) {
+        res.status(400).json({
+          status: 'error',
+          error: 'Validation Error',
+          details: parseResult.error.errors,
+        });
+        return;
+      }
+
+      const existing = await query<any[]>(
+        'SELECT id, status FROM tax_invoice_requests WHERE id = ? LIMIT 1',
+        [requestId],
+      );
+
+      if (existing.length === 0) {
+        res.status(404).json({ status: 'error', message: 'Solicitud de factura no encontrada.' });
+        return;
+      }
+
+      const { status, cfdi_uuid, invoice_notes } = parseResult.data;
+      const safeNotes = invoice_notes ? escapeHtml(invoice_notes) : null;
+
+      await query(
+        `UPDATE tax_invoice_requests
+         SET status = ?,
+             cfdi_uuid = COALESCE(?, cfdi_uuid),
+             invoice_notes = COALESCE(?, invoice_notes),
+             updated_at = NOW()
+         WHERE id = ?`,
+        [status, cfdi_uuid || null, safeNotes, requestId],
+      );
+
+      res.json({
+        status: 'success',
+        message: `Estado de solicitud de factura actualizado a ${status}.`,
+      });
+    } catch (err: any) {
+      res.status(500).json({ status: 'error', message: err.message || 'Error al actualizar estado de factura.' });
+    }
+  },
+);
+

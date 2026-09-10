@@ -4,7 +4,12 @@ import crypto from 'crypto';
 import { query, withTransaction } from '../db.js';
 import { requireAuth, AuthenticatedRequest } from '../middleware/auth.js';
 import { clientBriefingSchema, milestoneSignOffSchema } from '../schemas/project.schema.js';
+import { clientTaxProfileSchema, requestInvoiceSchema } from '../schemas/handover.schema.js';
 import { escapeHtml } from '../utils/crm.js';
+import {
+  decryptVaultCredentials,
+  generateCanonicalCertificate,
+} from '../utils/handoverVault.js';
 import { getStripe } from './checkout.js';
 
 export const clientRouter = Router();
@@ -45,6 +50,19 @@ export const projectSettlementRateLimiter = rateLimit({
     status: 'error',
     error: 'Too Many Requests',
     message: 'Demasiadas solicitudes de liquidación de proyecto. Intenta de nuevo en un momento.',
+  },
+});
+
+// Rate limiter for tax invoice requests (FC 046 / C-046.5): 15 req/min per IP
+export const taxInvoiceRateLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 15,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: {
+    status: 'error',
+    error: 'Too Many Requests',
+    message: 'Demasiadas solicitudes de facturación. Intenta de nuevo en un momento.',
   },
 });
 
@@ -714,6 +732,469 @@ clientRouter.post(
         status: 'error',
         message: err.message || 'Error al generar enlace seguro para ARCHON.',
       });
+    }
+  },
+);
+
+/**
+ * GET /api/v1/client/projects/:id/handover
+ * Fase 1 Handover Vault:
+ * - Anti-IDOR: project.user_id === req.user.userId
+ * - Fail-Closed: 403 unless project.status === 'COMPLETED_DELIVERED' and project.pending_balance_cents === 0
+ * - Never returns decrypted credentials by default (Condition C-046.1)
+ */
+clientRouter.get(
+  '/projects/:id/handover',
+  async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+    try {
+      const projectId = Number(req.params.id);
+      const userId = req.user?.userId;
+      const userRole = req.user?.role;
+
+      if (!projectId || isNaN(projectId)) {
+        res.status(400).json({ status: 'error', message: 'ID de proyecto inválido.' });
+        return;
+      }
+
+      const projects = await query<any[]>(
+        'SELECT id, user_id, status, pending_balance_cents FROM client_projects WHERE id = ? LIMIT 1',
+        [projectId],
+      );
+
+      if (projects.length === 0) {
+        res.status(404).json({ status: 'error', message: 'Proyecto no encontrado.' });
+        return;
+      }
+
+      const project = projects[0];
+
+      if (project.user_id !== userId && userRole !== 'ADMIN') {
+        res.status(403).json({ status: 'error', message: 'Acceso no autorizado al proyecto.' });
+        return;
+      }
+
+      if (project.status !== 'COMPLETED_DELIVERED' || project.pending_balance_cents > 0) {
+        res.status(403).json({
+          status: 'error',
+          error: 'Forbidden',
+          message: 'Bóveda de entrega bloqueada: el proyecto debe estar finalizado y con saldo completamente liquidado.',
+        });
+        return;
+      }
+
+      const handovers = await query<any[]>(
+        'SELECT id, project_id, repository_url, deployment_url, documentation_url, handover_notes, certificate_sha256, access_credentials_encrypted, downloaded_at, download_count FROM client_project_handovers WHERE project_id = ? LIMIT 1',
+        [projectId],
+      );
+
+      if (handovers.length === 0) {
+        res.status(404).json({
+          status: 'error',
+          message: 'Bóveda de entrega no configurada aún por el equipo de ingeniería.',
+        });
+        return;
+      }
+
+      const row = handovers[0];
+
+      res.json({
+        status: 'success',
+        handover: {
+          project_id: row.project_id,
+          repository_url: row.repository_url,
+          deployment_url: row.deployment_url,
+          documentation_url: row.documentation_url,
+          handover_notes: row.handover_notes,
+          certificate_sha256: row.certificate_sha256,
+          has_credentials: Boolean(
+            row.access_credentials_encrypted && row.access_credentials_encrypted.trim().length > 0,
+          ),
+          downloaded_at: row.downloaded_at,
+          download_count: row.download_count,
+        },
+      });
+    } catch (err: any) {
+      res.status(500).json({ status: 'error', message: err.message || 'Error al consultar bóveda de entrega.' });
+    }
+  },
+);
+
+/**
+ * POST /api/v1/client/projects/:id/handover/reveal
+ * Decrypts handover credentials on-demand with audit log (Condition C-046.1)
+ */
+clientRouter.post(
+  '/projects/:id/handover/reveal',
+  async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+    try {
+      const projectId = Number(req.params.id);
+      const userId = req.user?.userId;
+      const userRole = req.user?.role;
+
+      if (!projectId || isNaN(projectId)) {
+        res.status(400).json({ status: 'error', message: 'ID de proyecto inválido.' });
+        return;
+      }
+
+      const projects = await query<any[]>(
+        'SELECT id, user_id, status, pending_balance_cents FROM client_projects WHERE id = ? LIMIT 1',
+        [projectId],
+      );
+
+      if (projects.length === 0) {
+        res.status(404).json({ status: 'error', message: 'Proyecto no encontrado.' });
+        return;
+      }
+
+      const project = projects[0];
+
+      if (project.user_id !== userId && userRole !== 'ADMIN') {
+        res.status(403).json({ status: 'error', message: 'Acceso no autorizado al proyecto.' });
+        return;
+      }
+
+      if (project.status !== 'COMPLETED_DELIVERED' || project.pending_balance_cents > 0) {
+        res.status(403).json({
+          status: 'error',
+          error: 'Forbidden',
+          message: 'Bóveda bloqueada: el proyecto debe estar finalizado y con saldo completamente liquidado.',
+        });
+        return;
+      }
+
+      const handovers = await query<any[]>(
+        'SELECT access_credentials_encrypted FROM client_project_handovers WHERE project_id = ? LIMIT 1',
+        [projectId],
+      );
+
+      if (handovers.length === 0 || !handovers[0].access_credentials_encrypted) {
+        res.status(404).json({
+          status: 'error',
+          message: 'No existen credenciales configuradas para esta entrega.',
+        });
+        return;
+      }
+
+      const decrypted = decryptVaultCredentials(handovers[0].access_credentials_encrypted);
+
+      console.log(
+        JSON.stringify({
+          event: 'HANDOVER_VAULT_REVEAL',
+          project_id: projectId,
+          user_id: userId,
+          ip: req.ip,
+          timestamp: new Date().toISOString(),
+        }),
+      );
+
+      res.json({
+        status: 'success',
+        credentials: decrypted,
+      });
+    } catch (err: any) {
+      res.status(500).json({ status: 'error', message: err.message || 'Error al revelar credenciales de entrega.' });
+    }
+  },
+);
+
+/**
+ * GET /api/v1/client/projects/:id/settlement-certificate
+ * Descarga y auditoría de la Constancia Oficial de Finiquito (Condition C-046.2)
+ */
+clientRouter.get(
+  '/projects/:id/settlement-certificate',
+  async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+    try {
+      const projectId = Number(req.params.id);
+      const userId = req.user?.userId;
+      const userRole = req.user?.role;
+
+      if (!projectId || isNaN(projectId)) {
+        res.status(400).json({ status: 'error', message: 'ID de proyecto inválido.' });
+        return;
+      }
+
+      const projects = await query<any[]>(
+        'SELECT id, user_id, status, pending_balance_cents FROM client_projects WHERE id = ? LIMIT 1',
+        [projectId],
+      );
+
+      if (projects.length === 0) {
+        res.status(404).json({ status: 'error', message: 'Proyecto no encontrado.' });
+        return;
+      }
+
+      const project = projects[0];
+
+      if (project.user_id !== userId && userRole !== 'ADMIN') {
+        res.status(403).json({ status: 'error', message: 'Acceso no autorizado al proyecto.' });
+        return;
+      }
+
+      if (project.status !== 'COMPLETED_DELIVERED' || project.pending_balance_cents > 0) {
+        res.status(403).json({
+          status: 'error',
+          error: 'Forbidden',
+          message: 'Certificado bloqueado: requiere finiquito liquidado al 100%.',
+        });
+        return;
+      }
+
+      const handovers = await query<any[]>(
+        'SELECT id, certificate_sha256, download_count FROM client_project_handovers WHERE project_id = ? LIMIT 1',
+        [projectId],
+      );
+
+      if (handovers.length === 0) {
+        res.status(404).json({ status: 'error', message: 'Certificado de finiquito no inicializado.' });
+        return;
+      }
+
+      const handover = handovers[0];
+
+      const paidPayments = await query<any[]>(
+        'SELECT id, amount_cents, currency FROM lead_payments WHERE project_id = ? AND status = "PAID"',
+        [projectId],
+      );
+
+      const certResult = generateCanonicalCertificate(project, paidPayments);
+
+      await query(
+        'UPDATE client_project_handovers SET download_count = download_count + 1, downloaded_at = NOW() WHERE project_id = ?',
+        [projectId],
+      );
+
+      res.json({
+        status: 'success',
+        certificate: {
+          canonical_data: certResult.canonical_data,
+          certificate_sha256: handover.certificate_sha256,
+          downloaded_at: new Date().toISOString(),
+          download_count: (handover.download_count || 0) + 1,
+        },
+      });
+    } catch (err: any) {
+      res.status(500).json({ status: 'error', message: err.message || 'Error al generar certificado de finiquito.' });
+    }
+  },
+);
+
+/**
+ * GET /api/v1/client/tax-profile
+ * Consulta el expediente fiscal corporativo del cliente autenticado
+ */
+clientRouter.get(
+  '/tax-profile',
+  async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+    try {
+      const userId = req.user?.userId;
+
+      const profiles = await query<any[]>(
+        'SELECT id, user_id, tenant_id, rfc, legal_name, tax_regime, cfdi_use, postal_code, invoice_email, created_at, updated_at FROM client_tax_profiles WHERE user_id = ? LIMIT 1',
+        [userId],
+      );
+
+      if (profiles.length === 0) {
+        res.json({ status: 'success', tax_profile: null });
+        return;
+      }
+
+      res.json({ status: 'success', tax_profile: profiles[0] });
+    } catch (err: any) {
+      res.status(500).json({ status: 'error', message: err.message || 'Error al consultar perfil fiscal.' });
+    }
+  },
+);
+
+/**
+ * PUT /api/v1/client/tax-profile
+ * Crea o actualiza el expediente fiscal con validación Zod y sanitización
+ */
+clientRouter.put(
+  '/tax-profile',
+  async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+    try {
+      const userId = req.user?.userId;
+      const parseResult = clientTaxProfileSchema.safeParse(req.body);
+
+      if (!parseResult.success) {
+        res.status(400).json({
+          status: 'error',
+          error: 'Validation Error',
+          details: parseResult.error.errors,
+        });
+        return;
+      }
+
+      const data = parseResult.data;
+
+      let tenantId: number = 1;
+      const userProjects = await query<any[]>(
+        'SELECT tenant_id FROM client_projects WHERE user_id = ? LIMIT 1',
+        [userId],
+      );
+      if (userProjects.length > 0 && userProjects[0].tenant_id) {
+        tenantId = userProjects[0].tenant_id;
+      } else {
+        const tenants = await query<any[]>('SELECT id FROM tenants LIMIT 1');
+        if (tenants.length > 0) {
+          tenantId = tenants[0].id;
+        }
+      }
+
+      const safeLegalName = escapeHtml(data.legal_name);
+
+      await query(
+        `INSERT INTO client_tax_profiles (user_id, tenant_id, rfc, legal_name, tax_regime, cfdi_use, postal_code, invoice_email)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+         ON DUPLICATE KEY UPDATE
+           tenant_id = VALUES(tenant_id),
+           rfc = VALUES(rfc),
+           legal_name = VALUES(legal_name),
+           tax_regime = VALUES(tax_regime),
+           cfdi_use = VALUES(cfdi_use),
+           postal_code = VALUES(postal_code),
+           invoice_email = VALUES(invoice_email),
+           updated_at = NOW()`,
+        [
+          userId,
+          tenantId,
+          data.rfc.toUpperCase(),
+          safeLegalName,
+          data.tax_regime,
+          data.cfdi_use,
+          data.postal_code,
+          data.invoice_email.toLowerCase(),
+        ],
+      );
+
+      const updated = await query<any[]>(
+        'SELECT id, user_id, tenant_id, rfc, legal_name, tax_regime, cfdi_use, postal_code, invoice_email, created_at, updated_at FROM client_tax_profiles WHERE user_id = ? LIMIT 1',
+        [userId],
+      );
+
+      res.json({
+        status: 'success',
+        message: 'Expediente fiscal actualizado con éxito.',
+        tax_profile: updated[0],
+      });
+    } catch (err: any) {
+      res.status(500).json({ status: 'error', message: err.message || 'Error al guardar perfil fiscal.' });
+    }
+  },
+);
+
+/**
+ * POST /api/v1/client/payments/:paymentId/request-invoice
+ * Registra una solicitud de facturación vinculada a un pago liquidado
+ */
+clientRouter.post(
+  '/payments/:paymentId/request-invoice',
+  taxInvoiceRateLimiter,
+  async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+    try {
+      const paymentId = Number(req.params.paymentId);
+      const userId = req.user?.userId;
+      const userRole = req.user?.role;
+
+      if (!paymentId || isNaN(paymentId)) {
+        res.status(400).json({ status: 'error', message: 'ID de pago inválido.' });
+        return;
+      }
+
+      const parseResult = requestInvoiceSchema.safeParse(req.body);
+      if (!parseResult.success) {
+        res.status(400).json({
+          status: 'error',
+          error: 'Validation Error',
+          details: parseResult.error.errors,
+        });
+        return;
+      }
+
+      const profiles = await query<any[]>(
+        'SELECT id FROM client_tax_profiles WHERE user_id = ? LIMIT 1',
+        [userId],
+      );
+
+      if (profiles.length === 0) {
+        res.status(400).json({
+          status: 'error',
+          error: 'Missing Tax Profile',
+          message: 'Debe configurar primero su expediente fiscal en el portal antes de solicitar facturación.',
+        });
+        return;
+      }
+
+      const taxProfileId = profiles[0].id;
+
+      const payments = await query<any[]>(
+        `SELECT lp.id, lp.project_id, lp.lead_id, lp.status, lp.amount_cents, lp.currency,
+                cp.user_id AS project_user_id
+         FROM lead_payments lp
+         LEFT JOIN client_projects cp ON lp.project_id = cp.id
+         WHERE lp.id = ? LIMIT 1`,
+        [paymentId],
+      );
+
+      if (payments.length === 0) {
+        res.status(404).json({ status: 'error', message: 'Pago no encontrado.' });
+        return;
+      }
+
+      const payment = payments[0];
+
+      if (userRole !== 'ADMIN' && payment.project_user_id !== userId) {
+        const userRows = await query<any[]>('SELECT email FROM users WHERE id = ? LIMIT 1', [userId]);
+        const userEmail = userRows[0]?.email;
+        const leadRows = await query<any[]>('SELECT id FROM leads WHERE id = ? AND email = ? LIMIT 1', [
+          payment.lead_id,
+          userEmail,
+        ]);
+        if (leadRows.length === 0) {
+          res.status(403).json({ status: 'error', message: 'Acceso no autorizado al comprobante de pago.' });
+          return;
+        }
+      }
+
+      if (payment.status !== 'PAID') {
+        res.status(400).json({
+          status: 'error',
+          message: 'Solo es posible solicitar facturación sobre pagos completados y confirmados (estado PAID).',
+        });
+        return;
+      }
+
+      const existing = await query<any[]>(
+        'SELECT id, status, cfdi_uuid FROM tax_invoice_requests WHERE payment_id = ? LIMIT 1',
+        [paymentId],
+      );
+
+      if (existing.length > 0) {
+        res.status(409).json({
+          status: 'error',
+          error: 'Conflict',
+          message: 'Ya existe una solicitud de factura registrada para este pago.',
+          invoice_request: existing[0],
+        });
+        return;
+      }
+
+      const safeNotes = parseResult.data.invoice_notes ? escapeHtml(parseResult.data.invoice_notes) : null;
+
+      const result = await query<any>(
+        `INSERT INTO tax_invoice_requests (payment_id, project_id, tax_profile_id, status, invoice_notes)
+         VALUES (?, ?, ?, 'REQUESTED', ?)`,
+        [paymentId, payment.project_id || null, taxProfileId, safeNotes],
+      );
+
+      res.status(201).json({
+        status: 'success',
+        message: 'Solicitud de factura registrada exitosamente.',
+        request_id: result.insertId,
+      });
+    } catch (err: any) {
+      res.status(500).json({ status: 'error', message: err.message || 'Error al registrar solicitud de factura.' });
     }
   },
 );

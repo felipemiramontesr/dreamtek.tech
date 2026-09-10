@@ -9,6 +9,7 @@ import { EscoltaWidget } from '@/components/dashboard/escolta/EscoltaWidget';
 import { ArchonWidget } from '@/components/dashboard/archon/ArchonWidget';
 import { CyberAuditWidget } from '@/components/dashboard/cyber/CyberAuditWidget';
 import { B2BProjectWorkspaceWidget } from '@/components/dashboard/client/B2BProjectWorkspaceWidget';
+import { ClientTaxProfileWidget } from '@/components/dashboard/client/ClientTaxProfileWidget';
 import { OmnipotentAdminPanel } from '@/components/dashboard/admin/OmnipotentAdminPanel';
 
 export default function ClientDashboardPage() {
@@ -211,6 +212,9 @@ export default function ClientDashboardPage() {
                     .catch(() => {});
                 }}
               />
+
+              {/* Módulo B2B: Expediente Fiscal & Facturación (FC 046) */}
+              <ClientTaxProfileWidget />
 
               {/* Módulo 1: Escolta WEB */}
               <EscoltaWidget

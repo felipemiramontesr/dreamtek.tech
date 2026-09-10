@@ -7,6 +7,12 @@ import {
   adminUpdateMilestone,
   signOffClientMilestone,
   createProjectSettlementSession,
+  getClientProjectHandover,
+  revealProjectHandoverCredentials,
+  getProjectSettlementCertificate,
+  getClientTaxProfile,
+  saveClientTaxProfile,
+  requestPaymentInvoice,
 } from '@/lib/auth/client';
 
 describe('Client Project Auth Helper Functions Suite (FC 044 100% Coverage)', () => {
@@ -269,6 +275,271 @@ describe('Client Project Auth Helper Functions Suite (FC 044 100% Coverage)', ()
 
       await expect(createProjectSettlementSession(1)).rejects.toThrow(
         'Error al generar sesión de finiquito.',
+      );
+    });
+  });
+
+  describe('getClientProjectHandover (FC 046 Phase 1)', () => {
+    it('debe retornar datos de entrega cuando la llamada es exitosa', async () => {
+      const mockData = {
+        status: 'success',
+        handover: {
+          project_id: 1,
+          repository_url: 'https://github.com/org/repo',
+          deployment_url: 'https://app.dreamtek.tech',
+          documentation_url: 'https://docs.dreamtek.tech',
+          handover_notes: 'Notas de entrega',
+          certificate_sha256: 'abc123sha',
+          has_credentials: true,
+          downloaded_at: null,
+          download_count: 0,
+        },
+      };
+      globalThis.fetch = vi.fn().mockResolvedValue({
+        ok: true,
+        json: vi.fn().mockResolvedValue(mockData),
+      });
+
+      const res = await getClientProjectHandover(1);
+      expect(res).toEqual(mockData);
+    });
+
+    it('debe lanzar error cuando respuesta no es ok con mensaje', async () => {
+      globalThis.fetch = vi.fn().mockResolvedValue({
+        ok: false,
+        json: vi.fn().mockResolvedValue({ message: 'Bóveda bloqueada' }),
+      });
+
+      await expect(getClientProjectHandover(1)).rejects.toThrow('Bóveda bloqueada');
+    });
+
+    it('debe lanzar error fallback cuando respuesta no es ok sin mensaje', async () => {
+      globalThis.fetch = vi.fn().mockResolvedValue({
+        ok: false,
+        json: vi.fn().mockResolvedValue({}),
+      });
+
+      await expect(getClientProjectHandover(1)).rejects.toThrow(
+        'Error al consultar la bóveda de entrega.',
+      );
+    });
+  });
+
+  describe('revealProjectHandoverCredentials (FC 046 Phase 1)', () => {
+    it('debe revelar credenciales exitosamente', async () => {
+      const mockData = { status: 'success', credentials: 'USER=admin\nPASS=secret' };
+      globalThis.fetch = vi.fn().mockResolvedValue({
+        ok: true,
+        json: vi.fn().mockResolvedValue(mockData),
+      });
+
+      const res = await revealProjectHandoverCredentials(1);
+      expect(res).toEqual(mockData);
+    });
+
+    it('debe lanzar error con mensaje custom', async () => {
+      globalThis.fetch = vi.fn().mockResolvedValue({
+        ok: false,
+        json: vi.fn().mockResolvedValue({ message: 'No existen credenciales' }),
+      });
+
+      await expect(revealProjectHandoverCredentials(1)).rejects.toThrow('No existen credenciales');
+    });
+
+    it('debe lanzar error fallback sin mensaje', async () => {
+      globalThis.fetch = vi.fn().mockResolvedValue({
+        ok: false,
+        json: vi.fn().mockResolvedValue({}),
+      });
+
+      await expect(revealProjectHandoverCredentials(1)).rejects.toThrow(
+        'Error al revelar las credenciales de entrega.',
+      );
+    });
+  });
+
+  describe('getProjectSettlementCertificate (FC 046 Phase 1)', () => {
+    it('debe descargar constancia de finiquito exitosamente', async () => {
+      const mockData = {
+        status: 'success',
+        certificate: {
+          canonical_data: { project_id: 1 },
+          certificate_sha256: 'sha256hash',
+          downloaded_at: '2026-09-09T00:00:00Z',
+          download_count: 1,
+        },
+      };
+      globalThis.fetch = vi.fn().mockResolvedValue({
+        ok: true,
+        json: vi.fn().mockResolvedValue(mockData),
+      });
+
+      const res = await getProjectSettlementCertificate(1);
+      expect(res).toEqual(mockData);
+    });
+
+    it('debe lanzar error con mensaje custom', async () => {
+      globalThis.fetch = vi.fn().mockResolvedValue({
+        ok: false,
+        json: vi.fn().mockResolvedValue({ message: 'Requiere saldo liquidado' }),
+      });
+
+      await expect(getProjectSettlementCertificate(1)).rejects.toThrow('Requiere saldo liquidado');
+    });
+
+    it('debe lanzar error fallback sin mensaje', async () => {
+      globalThis.fetch = vi.fn().mockResolvedValue({
+        ok: false,
+        json: vi.fn().mockResolvedValue({}),
+      });
+
+      await expect(getProjectSettlementCertificate(1)).rejects.toThrow(
+        'Error al descargar la constancia de finiquito.',
+      );
+    });
+  });
+
+  describe('getClientTaxProfile (FC 046 Phase 2)', () => {
+    it('debe obtener perfil fiscal exitosamente', async () => {
+      const mockData = {
+        status: 'success',
+        tax_profile: {
+          id: 1,
+          user_id: 42,
+          tenant_id: 1,
+          rfc: 'XAXX010101000',
+          legal_name: 'Empresa SA de CV',
+          tax_regime: '601',
+          cfdi_use: 'G03',
+          postal_code: '01000',
+          invoice_email: 'facturas@empresa.com',
+          created_at: '2026-09-09',
+          updated_at: '2026-09-09',
+        },
+      };
+      globalThis.fetch = vi.fn().mockResolvedValue({
+        ok: true,
+        json: vi.fn().mockResolvedValue(mockData),
+      });
+
+      const res = await getClientTaxProfile();
+      expect(res).toEqual(mockData);
+    });
+
+    it('debe lanzar error con mensaje', async () => {
+      globalThis.fetch = vi.fn().mockResolvedValue({
+        ok: false,
+        json: vi.fn().mockResolvedValue({ message: 'Error DB' }),
+      });
+
+      await expect(getClientTaxProfile()).rejects.toThrow('Error DB');
+    });
+
+    it('debe lanzar error fallback', async () => {
+      globalThis.fetch = vi.fn().mockResolvedValue({
+        ok: false,
+        json: vi.fn().mockResolvedValue({}),
+      });
+
+      await expect(getClientTaxProfile()).rejects.toThrow(
+        'Error al consultar el expediente fiscal.',
+      );
+    });
+  });
+
+  describe('saveClientTaxProfile (FC 046 Phase 2)', () => {
+    it('debe guardar perfil fiscal exitosamente', async () => {
+      const payload = {
+        rfc: 'XAXX010101000',
+        legal_name: 'Empresa SA de CV',
+        tax_regime: '601',
+        cfdi_use: 'G03',
+        postal_code: '01000',
+        invoice_email: 'facturas@empresa.com',
+      };
+      const mockData = {
+        status: 'success',
+        message: 'Guardado',
+        tax_profile: { id: 1, ...payload },
+      };
+      globalThis.fetch = vi.fn().mockResolvedValue({
+        ok: true,
+        json: vi.fn().mockResolvedValue(mockData),
+      });
+
+      const res = await saveClientTaxProfile(payload);
+      expect(res).toEqual(mockData);
+    });
+
+    it('debe lanzar error con mensaje', async () => {
+      globalThis.fetch = vi.fn().mockResolvedValue({
+        ok: false,
+        json: vi.fn().mockResolvedValue({ message: 'RFC inválido' }),
+      });
+
+      await expect(
+        saveClientTaxProfile({
+          rfc: 'INV',
+          legal_name: 'Empresa',
+          tax_regime: '601',
+          cfdi_use: 'G03',
+          postal_code: '01000',
+          invoice_email: 'a@b.com',
+        }),
+      ).rejects.toThrow('RFC inválido');
+    });
+
+    it('debe lanzar error fallback', async () => {
+      globalThis.fetch = vi.fn().mockResolvedValue({
+        ok: false,
+        json: vi.fn().mockResolvedValue({}),
+      });
+
+      await expect(
+        saveClientTaxProfile({
+          rfc: 'INV',
+          legal_name: 'Empresa',
+          tax_regime: '601',
+          cfdi_use: 'G03',
+          postal_code: '01000',
+          invoice_email: 'a@b.com',
+        }),
+      ).rejects.toThrow('Error al guardar el expediente fiscal.');
+    });
+  });
+
+  describe('requestPaymentInvoice (FC 046 Phase 2)', () => {
+    it('debe solicitar factura exitosamente con y sin notas', async () => {
+      const mockData = { status: 'success', message: 'Registrado', request_id: 10 };
+      globalThis.fetch = vi.fn().mockResolvedValue({
+        ok: true,
+        json: vi.fn().mockResolvedValue(mockData),
+      });
+
+      const resWithNotes = await requestPaymentInvoice(100, { invoice_notes: 'Comprobante' });
+      expect(resWithNotes).toEqual(mockData);
+
+      const resWithoutNotes = await requestPaymentInvoice(100);
+      expect(resWithoutNotes).toEqual(mockData);
+    });
+
+    it('debe lanzar error con mensaje', async () => {
+      globalThis.fetch = vi.fn().mockResolvedValue({
+        ok: false,
+        json: vi.fn().mockResolvedValue({ message: 'Ya existe solicitud previa' }),
+      });
+
+      await expect(requestPaymentInvoice(100)).rejects.toThrow('Ya existe solicitud previa');
+    });
+
+    it('debe lanzar error fallback', async () => {
+      globalThis.fetch = vi.fn().mockResolvedValue({
+        ok: false,
+        json: vi.fn().mockResolvedValue({}),
+      });
+
+      await expect(requestPaymentInvoice(100)).rejects.toThrow(
+        'Error al solicitar la factura fiscal.',
       );
     });
   });

@@ -11,6 +11,9 @@ vi.mock('@/lib/auth/client', async () => {
     updateClientProjectBriefing: vi.fn(),
     signOffClientMilestone: vi.fn(),
     createProjectSettlementSession: vi.fn(),
+    getClientProjectHandover: vi.fn(),
+    revealProjectHandoverCredentials: vi.fn(),
+    getProjectSettlementCertificate: vi.fn(),
   };
 });
 
@@ -888,6 +891,395 @@ describe('B2BProjectWorkspaceWidget Component Suite (FC 044 100% Coverage)', () 
           'Garantías y código entregados formalmente a conformidad del cliente. Balance en cero.',
         ),
       ).toBeInTheDocument();
+      expect(
+        screen.getByRole('button', { name: /Abrir Bóveda de Entrega & Finiquito/i }),
+      ).toBeInTheDocument();
+    });
+
+    it('debe abrir la Bóveda de Entrega, consultar getClientProjectHandover y renderizar enlaces, notas y constancia de finiquito', async () => {
+      const mockProject: ClientProject = {
+        id: 90,
+        tenant_id: 1,
+        user_id: 42,
+        project_name: 'Plataforma B2B Finiquitada',
+        vertical: 'saas_platform',
+        status: 'COMPLETED_DELIVERED',
+        currency: 'USD',
+        budget_cents: 1000000,
+        paid_amount_cents: 1000000,
+        pending_balance_cents: 0,
+        estimated_weeks: 4,
+        created_at: '2026-09-01',
+        updated_at: '2026-09-01',
+      };
+
+      vi.mocked(authClient.getClientProjectHandover).mockResolvedValueOnce({
+        status: 'success',
+        handover: {
+          project_id: 90,
+          repository_url: 'https://github.com/dreamtek/repo-90',
+          deployment_url: 'https://prod-90.dreamtek.tech',
+          documentation_url: 'https://docs-90.dreamtek.tech',
+          handover_notes: 'Notas clave del despliegue en AWS',
+          certificate_sha256: 'a1b2c3d4e5f67890abcdef1234567890abcdef1234567890abcdef1234567890',
+          has_credentials: true,
+          downloaded_at: null,
+          download_count: 0,
+        },
+      });
+
+      render(<B2BProjectWorkspaceWidget projects={[mockProject]} />);
+
+      const openVaultBtn = screen.getByRole('button', {
+        name: /Abrir Bóveda de Entrega & Finiquito/i,
+      });
+      fireEvent.click(openVaultBtn);
+
+      expect(authClient.getClientProjectHandover).toHaveBeenCalledWith(90);
+
+      await waitFor(() => {
+        expect(screen.getByText('Bóveda Segura de Entrega & Finiquito')).toBeInTheDocument();
+        expect(screen.getByText('Abrir Repositorio ↗')).toBeInTheDocument();
+        expect(screen.getByText('Ver Despliegue ↗')).toBeInTheDocument();
+        expect(screen.getByText('Guía & Manual ↗')).toBeInTheDocument();
+        expect(screen.getByText('Notas clave del despliegue en AWS')).toBeInTheDocument();
+        expect(
+          screen.getByText('a1b2c3d4e5f67890abcdef1234567890abcdef1234567890abcdef1234567890'),
+        ).toBeInTheDocument();
+        expect(screen.getByText('Descargas: 0')).toBeInTheDocument();
+      });
+
+      // Cerrar con botón de cerrar
+      const closeBtn = screen.getByRole('button', { name: /Cerrar Bóveda/i });
+      fireEvent.click(closeBtn);
+
+      await waitFor(() => {
+        expect(screen.queryByText('Bóveda Segura de Entrega & Finiquito')).not.toBeInTheDocument();
+      });
+    });
+
+    it('debe manejar enlaces faltantes y notas no configuradas en la Bóveda de Entrega', async () => {
+      const mockProject: ClientProject = {
+        id: 91,
+        tenant_id: 1,
+        user_id: 42,
+        project_name: 'Proyecto Minimalista',
+        vertical: 'custom_dev',
+        status: 'COMPLETED_DELIVERED',
+        currency: 'USD',
+        budget_cents: 500000,
+        paid_amount_cents: 500000,
+        pending_balance_cents: 0,
+        estimated_weeks: 2,
+        created_at: '2026-09-01',
+        updated_at: '2026-09-01',
+      };
+
+      vi.mocked(authClient.getClientProjectHandover).mockResolvedValueOnce({
+        status: 'success',
+        handover: {
+          project_id: 91,
+          repository_url: null,
+          deployment_url: null,
+          documentation_url: null,
+          handover_notes: null,
+          certificate_sha256: 'fedcba0987654321fedcba0987654321fedcba0987654321fedcba0987654321',
+          has_credentials: false,
+          downloaded_at: '2026-09-09T20:00:00Z',
+          download_count: 5,
+        },
+      });
+
+      render(<B2BProjectWorkspaceWidget projects={[mockProject]} />);
+
+      fireEvent.click(screen.getByRole('button', { name: /Abrir Bóveda de Entrega & Finiquito/i }));
+
+      await waitFor(() => {
+        expect(screen.getAllByText('No configurado')).toHaveLength(2); // Repo y Despliegue
+        expect(screen.getByText('No configurada')).toBeInTheDocument(); // Documentación
+        expect(
+          screen.getByText('No se configuraron credenciales maestras en este proyecto.'),
+        ).toBeInTheDocument();
+      });
+
+      // Cerrar con ✕
+      const xBtn = screen.getByRole('button', { name: '✕' });
+      fireEvent.click(xBtn);
+
+      await waitFor(() => {
+        expect(screen.queryByText('Bóveda Segura de Entrega & Finiquito')).not.toBeInTheDocument();
+      });
+    });
+
+    it('debe manejar errores al consultar la bóveda de entrega (Error y no-Error)', async () => {
+      const mockProject: ClientProject = {
+        id: 92,
+        tenant_id: 1,
+        user_id: 42,
+        project_name: 'Proyecto Con Fallo',
+        vertical: 'custom_dev',
+        status: 'COMPLETED_DELIVERED',
+        currency: 'USD',
+        budget_cents: 500000,
+        paid_amount_cents: 500000,
+        pending_balance_cents: 0,
+        estimated_weeks: 2,
+        created_at: '2026-09-01',
+        updated_at: '2026-09-01',
+      };
+
+      // Caso 1: Error instance
+      vi.mocked(authClient.getClientProjectHandover).mockRejectedValueOnce(
+        new Error('Fallo de red al consultar bóveda'),
+      );
+
+      const { rerender } = render(<B2BProjectWorkspaceWidget projects={[mockProject]} />);
+
+      fireEvent.click(screen.getByRole('button', { name: /Abrir Bóveda de Entrega & Finiquito/i }));
+
+      await waitFor(() => {
+        expect(screen.getByText('Fallo de red al consultar bóveda')).toBeInTheDocument();
+      });
+
+      fireEvent.click(screen.getByRole('button', { name: /Cerrar Bóveda/i }));
+
+      // Caso 2: non-Error rejection
+      vi.mocked(authClient.getClientProjectHandover).mockRejectedValueOnce('raw rejection');
+
+      rerender(<B2BProjectWorkspaceWidget projects={[mockProject]} />);
+
+      fireEvent.click(screen.getByRole('button', { name: /Abrir Bóveda de Entrega & Finiquito/i }));
+
+      await waitFor(() => {
+        expect(screen.getByText('Error al consultar la bóveda de entrega.')).toBeInTheDocument();
+      });
+    });
+
+    it('debe revelar credenciales de producción, permitir copiarlas y manejar errores de revelación', async () => {
+      const mockProject: ClientProject = {
+        id: 93,
+        tenant_id: 1,
+        user_id: 42,
+        project_name: 'Proyecto Credenciales',
+        vertical: 'saas_platform',
+        status: 'COMPLETED_DELIVERED',
+        currency: 'USD',
+        budget_cents: 1000000,
+        paid_amount_cents: 1000000,
+        pending_balance_cents: 0,
+        estimated_weeks: 4,
+        created_at: '2026-09-01',
+        updated_at: '2026-09-01',
+      };
+
+      vi.mocked(authClient.getClientProjectHandover).mockResolvedValueOnce({
+        status: 'success',
+        handover: {
+          project_id: 93,
+          repository_url: 'https://github.com/dreamtek/repo-93',
+          deployment_url: 'https://prod-93.dreamtek.tech',
+          documentation_url: null,
+          handover_notes: null,
+          certificate_sha256: 'hash93',
+          has_credentials: true,
+          downloaded_at: null,
+          download_count: 0,
+        },
+      });
+
+      // Mock navigator.clipboard
+      const writeTextMock = vi.fn().mockResolvedValue(undefined);
+      Object.assign(navigator, {
+        clipboard: {
+          writeText: writeTextMock,
+        },
+      });
+
+      render(<B2BProjectWorkspaceWidget projects={[mockProject]} />);
+
+      fireEvent.click(screen.getByRole('button', { name: /Abrir Bóveda de Entrega & Finiquito/i }));
+
+      await waitFor(() => {
+        expect(screen.getByRole('button', { name: /Revelar Credenciales/i })).toBeInTheDocument();
+      });
+
+      // Revelación exitosa
+      vi.mocked(authClient.revealProjectHandoverCredentials).mockResolvedValueOnce({
+        status: 'success',
+        credentials: 'DATABASE_URL=postgres://user:pass@host:5432/db',
+      });
+
+      fireEvent.click(screen.getByRole('button', { name: /Revelar Credenciales/i }));
+
+      await waitFor(() => {
+        expect(
+          screen.getByText('DATABASE_URL=postgres://user:pass@host:5432/db'),
+        ).toBeInTheDocument();
+        expect(screen.getByRole('button', { name: /Copiar Credenciales/i })).toBeInTheDocument();
+      });
+
+      // Copiar credenciales
+      fireEvent.click(screen.getByRole('button', { name: /Copiar Credenciales/i }));
+      expect(writeTextMock).toHaveBeenCalledWith('DATABASE_URL=postgres://user:pass@host:5432/db');
+
+      await waitFor(() => {
+        expect(screen.getByText(/Copiado al Portapapeles ✓/i)).toBeInTheDocument();
+      });
+    });
+
+    it('debe manejar errores al revelar credenciales (Error y no-Error)', async () => {
+      const mockProject: ClientProject = {
+        id: 94,
+        tenant_id: 1,
+        user_id: 42,
+        project_name: 'Proyecto Error Revelar',
+        vertical: 'saas_platform',
+        status: 'COMPLETED_DELIVERED',
+        currency: 'USD',
+        budget_cents: 1000000,
+        paid_amount_cents: 1000000,
+        pending_balance_cents: 0,
+        estimated_weeks: 4,
+        created_at: '2026-09-01',
+        updated_at: '2026-09-01',
+      };
+
+      vi.mocked(authClient.getClientProjectHandover).mockResolvedValueOnce({
+        status: 'success',
+        handover: {
+          project_id: 94,
+          repository_url: null,
+          deployment_url: null,
+          documentation_url: null,
+          handover_notes: null,
+          certificate_sha256: 'hash94',
+          has_credentials: true,
+          downloaded_at: null,
+          download_count: 0,
+        },
+      });
+
+      render(<B2BProjectWorkspaceWidget projects={[mockProject]} />);
+
+      fireEvent.click(screen.getByRole('button', { name: /Abrir Bóveda de Entrega & Finiquito/i }));
+
+      await waitFor(() => {
+        expect(screen.getByRole('button', { name: /Revelar Credenciales/i })).toBeInTheDocument();
+      });
+
+      // Error instance
+      vi.mocked(authClient.revealProjectHandoverCredentials).mockRejectedValueOnce(
+        new Error('Clave de bóveda inaccesible'),
+      );
+
+      fireEvent.click(screen.getByRole('button', { name: /Revelar Credenciales/i }));
+
+      await waitFor(() => {
+        expect(screen.getByText('Clave de bóveda inaccesible')).toBeInTheDocument();
+      });
+
+      // Non-error rejection
+      vi.mocked(authClient.revealProjectHandoverCredentials).mockRejectedValueOnce('raw string');
+
+      fireEvent.click(screen.getByRole('button', { name: /Revelar Credenciales/i }));
+
+      await waitFor(() => {
+        expect(screen.getByText('Error al revelar credenciales cifradas.')).toBeInTheDocument();
+      });
+    });
+
+    it('debe descargar la constancia de finiquito (.JSON) y manejar errores de descarga', async () => {
+      const mockProject: ClientProject = {
+        id: 95,
+        tenant_id: 1,
+        user_id: 42,
+        project_name: 'Proyecto Certificado',
+        vertical: 'saas_platform',
+        status: 'COMPLETED_DELIVERED',
+        currency: 'USD',
+        budget_cents: 1000000,
+        paid_amount_cents: 1000000,
+        pending_balance_cents: 0,
+        estimated_weeks: 4,
+        created_at: '2026-09-01',
+        updated_at: '2026-09-01',
+      };
+
+      vi.mocked(authClient.getClientProjectHandover).mockResolvedValueOnce({
+        status: 'success',
+        handover: {
+          project_id: 95,
+          repository_url: null,
+          deployment_url: null,
+          documentation_url: null,
+          handover_notes: null,
+          certificate_sha256: 'hash95',
+          has_credentials: false,
+          downloaded_at: null,
+          download_count: 1,
+        },
+      });
+
+      // Mock URL.createObjectURL / revokeObjectURL
+      const createObjectURLMock = vi.fn().mockReturnValue('blob:http://localhost/cert-blob');
+      const revokeObjectURLMock = vi.fn();
+      global.URL.createObjectURL = createObjectURLMock;
+      global.URL.revokeObjectURL = revokeObjectURLMock;
+
+      render(<B2BProjectWorkspaceWidget projects={[mockProject]} />);
+
+      fireEvent.click(screen.getByRole('button', { name: /Abrir Bóveda de Entrega & Finiquito/i }));
+
+      await waitFor(() => {
+        expect(
+          screen.getByRole('button', { name: /Descargar Constancia \(\.JSON\)/i }),
+        ).toBeInTheDocument();
+      });
+
+      // Descarga exitosa
+      vi.mocked(authClient.getProjectSettlementCertificate).mockResolvedValueOnce({
+        status: 'success',
+        certificate: {
+          canonical_data: { project_id: 95 },
+          certificate_sha256: 'hash95',
+          downloaded_at: '2026-09-09T21:00:00Z',
+          download_count: 2,
+        },
+      });
+
+      fireEvent.click(screen.getByRole('button', { name: /Descargar Constancia \(\.JSON\)/i }));
+
+      await waitFor(() => {
+        expect(authClient.getProjectSettlementCertificate).toHaveBeenCalledWith(95);
+        expect(createObjectURLMock).toHaveBeenCalled();
+        expect(revokeObjectURLMock).toHaveBeenCalled();
+        expect(
+          screen.getByText('Constancia de finiquito descargada exitosamente.'),
+        ).toBeInTheDocument();
+        expect(screen.getByText('Descargas: 2')).toBeInTheDocument();
+      });
+
+      // Error al descargar (Error instance)
+      vi.mocked(authClient.getProjectSettlementCertificate).mockRejectedValueOnce(
+        new Error('Error de servidor al generar constancia'),
+      );
+
+      fireEvent.click(screen.getByRole('button', { name: /Descargar Constancia \(\.JSON\)/i }));
+
+      await waitFor(() => {
+        expect(screen.getByText('Error de servidor al generar constancia')).toBeInTheDocument();
+      });
+
+      // Error al descargar (non-Error rejection)
+      vi.mocked(authClient.getProjectSettlementCertificate).mockRejectedValueOnce('raw cert error');
+
+      fireEvent.click(screen.getByRole('button', { name: /Descargar Constancia \(\.JSON\)/i }));
+
+      await waitFor(() => {
+        expect(
+          screen.getByText('Error al descargar la constancia de finiquito.'),
+        ).toBeInTheDocument();
+      });
     });
   });
 });

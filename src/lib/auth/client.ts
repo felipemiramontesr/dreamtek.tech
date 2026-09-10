@@ -543,3 +543,160 @@ export async function createProjectSettlementSession(projectId: number | string)
 
   return resData;
 }
+
+/**
+ * Handover & Tax Invoicing Interfaces & Methods (FC 046)
+ */
+export interface ProjectHandoverData {
+  project_id: number;
+  repository_url: string | null;
+  deployment_url: string | null;
+  documentation_url: string | null;
+  handover_notes: string | null;
+  certificate_sha256: string;
+  has_credentials: boolean;
+  downloaded_at: string | null;
+  download_count: number;
+}
+
+export async function getClientProjectHandover(projectId: number | string): Promise<{
+  status: string;
+  handover: ProjectHandoverData;
+}> {
+  const response = await fetch(`${API_BASE}/client/projects/${projectId}/handover`, {
+    method: 'GET',
+    credentials: 'include',
+  });
+
+  const resData = await response.json();
+  if (!response.ok) {
+    throw new Error(resData.message || 'Error al consultar la bóveda de entrega.');
+  }
+
+  return resData;
+}
+
+export async function revealProjectHandoverCredentials(projectId: number | string): Promise<{
+  status: string;
+  credentials: string;
+}> {
+  const response = await fetch(`${API_BASE}/client/projects/${projectId}/handover/reveal`, {
+    method: 'POST',
+    credentials: 'include',
+  });
+
+  const resData = await response.json();
+  if (!response.ok) {
+    throw new Error(resData.message || 'Error al revelar las credenciales de entrega.');
+  }
+
+  return resData;
+}
+
+export async function getProjectSettlementCertificate(projectId: number | string): Promise<{
+  status: string;
+  certificate: {
+    canonical_data: Record<string, unknown>;
+    certificate_sha256: string;
+    downloaded_at: string;
+    download_count: number;
+  };
+}> {
+  const response = await fetch(`${API_BASE}/client/projects/${projectId}/settlement-certificate`, {
+    method: 'GET',
+    credentials: 'include',
+  });
+
+  const resData = await response.json();
+  if (!response.ok) {
+    throw new Error(resData.message || 'Error al descargar la constancia de finiquito.');
+  }
+
+  return resData;
+}
+
+export interface ClientTaxProfile {
+  id: number;
+  user_id: number;
+  tenant_id: number;
+  rfc: string;
+  legal_name: string;
+  tax_regime: string;
+  cfdi_use: string;
+  postal_code: string;
+  invoice_email: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export async function getClientTaxProfile(): Promise<{
+  status: string;
+  tax_profile: ClientTaxProfile | null;
+}> {
+  const response = await fetch(`${API_BASE}/client/tax-profile`, {
+    method: 'GET',
+    credentials: 'include',
+  });
+
+  const resData = await response.json();
+  if (!response.ok) {
+    throw new Error(resData.message || 'Error al consultar el expediente fiscal.');
+  }
+
+  return resData;
+}
+
+export async function saveClientTaxProfile(data: {
+  rfc: string;
+  legal_name: string;
+  tax_regime: string;
+  cfdi_use: string;
+  postal_code: string;
+  invoice_email: string;
+  is_international?: boolean;
+}): Promise<{
+  status: string;
+  message: string;
+  tax_profile: ClientTaxProfile;
+}> {
+  const response = await fetch(`${API_BASE}/client/tax-profile`, {
+    method: 'PUT',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    credentials: 'include',
+    body: JSON.stringify(data),
+  });
+
+  const resData = await response.json();
+  if (!response.ok) {
+    throw new Error(resData.message || 'Error al guardar el expediente fiscal.');
+  }
+
+  return resData;
+}
+
+export async function requestPaymentInvoice(
+  paymentId: number | string,
+  data?: { invoice_notes?: string },
+): Promise<{
+  status: string;
+  message: string;
+  request_id: number;
+}> {
+  const response = await fetch(`${API_BASE}/client/payments/${paymentId}/request-invoice`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    credentials: 'include',
+    body: JSON.stringify(data || {}),
+  });
+
+  const resData = await response.json();
+  if (!response.ok) {
+    throw new Error(resData.message || 'Error al solicitar la factura fiscal.');
+  }
+
+  return resData;
+}

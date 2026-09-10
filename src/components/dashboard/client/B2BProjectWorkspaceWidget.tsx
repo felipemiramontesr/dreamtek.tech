@@ -7,9 +7,13 @@ import {
   ClientProject,
   ClientProjectBriefing,
   ClientProjectMilestone,
+  ProjectHandoverData,
   updateClientProjectBriefing,
   signOffClientMilestone,
   createProjectSettlementSession,
+  getClientProjectHandover,
+  revealProjectHandoverCredentials,
+  getProjectSettlementCertificate,
 } from '@/lib/auth/client';
 
 interface B2BProjectWorkspaceWidgetProps {
@@ -40,6 +44,18 @@ export function B2BProjectWorkspaceWidget({
   // Settlement checkout state
   const [isSettlingId, setIsSettlingId] = useState<number | null>(null);
   const [settleError, setSettleError] = useState<string | null>(null);
+
+  // Handover Vault state (FC 046)
+  const [activeHandoverProject, setActiveHandoverProject] = useState<ClientProject | null>(null);
+  const [handoverData, setHandoverData] = useState<ProjectHandoverData | null>(null);
+  const [isLoadingHandover, setIsLoadingHandover] = useState(false);
+  const [handoverError, setHandoverError] = useState<string | null>(null);
+  const [revealedCredentials, setRevealedCredentials] = useState<string | null>(null);
+  const [isRevealingCredentials, setIsRevealingCredentials] = useState(false);
+  const [revealError, setRevealError] = useState<string | null>(null);
+  const [copiedCredentials, setCopiedCredentials] = useState(false);
+  const [isDownloadingCert, setIsDownloadingCert] = useState(false);
+  const [certSuccess, setCertSuccess] = useState<string | null>(null);
 
   // Form state for briefing modal
   const [formData, setFormData] = useState({
@@ -187,6 +203,103 @@ export function B2BProjectWorkspaceWidget({
       setSettleError(msg);
     } finally {
       setIsSettlingId(null);
+    }
+  };
+
+  const handleOpenHandover = async (project: ClientProject) => {
+    setActiveHandoverProject(project);
+    setHandoverData(null);
+    setHandoverError(null);
+    setRevealedCredentials(null);
+    setRevealError(null);
+    setCopiedCredentials(false);
+    setCertSuccess(null);
+    setIsLoadingHandover(true);
+
+    try {
+      const res = await getClientProjectHandover(project.id);
+      setHandoverData(res.handover);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Error al consultar la bóveda de entrega.';
+      setHandoverError(msg);
+    } finally {
+      setIsLoadingHandover(false);
+    }
+  };
+
+  const handleCloseHandover = () => {
+    setActiveHandoverProject(null);
+    setHandoverData(null);
+    setHandoverError(null);
+    setRevealedCredentials(null);
+    setRevealError(null);
+    setCopiedCredentials(false);
+    setCertSuccess(null);
+  };
+
+  const handleRevealCredentials = async () => {
+    /* v8 ignore next */
+    if (!activeHandoverProject) return;
+    setIsRevealingCredentials(true);
+    setRevealError(null);
+    try {
+      const res = await revealProjectHandoverCredentials(activeHandoverProject.id);
+      setRevealedCredentials(res.credentials);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Error al revelar credenciales cifradas.';
+      setRevealError(msg);
+    } finally {
+      setIsRevealingCredentials(false);
+    }
+  };
+
+  const handleCopyCredentials = async () => {
+    /* v8 ignore next */
+    if (!revealedCredentials) return;
+    try {
+      await navigator.clipboard.writeText(revealedCredentials);
+      setCopiedCredentials(true);
+      /* v8 ignore next */
+      setTimeout(() => setCopiedCredentials(false), 2500);
+    } catch {
+      /* v8 ignore next */
+    }
+  };
+
+  const handleDownloadCertificate = async () => {
+    /* v8 ignore next */
+    if (!activeHandoverProject) return;
+    setIsDownloadingCert(true);
+    setCertSuccess(null);
+    try {
+      const res = await getProjectSettlementCertificate(activeHandoverProject.id);
+      const jsonBlob = new Blob([JSON.stringify(res.certificate, null, 2)], {
+        type: 'application/json',
+      });
+      const downloadUrl = URL.createObjectURL(jsonBlob);
+      const a = document.createElement('a');
+      a.href = downloadUrl;
+      a.download = `finiquito-proyecto-${activeHandoverProject.id}.json`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(downloadUrl);
+      setCertSuccess('Constancia de finiquito descargada exitosamente.');
+      setHandoverData((prev) => {
+        /* v8 ignore next */
+        if (!prev) return null;
+        return {
+          ...prev,
+          download_count: prev.download_count + 1,
+          downloaded_at: res.certificate.downloaded_at,
+        };
+      });
+    } catch (err: unknown) {
+      const msg =
+        err instanceof Error ? err.message : 'Error al descargar la constancia de finiquito.';
+      setHandoverError(msg);
+    } finally {
+      setIsDownloadingCert(false);
     }
   };
 
@@ -529,19 +642,29 @@ export function B2BProjectWorkspaceWidget({
 
             {/* Banner de Proyecto Entregado & Liquidado */}
             {proj.status === 'COMPLETED_DELIVERED' && proj.pending_balance_cents === 0 && (
-              <div className="bg-emerald-950/30 border border-emerald-500/30 p-4 rounded-xl flex items-center gap-3">
-                <div className="w-8 h-8 rounded-full bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center text-emerald-400 font-bold">
-                  ✓
+              <div className="bg-emerald-950/30 border border-emerald-500/30 p-4 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 rounded-full bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center text-emerald-400 font-bold">
+                    ✓
+                  </div>
+                  <div>
+                    <h4 className="text-sm font-bold text-emerald-300">
+                      Proyecto Entregado & Finiquito Liquidado al 100%
+                    </h4>
+                    <p className="text-xs text-slate-400">
+                      Garantías y código entregados formalmente a conformidad del cliente. Balance
+                      en cero.
+                    </p>
+                  </div>
                 </div>
-                <div>
-                  <h4 className="text-sm font-bold text-emerald-300">
-                    Proyecto Entregado & Finiquito Liquidado al 100%
-                  </h4>
-                  <p className="text-xs text-slate-400">
-                    Garantías y código entregados formalmente a conformidad del cliente. Balance en
-                    cero.
-                  </p>
-                </div>
+                <Button
+                  variant="primary"
+                  size="sm"
+                  onClick={() => handleOpenHandover(proj)}
+                  className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold whitespace-nowrap"
+                >
+                  Abrir Bóveda de Entrega & Finiquito
+                </Button>
               </div>
             )}
 
@@ -872,6 +995,247 @@ export function B2BProjectWorkspaceWidget({
                 </Button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Interactivo de Bóveda de Entrega & Finiquito (FC 046) */}
+      {activeHandoverProject && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md">
+          <div className="relative w-full max-w-2xl bg-slate-900 border border-emerald-500/40 rounded-2xl shadow-2xl overflow-hidden max-h-[90vh] flex flex-col">
+            {/* Header */}
+            <div className="flex items-center justify-between p-6 border-b border-white/10 bg-slate-900/90">
+              <div className="space-y-1">
+                <div className="flex items-center gap-2">
+                  <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse" />
+                  <h3 className="text-base font-black text-white uppercase tracking-wider">
+                    Bóveda Segura de Entrega & Finiquito
+                  </h3>
+                </div>
+                <p className="text-xs text-slate-400">
+                  {activeHandoverProject.project_name} (
+                  <span className="font-mono text-cyan-300">
+                    DTK-PRJ-{activeHandoverProject.id}
+                  </span>
+                  )
+                </p>
+              </div>
+              <button
+                onClick={handleCloseHandover}
+                className="text-slate-400 hover:text-white p-2 rounded-lg hover:bg-slate-800"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Content Body */}
+            <div className="p-6 overflow-y-auto space-y-6 flex-1 text-xs">
+              {/* Security Banner A02/A09 */}
+              <div className="p-4 rounded-xl bg-emerald-950/30 border border-emerald-500/30 flex items-start gap-3">
+                <span className="text-emerald-400 text-base font-bold">🔒</span>
+                <div>
+                  <h5 className="font-bold text-emerald-300">
+                    Bóveda Protegida con Cifrado AES-256-GCM
+                  </h5>
+                  <p className="text-slate-400 text-[11px] mt-0.5">
+                    Entregables definitivos y constancia formal de finiquito. Cada revelación de
+                    credenciales queda asentada en la bitácora de auditoría inmutable de Dreamtek.
+                  </p>
+                </div>
+              </div>
+
+              {isLoadingHandover && (
+                <div className="py-12 text-center space-y-3">
+                  <div className="w-8 h-8 border-2 border-emerald-500/30 border-t-emerald-400 rounded-full animate-spin mx-auto" />
+                  <p className="text-slate-400">Descifrando paquete de entrega y certificados...</p>
+                </div>
+              )}
+
+              {handoverError && (
+                <div className="p-4 bg-red-500/10 border border-red-500/30 rounded-xl text-red-400">
+                  {handoverError}
+                </div>
+              )}
+
+              {certSuccess && (
+                <div className="p-3 bg-emerald-500/10 border border-emerald-500/30 rounded-xl text-emerald-400">
+                  {certSuccess}
+                </div>
+              )}
+
+              {!isLoadingHandover && handoverData && (
+                <div className="space-y-6">
+                  {/* Grid de Enlaces de Entrega */}
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    {/* Repositorio */}
+                    <div className="p-3 bg-slate-800/50 rounded-xl border border-white/5 space-y-1">
+                      <span className="text-[10px] font-bold uppercase text-slate-400">
+                        Código Fuente (Repo)
+                      </span>
+                      {handoverData.repository_url ? (
+                        <a
+                          href={handoverData.repository_url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="block text-cyan-400 hover:text-cyan-300 underline font-semibold truncate"
+                        >
+                          Abrir Repositorio ↗
+                        </a>
+                      ) : (
+                        <p className="text-slate-500 italic">No configurado</p>
+                      )}
+                    </div>
+
+                    {/* Despliegue en Producción */}
+                    <div className="p-3 bg-slate-800/50 rounded-xl border border-white/5 space-y-1">
+                      <span className="text-[10px] font-bold uppercase text-slate-400">
+                        Producción Activa
+                      </span>
+                      {handoverData.deployment_url ? (
+                        <a
+                          href={handoverData.deployment_url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="block text-emerald-400 hover:text-emerald-300 underline font-semibold truncate"
+                        >
+                          Ver Despliegue ↗
+                        </a>
+                      ) : (
+                        <p className="text-slate-500 italic">No configurado</p>
+                      )}
+                    </div>
+
+                    {/* Documentación */}
+                    <div className="p-3 bg-slate-800/50 rounded-xl border border-white/5 space-y-1">
+                      <span className="text-[10px] font-bold uppercase text-slate-400">
+                        Documentación Técnica
+                      </span>
+                      {handoverData.documentation_url ? (
+                        <a
+                          href={handoverData.documentation_url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="block text-purple-400 hover:text-purple-300 underline font-semibold truncate"
+                        >
+                          Guía & Manual ↗
+                        </a>
+                      ) : (
+                        <p className="text-slate-500 italic">No configurada</p>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Notas de Entrega */}
+                  {handoverData.handover_notes && (
+                    <div className="p-4 bg-slate-800/40 rounded-xl border border-white/5 space-y-1">
+                      <p className="text-[10px] font-bold uppercase text-slate-400">
+                        Notas de Entrega del Equipo de Ingeniería
+                      </p>
+                      <p className="text-slate-300 whitespace-pre-line leading-relaxed">
+                        {handoverData.handover_notes}
+                      </p>
+                    </div>
+                  )}
+
+                  {/* Constancia Oficial de Finiquito */}
+                  <div className="p-4 bg-slate-800/60 rounded-xl border border-emerald-500/20 space-y-3">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                      <div>
+                        <h4 className="font-bold text-white">Constancia Oficial de Finiquito</h4>
+                        <p className="text-[11px] text-slate-400">
+                          Documento JSON canónico inmutable con hash SHA-256 verificable.
+                        </p>
+                      </div>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        disabled={isDownloadingCert}
+                        onClick={handleDownloadCertificate}
+                        className="border-emerald-500/40 text-emerald-300 hover:bg-emerald-500/10 font-bold whitespace-nowrap"
+                      >
+                        {isDownloadingCert ? 'Descargando...' : 'Descargar Constancia (.JSON)'}
+                      </Button>
+                    </div>
+
+                    <div className="p-2.5 bg-slate-900 rounded-lg border border-slate-700/60 font-mono text-[11px] text-slate-300 flex items-center justify-between gap-2">
+                      <span className="truncate">
+                        SHA-256:{' '}
+                        <span className="text-emerald-400">{handoverData.certificate_sha256}</span>
+                      </span>
+                      <span className="text-[10px] text-slate-500 whitespace-nowrap">
+                        Descargas: {handoverData.download_count}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Sección de Credenciales Cifradas */}
+                  <div className="p-4 bg-slate-800/60 rounded-xl border border-purple-500/20 space-y-3">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                      <div>
+                        <h4 className="font-bold text-white">Credenciales Maestras de Acceso</h4>
+                        <p className="text-[11px] text-slate-400">
+                          {handoverData.has_credentials
+                            ? 'Credenciales sensibles de infraestructura cifradas en reposo.'
+                            : 'No se configuraron credenciales maestras en este proyecto.'}
+                        </p>
+                      </div>
+
+                      {handoverData.has_credentials && !revealedCredentials && (
+                        <Button
+                          size="sm"
+                          variant="primary"
+                          disabled={isRevealingCredentials}
+                          onClick={handleRevealCredentials}
+                          className="bg-purple-600 hover:bg-purple-500 text-white font-bold whitespace-nowrap"
+                        >
+                          {isRevealingCredentials ? 'Descifrando...' : 'Revelar Credenciales'}
+                        </Button>
+                      )}
+                    </div>
+
+                    {revealError && (
+                      <div className="p-3 bg-red-500/10 border border-red-500/30 rounded-lg text-red-400">
+                        {revealError}
+                      </div>
+                    )}
+
+                    {revealedCredentials && (
+                      <div className="space-y-2">
+                        <div className="relative p-3 bg-slate-950 rounded-lg border border-purple-500/40">
+                          <pre className="font-mono text-[11px] text-emerald-300 whitespace-pre-wrap break-all">
+                            {revealedCredentials}
+                          </pre>
+                        </div>
+                        <div className="flex justify-end">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={handleCopyCredentials}
+                            className="border-slate-700 text-slate-300 hover:bg-slate-800"
+                          >
+                            {copiedCredentials
+                              ? 'Copiado al Portapapeles ✓'
+                              : 'Copiar Credenciales'}
+                          </Button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Modal Footer */}
+            <div className="p-4 border-t border-white/10 bg-slate-900/90 flex justify-end">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleCloseHandover}
+                className="border-slate-700 text-slate-300 hover:bg-slate-800"
+              >
+                Cerrar Bóveda
+              </Button>
+            </div>
           </div>
         </div>
       )}
