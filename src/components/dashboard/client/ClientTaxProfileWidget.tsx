@@ -27,6 +27,8 @@ export interface PaymentInvoiceItem {
 export interface ClientTaxProfileWidgetProps {
   payments?: PaymentInvoiceItem[];
   onProfileUpdated?: (profile: ClientTaxProfile) => void;
+  currency?: string;
+  locale?: string;
 }
 
 const SAT_TAX_REGIMES = [
@@ -49,7 +51,10 @@ const SAT_CFDI_USES = [
 export function ClientTaxProfileWidget({
   payments = [],
   onProfileUpdated,
+  currency,
+  locale,
 }: ClientTaxProfileWidgetProps) {
+  const isDomestic = currency?.toUpperCase() === 'MXN' || locale?.toLowerCase() === 'es';
   const [taxProfile, setTaxProfile] = useState<ClientTaxProfile | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [profileError, setProfileError] = useState<string | null>(null);
@@ -181,7 +186,7 @@ export function ClientTaxProfileWidget({
       return;
     }
 
-    if (!formData.is_international) {
+    if (isDomestic || !formData.is_international) {
       const satRegex = /^[A-Z&Ñ]{3,4}\d{6}[A-Z0-9]{3}$/i;
       if (!satRegex.test(cleanRfc)) {
         setFormError(
@@ -216,7 +221,9 @@ export function ClientTaxProfileWidget({
         cfdi_use: formData.cfdi_use,
         postal_code: cleanPostalCode,
         invoice_email: cleanEmail,
-        is_international: formData.is_international,
+        is_international: isDomestic ? false : formData.is_international,
+        currency: currency?.toUpperCase(),
+        locale: locale?.toLowerCase(),
       };
 
       const res = await saveClientTaxProfile(payload);
@@ -400,21 +407,30 @@ export function ClientTaxProfileWidget({
               <h4 className="text-xs font-bold uppercase tracking-wider text-slate-300">
                 {taxProfile ? 'Editar Datos de Facturación' : 'Registrar Expediente Fiscal'}
               </h4>
-              <div className="flex items-center gap-2">
-                <input
-                  type="checkbox"
-                  id="intl_toggle"
-                  checked={formData.is_international}
-                  onChange={(e) => setFormData({ ...formData, is_international: e.target.checked })}
-                  className="rounded border-slate-700 bg-slate-800 text-cyan-600 focus:ring-cyan-500 cursor-pointer"
-                />
-                <label
-                  htmlFor="intl_toggle"
-                  className="text-xs text-slate-400 cursor-pointer select-none"
-                >
-                  Cliente Internacional (Tax ID fuera de México)
-                </label>
-              </div>
+              {isDomestic ? (
+                <div className="flex items-center gap-1.5 text-xs text-amber-400 font-medium">
+                  <span className="w-1.5 h-1.5 rounded-full bg-amber-400"></span>
+                  Nacional ({currency || 'MXN'}) — RFC SAT
+                </div>
+              ) : (
+                <div className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    id="intl_toggle"
+                    checked={formData.is_international}
+                    onChange={(e) =>
+                      setFormData({ ...formData, is_international: e.target.checked })
+                    }
+                    className="rounded border-slate-700 bg-slate-800 text-cyan-600 focus:ring-cyan-500 cursor-pointer"
+                  />
+                  <label
+                    htmlFor="intl_toggle"
+                    className="text-xs text-slate-400 cursor-pointer select-none"
+                  >
+                    Cliente Internacional (Tax ID fuera de México)
+                  </label>
+                </div>
+              )}
             </div>
 
             {formError && (

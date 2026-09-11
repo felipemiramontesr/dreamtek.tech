@@ -8,12 +8,14 @@ export const clientTaxProfileSchema = z
   .object({
     cfdi_use: z.string().trim().min(1).max(10).optional(),
     cfdiUse: z.string().trim().min(1).max(10).optional(),
+    currency: z.string().trim().toUpperCase().optional(),
     invoice_email: z.string().trim().email().max(255).optional(),
     invoiceEmail: z.string().trim().email().max(255).optional(),
     is_international: z.boolean().optional(),
     isInternational: z.boolean().optional(),
     legal_name: z.string().trim().min(1).max(255).optional(),
     legalName: z.string().trim().min(1).max(255).optional(),
+    locale: z.string().trim().toLowerCase().optional(),
     postal_code: z.string().trim().min(1).max(16).optional(),
     postalCode: z.string().trim().min(1).max(16).optional(),
     rfc: z.string().trim().toUpperCase(),
@@ -33,25 +35,33 @@ export const clientTaxProfileSchema = z
   )
   .refine(
     (data) => {
-      const isIntl = data.is_international ?? data.isInternational ?? false;
-      if (!isIntl) {
+      const curr = data.currency?.toUpperCase();
+      const loc = data.locale?.toLowerCase();
+      // Derivación C-046.5: MXN o 'es' fuerza formato SAT RFC (no se puede saltar RFC en MXN/es)
+      const isDomestic = curr === 'MXN' || loc === 'es' || (!data.is_international && !data.isInternational);
+      if (isDomestic) {
         return SAT_RFC_REGEX.test(data.rfc);
       }
       return GENERIC_TAX_ID_REGEX.test(data.rfc);
     },
     (data) => {
-      const isIntl = data.is_international ?? data.isInternational ?? false;
+      const curr = data.currency?.toUpperCase();
+      const loc = data.locale?.toLowerCase();
+      const isDomestic = curr === 'MXN' || loc === 'es' || (!data.is_international && !data.isInternational);
       return {
-        message: isIntl
-          ? 'El identificador fiscal internacional (Tax ID) no es válido'
-          : 'Para empresas nacionales el RFC debe cumplir el formato oficial válido del SAT (12 o 13 caracteres)',
+        message: isDomestic
+          ? 'Para proyectos en moneda MXN o idioma español el RFC debe cumplir el formato oficial válido del SAT (12 o 13 caracteres)'
+          : 'El identificador fiscal internacional (Tax ID) no es válido',
         path: ['rfc'],
       };
     },
   )
   .transform((data) => {
     const rawLegalName = (data.legal_name || data.legalName) as string;
-    const isIntl = Boolean(data.is_international || data.isInternational);
+    const curr = data.currency?.toUpperCase();
+    const loc = data.locale?.toLowerCase();
+    const isDomestic = curr === 'MXN' || loc === 'es' || (!data.is_international && !data.isInternational);
+    const isIntl = !isDomestic;
     const cfdi = (data.cfdi_use || data.cfdiUse) as string;
     const email = ((data.invoice_email || data.invoiceEmail) as string).toLowerCase();
     const cp = (data.postal_code || data.postalCode) as string;
@@ -60,12 +70,14 @@ export const clientTaxProfileSchema = z
     return {
       cfdi_use: cfdi,
       cfdiUse: cfdi,
+      currency: curr,
       invoice_email: email,
       invoiceEmail: email,
       is_international: isIntl,
       isInternational: isIntl,
       legal_name: escapedLegalName,
       legalName: escapedLegalName,
+      locale: loc,
       postal_code: cp,
       postalCode: cp,
       rfc: data.rfc.trim().toUpperCase(),

@@ -214,7 +214,10 @@ export default function ClientDashboardPage() {
               />
 
               {/* Módulo B2B: Expediente Fiscal & Facturación (FC 046) */}
-              <ClientTaxProfileWidget />
+              <ClientTaxProfileWidget
+                currency={projects[0]?.currency}
+                locale={projects[0]?.locale}
+              />
 
               {/* Módulo 1: Escolta WEB */}
               <EscoltaWidget

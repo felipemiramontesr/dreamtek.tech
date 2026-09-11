@@ -542,6 +542,7 @@ describe('FC 046 Handover Vault & Corporate Tax Invoicing Suite (Hard Gate 4x100
     });
 
     it('PUT /tax-profile: rechaza datos inválidos con 400', async () => {
+      vi.mocked(db.query).mockResolvedValueOnce([{ tenant_id: 1, currency: 'MXN', locale: 'es' }]);
       const res = await supertest(app)
         .put('/api/v1/client/tax-profile')
         .set('Authorization', `Bearer ${clientToken}`)
@@ -561,7 +562,7 @@ describe('FC 046 Handover Vault & Corporate Tax Invoicing Suite (Hard Gate 4x100
       };
 
       vi.mocked(db.query)
-        .mockResolvedValueOnce([{ tenant_id: 7 }]) // user project tenant
+        .mockResolvedValueOnce([{ tenant_id: 7, currency: 'MXN', locale: 'es' }]) // user project tenant
         .mockResolvedValueOnce({ affectedRows: 1 }) // insert/update
         .mockResolvedValueOnce([{ id: 1, user_id: 42, tenant_id: 7, rfc: 'GARM850101XYZ' }]); // select updated
 
@@ -574,7 +575,31 @@ describe('FC 046 Handover Vault & Corporate Tax Invoicing Suite (Hard Gate 4x100
       expect(res.body.tax_profile.tenant_id).toBe(7);
     });
 
-    it('PUT /tax-profile: fallback tenant_id cuando no tiene proyectos', async () => {
+    it('PUT /tax-profile: guarda perfil internacional cuando el proyecto es USD y locale en (C-046.5)', async () => {
+      const payload = {
+        rfc: 'US-EIN-987654321',
+        legal_name: 'Acme International Inc',
+        tax_regime: '612',
+        cfdi_use: 'G03',
+        postal_code: '90210',
+        invoice_email: 'billing@acme.com',
+      };
+
+      vi.mocked(db.query)
+        .mockResolvedValueOnce([{ tenant_id: 9, currency: 'USD', locale: 'en' }])
+        .mockResolvedValueOnce({ affectedRows: 1 })
+        .mockResolvedValueOnce([{ id: 2, user_id: 42, tenant_id: 9, rfc: 'US-EIN-987654321' }]);
+
+      const res = await supertest(app)
+        .put('/api/v1/client/tax-profile')
+        .set('Authorization', `Bearer ${clientToken}`)
+        .send(payload);
+      expect(res.status).toBe(200);
+      expect(res.body.status).toBe('success');
+      expect(res.body.tax_profile.rfc).toBe('US-EIN-987654321');
+    });
+
+    it('PUT /tax-profile: aplica fallbacks USD y es cuando el proyecto no especifica currency ni locale', async () => {
       const payload = {
         rfc: 'GARM850101XYZ',
         legal_name: 'Garcia & Asociados',
@@ -584,31 +609,50 @@ describe('FC 046 Handover Vault & Corporate Tax Invoicing Suite (Hard Gate 4x100
         invoice_email: 'admin@empresa.com',
       };
 
-      // Caso 1: encuentra tenant en tabla tenants
       vi.mocked(db.query)
-        .mockResolvedValueOnce([]) // no projects
-        .mockResolvedValueOnce([{ id: 3 }]) // tenants table hit
+        .mockResolvedValueOnce([{ tenant_id: 3, currency: null, locale: null }])
         .mockResolvedValueOnce({ affectedRows: 1 })
-        .mockResolvedValueOnce([{ id: 1, user_id: 42, tenant_id: 3 }]);
+        .mockResolvedValueOnce([{ id: 3, user_id: 42, tenant_id: 3, rfc: 'GARM850101XYZ' }]);
+
+      const res = await supertest(app)
+        .put('/api/v1/client/tax-profile')
+        .set('Authorization', `Bearer ${clientToken}`)
+        .send(payload);
+      expect(res.status).toBe(200);
+      expect(res.body.status).toBe('success');
+    });
+
+    it('PUT /tax-profile: rechaza con 400 si el cliente no tiene proyecto o tenant_id asociado (aislamiento multi-tenant)', async () => {
+      const payload = {
+        rfc: 'GARM850101XYZ',
+        legal_name: 'Garcia & Asociados',
+        tax_regime: '612',
+        cfdi_use: 'G03',
+        postal_code: '01000',
+        invoice_email: 'admin@empresa.com',
+      };
+
+      // Caso 1: usuario sin proyectos
+      vi.mocked(db.query).mockResolvedValueOnce([]);
 
       const res1 = await supertest(app)
         .put('/api/v1/client/tax-profile')
         .set('Authorization', `Bearer ${clientToken}`)
         .send(payload);
-      expect(res1.status).toBe(200);
+      expect(res1.status).toBe(400);
+      expect(res1.body.status).toBe('error');
+      expect(res1.body.message).toContain('No se encontró un proyecto activo o tenant asociado');
 
-      // Caso 2: no encuentra tenants en BD (usa default 1)
-      vi.mocked(db.query)
-        .mockResolvedValueOnce([]) // no projects
-        .mockResolvedValueOnce([]) // no tenants in table
-        .mockResolvedValueOnce({ affectedRows: 1 })
-        .mockResolvedValueOnce([{ id: 1, user_id: 42, tenant_id: 1 }]);
+      // Caso 2: usuario con proyecto pero sin tenant_id
+      vi.mocked(db.query).mockResolvedValueOnce([{ tenant_id: null }]);
 
       const res2 = await supertest(app)
         .put('/api/v1/client/tax-profile')
         .set('Authorization', `Bearer ${clientToken}`)
         .send(payload);
-      expect(res2.status).toBe(200);
+      expect(res2.status).toBe(400);
+      expect(res2.body.status).toBe('error');
+      expect(res2.body.message).toContain('No se encontró un proyecto activo o tenant asociado');
     });
 
     it('PUT /tax-profile: maneja excepciones con 500 y mensaje fallback', async () => {

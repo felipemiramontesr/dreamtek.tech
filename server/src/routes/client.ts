@@ -1015,7 +1015,37 @@ clientRouter.put(
   async (req: AuthenticatedRequest, res: Response): Promise<void> => {
     try {
       const userId = req.user?.userId;
-      const parseResult = clientTaxProfileSchema.safeParse(req.body);
+
+      const userProjects = await query<any[]>(
+        `SELECT cp.tenant_id, cp.currency, l.locale 
+         FROM client_projects cp 
+         LEFT JOIN leads l ON cp.lead_id = l.id 
+         WHERE cp.user_id = ? 
+         ORDER BY cp.id DESC LIMIT 1`,
+        [userId],
+      );
+
+      if (userProjects.length === 0 || !userProjects[0].tenant_id) {
+        res.status(400).json({
+          status: 'error',
+          message: 'No se encontró un proyecto activo o tenant asociado para este usuario.',
+        });
+        return;
+      }
+
+      const tenantId = userProjects[0].tenant_id;
+      const projectCurrency = (userProjects[0].currency || 'USD').toUpperCase();
+      const projectLocale = (userProjects[0].locale || 'es').toLowerCase();
+      const isDomestic = projectCurrency === 'MXN' || projectLocale === 'es';
+      const isInternational = !isDomestic;
+
+      const parseResult = clientTaxProfileSchema.safeParse({
+        ...req.body,
+        currency: projectCurrency,
+        locale: projectLocale,
+        is_international: isInternational,
+        isInternational: isInternational,
+      });
 
       if (!parseResult.success) {
         res.status(400).json({
@@ -1027,20 +1057,6 @@ clientRouter.put(
       }
 
       const data = parseResult.data;
-
-      let tenantId: number = 1;
-      const userProjects = await query<any[]>(
-        'SELECT tenant_id FROM client_projects WHERE user_id = ? LIMIT 1',
-        [userId],
-      );
-      if (userProjects.length > 0 && userProjects[0].tenant_id) {
-        tenantId = userProjects[0].tenant_id;
-      } else {
-        const tenants = await query<any[]>('SELECT id FROM tenants LIMIT 1');
-        if (tenants.length > 0) {
-          tenantId = tenants[0].id;
-        }
-      }
 
       const safeLegalName = escapeHtml(data.legal_name);
 

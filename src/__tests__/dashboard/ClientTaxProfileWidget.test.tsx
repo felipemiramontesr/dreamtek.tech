@@ -738,4 +738,117 @@ describe('ClientTaxProfileWidget Component Suite (FC 046 100% Coverage)', () => 
     unmount();
     rejectPromise(new Error('Unmounted error'));
   });
+
+  it('debe renderizar badge nacional y exigir RFC oficial SAT cuando currency es MXN (C-046.5)', async () => {
+    vi.mocked(authClient.getClientTaxProfile).mockResolvedValueOnce({
+      status: 'success',
+      tax_profile: null,
+    });
+
+    render(<ClientTaxProfileWidget currency="MXN" locale="es" />);
+
+    await waitFor(() => {
+      expect(screen.getByText('Nacional (MXN) — RFC SAT')).toBeInTheDocument();
+    });
+
+    // Checkbox internacional NO debe estar presente
+    expect(screen.queryByLabelText(/Cliente Internacional/i)).not.toBeInTheDocument();
+
+    // Intentar ingresar RFC no válido para SAT
+    fireEvent.change(screen.getByPlaceholderText('GARM850101XYZ'), {
+      target: { value: 'US-TAX-123456' },
+    });
+    fireEvent.change(screen.getByPlaceholderText('Empresa o Persona Física SA de CV'), {
+      target: { value: 'Empresa Mexicana SA de CV' },
+    });
+    fireEvent.change(screen.getByPlaceholderText('01000'), {
+      target: { value: '06600' },
+    });
+    fireEvent.change(screen.getByPlaceholderText('facturas@miempresa.com'), {
+      target: { value: 'sat@empresa.com' },
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: /Guardar Expediente/i }));
+
+    await waitFor(() => {
+      expect(
+        screen.getByText(
+          'RFC inválido. Formato oficial SAT requerido (12 o 13 caracteres con homoclave).',
+        ),
+      ).toBeInTheDocument();
+    });
+  });
+
+  it('debe guardar exitosamente el expediente fiscal con currency y locale en modo doméstico (C-046.5)', async () => {
+    vi.mocked(authClient.getClientTaxProfile).mockResolvedValueOnce({
+      status: 'success',
+      tax_profile: null,
+    });
+
+    const mockSavedProfile = {
+      id: 88,
+      user_id: 10,
+      rfc: 'SAT840212ABC',
+      legal_name: 'DOMESTICA SA DE CV',
+      tax_regime: '601',
+      cfdi_use: 'G03',
+      postal_code: '06600',
+      invoice_email: 'contabilidad@domestica.com',
+      is_international: false,
+      created_at: '2026-09-10T12:00:00Z',
+      updated_at: '2026-09-10T12:00:00Z',
+    };
+
+    vi.mocked(authClient.saveClientTaxProfile).mockResolvedValueOnce({
+      status: 'success',
+      tax_profile: mockSavedProfile,
+    });
+
+    render(<ClientTaxProfileWidget currency="MXN" locale="es" />);
+
+    await waitFor(() => {
+      expect(screen.getByPlaceholderText('GARM850101XYZ')).toBeInTheDocument();
+    });
+
+    fireEvent.change(screen.getByPlaceholderText('GARM850101XYZ'), {
+      target: { value: 'SAT840212ABC' },
+    });
+    fireEvent.change(screen.getByPlaceholderText('Empresa o Persona Física SA de CV'), {
+      target: { value: 'DOMESTICA SA DE CV' },
+    });
+    fireEvent.change(screen.getByPlaceholderText('01000'), {
+      target: { value: '06600' },
+    });
+    fireEvent.change(screen.getByPlaceholderText('facturas@miempresa.com'), {
+      target: { value: 'contabilidad@domestica.com' },
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: /Guardar Expediente/i }));
+
+    await waitFor(() => {
+      expect(authClient.saveClientTaxProfile).toHaveBeenCalledWith(
+        expect.objectContaining({
+          rfc: 'SAT840212ABC',
+          is_international: false,
+          currency: 'MXN',
+          locale: 'es',
+        }),
+      );
+      expect(screen.getByText('DOMESTICA SA DE CV')).toBeInTheDocument();
+      expect(screen.getByText('SAT840212ABC')).toBeInTheDocument();
+    });
+  });
+
+  it('debe usar fallback MXN cuando currency es undefined pero locale es es (C-046.5 branch)', async () => {
+    vi.mocked(authClient.getClientTaxProfile).mockResolvedValueOnce({
+      status: 'success',
+      tax_profile: null,
+    });
+
+    render(<ClientTaxProfileWidget locale="es" />);
+
+    await waitFor(() => {
+      expect(screen.getByText('Nacional (MXN) — RFC SAT')).toBeInTheDocument();
+    });
+  });
 });
