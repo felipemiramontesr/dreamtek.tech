@@ -8,6 +8,8 @@ import * as authClient from '@/lib/auth/client';
 vi.mock('@/lib/auth/client', () => ({
   loginUser: vi.fn(),
   registerUser: vi.fn(),
+  verifyMfa: vi.fn(),
+  sendMfaEmailOtp: vi.fn(),
 }));
 
 describe('AuthModal Component (100% Coverage Suite)', () => {
@@ -311,6 +313,73 @@ describe('AuthModal Component (100% Coverage Suite)', () => {
     await waitFor(() => {
       expect(screen.getByText('Error al crear la cuenta.')).toBeInTheDocument();
     });
+
+    // 7. Test MFA mode with no dict.auth
+    vi.mocked(authClient.loginUser).mockResolvedValueOnce({
+      status: '2fa_required',
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Iniciar Sesión' }));
+    fireEvent.change(container.querySelector('input[type="email"]')!, {
+      target: { value: 'test@example.com' },
+    });
+    fireEvent.change(container.querySelector('input[type="password"]')!, {
+      target: { value: 'password123' },
+    });
+    const loginForm = container.querySelector('form')!;
+    fireEvent.submit(loginForm);
+
+    await waitFor(() => {
+      expect(screen.getAllByText('Verificación en Dos Pasos').length).toBeGreaterThan(0);
+      expect(
+        screen.getByText('Introduce el código para verificar tu identidad'),
+      ).toBeInTheDocument();
+      expect(screen.getByText('Google Auth')).toBeInTheDocument();
+      expect(screen.getByText('Correo')).toBeInTheDocument();
+      expect(screen.getByText('Recuperación')).toBeInTheDocument();
+      expect(screen.getByPlaceholderText('000000')).toBeInTheDocument();
+      expect(screen.getByText('Verificar y Acceder')).toBeInTheDocument();
+    });
+
+    // Switch to recovery with no dict.auth
+    fireEvent.click(screen.getByRole('button', { name: 'Recuperación' }));
+    expect(screen.getByPlaceholderText('XXXXX-XXXXX')).toBeInTheDocument();
+
+    // Switch to email with no dict.auth
+    fireEvent.click(screen.getByRole('button', { name: 'Correo' }));
+    expect(screen.getByRole('button', { name: 'Enviar código a mi correo' })).toBeInTheDocument();
+
+    // Send email OTP with no message and no dict.auth -> tests fallback 'Código enviado a tu correo.'
+    vi.mocked(authClient.sendMfaEmailOtp).mockResolvedValueOnce({ status: 'success' });
+    fireEvent.click(screen.getByRole('button', { name: 'Enviar código a mi correo' }));
+    await waitFor(() => {
+      expect(screen.getByText('Código enviado a tu correo.')).toBeInTheDocument();
+    });
+
+    // Send email OTP with non-Error reject -> tests fallback 'Error al solicitar código por correo.'
+    vi.mocked(authClient.sendMfaEmailOtp).mockRejectedValueOnce({});
+    fireEvent.click(screen.getByRole('button', { name: 'Enviar código a mi correo' }));
+    await waitFor(() => {
+      expect(screen.getByText('Error al solicitar código por correo.')).toBeInTheDocument();
+    });
+
+    // Submit empty MFA code -> tests fallback 'Por favor ingresa el código de verificación.'
+    const mfaForm = container.querySelector('form')!;
+    fireEvent.submit(mfaForm);
+    expect(screen.getByText('Por favor ingresa el código de verificación.')).toBeInTheDocument();
+
+    // Submit MFA code with non-Error reject -> tests fallback 'Error al verificar código 2FA.'
+    vi.mocked(authClient.verifyMfa).mockRejectedValueOnce({});
+    fireEvent.change(screen.getByPlaceholderText('000000'), { target: { value: '123456' } });
+    fireEvent.submit(mfaForm);
+    await waitFor(() => {
+      expect(screen.getByText('Error al verificar código 2FA.')).toBeInTheDocument();
+    });
+
+    // Click back to login with no dict.auth
+    fireEvent.click(screen.getByRole('button', { name: 'Volver a inicio de sesión' }));
+    expect(
+      screen.queryByText('Introduce el código para verificar tu identidad'),
+    ).not.toBeInTheDocument();
   });
 
   it('debe llamar a onClose cuando se hace clic en el botón de cerrar', () => {
@@ -329,5 +398,134 @@ describe('AuthModal Component (100% Coverage Suite)', () => {
     expect(screen.getByRole('heading', { name: 'Client Area' })).toBeInTheDocument();
     expect(screen.getAllByRole('button', { name: 'Log In' }).length).toBeGreaterThan(0);
     expect(screen.getByRole('button', { name: 'Sign Up' })).toBeInTheDocument();
+  });
+
+  it('debe transicionar a modo 2FA cuando loginUser retorna 2fa_required y permitir verificar TOTP', async () => {
+    const handleLoginSuccess = vi.fn();
+    const handleClose = vi.fn();
+    vi.mocked(authClient.loginUser).mockResolvedValueOnce({
+      status: '2fa_required',
+      message: 'Autenticación de dos factores requerida.',
+      available_methods: ['TOTP', 'EMAIL', 'RECOVERY'],
+    });
+
+    render(
+      <AuthModal
+        isOpen={true}
+        onClose={handleClose}
+        dict={es}
+        onLoginSuccess={handleLoginSuccess}
+      />,
+    );
+
+    fireEvent.change(screen.getByPlaceholderText('carlos@empresa.com'), {
+      target: { value: 'admin@dreamtek.tech' },
+    });
+    fireEvent.change(screen.getByPlaceholderText('••••••••'), {
+      target: { value: 'password123' },
+    });
+
+    const submitBtns = screen.getAllByRole('button', { name: 'Iniciar Sesión' });
+    fireEvent.click(submitBtns[submitBtns.length - 1]);
+
+    await waitFor(() => {
+      expect(screen.getAllByText('Verificación en Dos Pasos').length).toBeGreaterThan(0);
+    });
+
+    // Cambiar a pestaña Correo y solicitar código
+    const emailTab = screen.getByRole('button', { name: 'Código por Correo' });
+    fireEvent.click(emailTab);
+
+    vi.mocked(authClient.sendMfaEmailOtp).mockResolvedValueOnce({
+      status: 'success',
+      message: 'Código enviado a tu correo.',
+    });
+
+    const sendEmailBtn = screen.getByRole('button', { name: 'Enviar código a mi correo' });
+    fireEvent.click(sendEmailBtn);
+
+    await waitFor(() => {
+      expect(screen.getByText('Código enviado a tu correo.')).toBeInTheDocument();
+    });
+
+    // Error al solicitar código
+    vi.mocked(authClient.sendMfaEmailOtp).mockRejectedValueOnce(new Error('Rate limit excedido'));
+    fireEvent.click(sendEmailBtn);
+    await waitFor(() => {
+      expect(screen.getByText('Rate limit excedido')).toBeInTheDocument();
+    });
+
+    // Cambiar a pestaña Recuperación
+    const recoveryTab = screen.getByRole('button', { name: 'Código de Recuperación' });
+    fireEvent.click(recoveryTab);
+    expect(screen.getByPlaceholderText('XXXXX-XXXXX')).toBeInTheDocument();
+
+    // Cambiar de vuelta a Google Auth
+    const totpTab = screen.getByRole('button', { name: 'Google Authenticator' });
+    fireEvent.click(totpTab);
+
+    // Intentar verificar con campo vacío
+    const form = screen.getByRole('button', { name: 'Verificar y Acceder' }).closest('form')!;
+    fireEvent.submit(form);
+    expect(screen.getByText('Por favor completa todos los campos requeridos.')).toBeInTheDocument();
+
+    // Ingresar código válido y verificar con estado de carga
+    let resolveVerify!: (val: unknown) => void;
+    vi.mocked(authClient.verifyMfa).mockReturnValueOnce(
+      new Promise((resolve) => {
+        resolveVerify = resolve;
+      }),
+    );
+    const mfaInput = screen.getByPlaceholderText('Código de 6 dígitos');
+    fireEvent.change(mfaInput, { target: { value: '123456' } });
+    fireEvent.submit(form);
+
+    expect(screen.getByText('Verificando...')).toBeInTheDocument();
+    resolveVerify({ status: 'success', user: { id: 'u1' } });
+
+    await waitFor(() => {
+      expect(authClient.verifyMfa).toHaveBeenCalledWith({ code: '123456', method: 'TOTP' });
+      expect(handleLoginSuccess).toHaveBeenCalled();
+      expect(handleClose).toHaveBeenCalled();
+    });
+  });
+
+  it('debe manejar errores de verificación 2FA y permitir volver al login', async () => {
+    vi.mocked(authClient.loginUser).mockResolvedValueOnce({
+      status: '2fa_required',
+    });
+    vi.mocked(authClient.verifyMfa).mockRejectedValueOnce(new Error('Código incorrecto'));
+
+    render(<AuthModal isOpen={true} onClose={vi.fn()} dict={es} />);
+
+    fireEvent.change(screen.getByPlaceholderText('carlos@empresa.com'), {
+      target: { value: 'admin@dreamtek.tech' },
+    });
+    fireEvent.change(screen.getByPlaceholderText('••••••••'), {
+      target: { value: 'password123' },
+    });
+    const submitBtns = screen.getAllByRole('button', { name: 'Iniciar Sesión' });
+    fireEvent.click(submitBtns[submitBtns.length - 1]);
+
+    await waitFor(() => {
+      expect(screen.getAllByText('Verificación en Dos Pasos').length).toBeGreaterThan(0);
+    });
+
+    const mfaForm = screen.getByRole('button', { name: 'Verificar y Acceder' }).closest('form')!;
+    fireEvent.change(screen.getByPlaceholderText('Código de 6 dígitos'), {
+      target: { value: '000000' },
+    });
+    fireEvent.submit(mfaForm);
+
+    await waitFor(() => {
+      expect(screen.getByText('Código incorrecto')).toBeInTheDocument();
+    });
+
+    // Volver a inicio de sesión
+    const backBtn = screen.getByRole('button', { name: 'Volver a inicio de sesión' });
+    fireEvent.click(backBtn);
+    expect(
+      screen.queryByText('Introduce el código para verificar tu identidad'),
+    ).not.toBeInTheDocument();
   });
 });

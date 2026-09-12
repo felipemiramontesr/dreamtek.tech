@@ -17,6 +17,7 @@ vi.mock('@/lib/auth/client', () => ({
   fetchAdminLeads: vi.fn(),
   fetchAdminAuditLogs: vi.fn(),
   updateClientProjectBriefing: vi.fn(),
+  getMfaStatus: vi.fn().mockResolvedValue({ status: 'success', is_2fa_enabled: false }),
 }));
 
 describe('ClientDashboardPage Component Suite (FC 038 100% Coverage)', () => {

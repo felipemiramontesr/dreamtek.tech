@@ -20,7 +20,28 @@ export interface LoginPayload {
 export interface AuthResponse {
   message?: string;
   error?: string;
+  status?: string;
+  available_methods?: string[];
   user?: Omit<UserEntity, 'password_hash'>;
+}
+
+export interface MfaVerifyPayload {
+  code: string;
+  method: 'TOTP' | 'EMAIL' | 'RECOVERY';
+}
+
+export interface MfaSetupResponse {
+  status: string;
+  secretBase32: string;
+  otpauthUrl: string;
+  recoveryCodes: string[];
+}
+
+export interface MfaStatusResponse {
+  status: string;
+  is_2fa_enabled: boolean;
+  mfa_enrolled_at?: string | null;
+  remaining_recovery_codes?: number;
 }
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || 'https://apiv1.dreamtek.tech/api/v1';
@@ -62,6 +83,136 @@ export async function loginUser(payload: LoginPayload): Promise<AuthResponse> {
   const data = await response.json();
   if (!response.ok) {
     throw new Error(data.error || 'Credenciales inválidas o error de inicio de sesión.');
+  }
+
+  return data;
+}
+
+/**
+ * Verify 2FA code during two-stage login (Condition C-047.1 & C-047.3)
+ */
+export async function verifyMfa(payload: MfaVerifyPayload): Promise<AuthResponse> {
+  const response = await fetch(`${API_BASE}/auth/2fa/verify`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    credentials: 'include',
+    body: JSON.stringify(payload),
+  });
+
+  const data = await response.json();
+  if (!response.ok) {
+    throw new Error(data.message || data.error || 'Error al verificar código 2FA.');
+  }
+
+  return data;
+}
+
+/**
+ * Request 6-digit numeric OTP email under rate limiting
+ */
+export async function sendMfaEmailOtp(): Promise<{ status: string; message: string }> {
+  const response = await fetch(`${API_BASE}/auth/2fa/send-email-otp`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    credentials: 'include',
+  });
+
+  const data = await response.json();
+  if (!response.ok) {
+    throw new Error(data.message || data.error || 'Error al enviar código por correo.');
+  }
+
+  return data;
+}
+
+/**
+ * Query 2FA status for authenticated user
+ */
+export async function getMfaStatus(): Promise<MfaStatusResponse> {
+  const response = await fetch(`${API_BASE}/auth/2fa/status`, {
+    method: 'GET',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    credentials: 'include',
+  });
+
+  const data = await response.json();
+  if (!response.ok) {
+    throw new Error(data.message || data.error || 'Error al obtener estado 2FA.');
+  }
+
+  return data;
+}
+
+/**
+ * Setup 2FA: generates fresh secret and recovery codes
+ */
+export async function setupMfa(): Promise<MfaSetupResponse> {
+  const response = await fetch(`${API_BASE}/auth/2fa/setup`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    credentials: 'include',
+  });
+
+  const data = await response.json();
+  if (!response.ok) {
+    throw new Error(data.message || data.error || 'Error al inicializar configuración 2FA.');
+  }
+
+  return data;
+}
+
+/**
+ * Enable 2FA by validating initial code
+ */
+export async function enableMfa(
+  code: string,
+  secretBase32: string,
+  recoveryCodes?: string[],
+): Promise<{ status: string; message: string }> {
+  const response = await fetch(`${API_BASE}/auth/2fa/enable`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    credentials: 'include',
+    body: JSON.stringify({ code, secretBase32, recoveryCodes }),
+  });
+
+  const data = await response.json();
+  if (!response.ok) {
+    throw new Error(data.message || data.error || 'Error al habilitar 2FA.');
+  }
+
+  return data;
+}
+
+/**
+ * Disable 2FA requiring password + code (Condition C-047.8)
+ */
+export async function disableMfa(
+  password: string,
+  code: string,
+): Promise<{ status: string; message: string }> {
+  const response = await fetch(`${API_BASE}/auth/2fa/disable`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    credentials: 'include',
+    body: JSON.stringify({ password, code }),
+  });
+
+  const data = await response.json();
+  if (!response.ok) {
+    throw new Error(data.message || data.error || 'Error al desactivar 2FA.');
   }
 
   return data;
@@ -146,6 +297,7 @@ export interface ClientProject {
     | 'COMPLETED_DELIVERED'
     | 'ON_HOLD';
   currency: 'MXN' | 'USD';
+  locale?: 'es' | 'en';
   budget_cents: number;
   paid_amount_cents: number;
   pending_balance_cents: number;

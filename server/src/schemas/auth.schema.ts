@@ -27,5 +27,26 @@ export const registerSchema = z.object({
   confirmPassword: z.string().optional(),
 });
 
+export const mfaVerifySchema = z.object({
+  code: z.string().min(1, 'El código es requerido.').max(32, 'El código no puede exceder 32 caracteres.'),
+  method: z.enum(['TOTP', 'EMAIL', 'RECOVERY'], {
+    errorMap: () => ({ message: 'Método de verificación debe ser TOTP, EMAIL o RECOVERY.' }),
+  }),
+});
+
+export const mfaEnableSchema = z.object({
+  code: z.string().min(6, 'El código debe tener 6 dígitos.').max(6, 'El código debe tener 6 dígitos.'),
+  secretBase32: z.string().min(16, 'El secreto TOTP es inválido.'),
+  recoveryCodes: z.array(z.string()).optional(),
+});
+
+export const mfaDisableSchema = z.object({
+  password: z.string().min(1, 'La contraseña actual es requerida.'),
+  code: z.string().min(1, 'El código de confirmación o recuperación es requerido.'),
+});
+
 export type LoginInput = z.infer<typeof loginSchema>;
 export type RegisterInput = z.infer<typeof registerSchema>;
+export type MfaVerifyInput = z.infer<typeof mfaVerifySchema>;
+export type MfaEnableInput = z.infer<typeof mfaEnableSchema>;
+export type MfaDisableInput = z.infer<typeof mfaDisableSchema>;

@@ -10,6 +10,7 @@ import { ArchonWidget } from '@/components/dashboard/archon/ArchonWidget';
 import { CyberAuditWidget } from '@/components/dashboard/cyber/CyberAuditWidget';
 import { B2BProjectWorkspaceWidget } from '@/components/dashboard/client/B2BProjectWorkspaceWidget';
 import { ClientTaxProfileWidget } from '@/components/dashboard/client/ClientTaxProfileWidget';
+import { ClientMfaSettingsWidget } from '@/components/dashboard/client/ClientMfaSettingsWidget';
 import { OmnipotentAdminPanel } from '@/components/dashboard/admin/OmnipotentAdminPanel';
 
 export default function ClientDashboardPage() {
@@ -218,6 +219,9 @@ export default function ClientDashboardPage() {
                 currency={projects[0]?.currency}
                 locale={projects[0]?.locale}
               />
+
+              {/* Módulo Seguridad: Autenticación de Dos Factores (FC 047) */}
+              <ClientMfaSettingsWidget />
 
               {/* Módulo 1: Escolta WEB */}
               <EscoltaWidget

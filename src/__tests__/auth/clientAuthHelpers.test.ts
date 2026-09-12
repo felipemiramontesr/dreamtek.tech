@@ -13,6 +13,12 @@ import {
   getClientTaxProfile,
   saveClientTaxProfile,
   requestPaymentInvoice,
+  verifyMfa,
+  sendMfaEmailOtp,
+  getMfaStatus,
+  setupMfa,
+  enableMfa,
+  disableMfa,
 } from '@/lib/auth/client';
 
 describe('Client Project Auth Helper Functions Suite (FC 044 100% Coverage)', () => {
@@ -541,6 +547,179 @@ describe('Client Project Auth Helper Functions Suite (FC 044 100% Coverage)', ()
       await expect(requestPaymentInvoice(100)).rejects.toThrow(
         'Error al solicitar la factura fiscal.',
       );
+    });
+  });
+
+  describe('MFA 2FA Helper Functions Suite (FC 047 Phase 4)', () => {
+    describe('verifyMfa', () => {
+      it('debe verificar 2FA exitosamente', async () => {
+        const mockData = { status: 'success', user: { id: 1, email: 'admin@dreamtek.tech' } };
+        globalThis.fetch = vi.fn().mockResolvedValue({
+          ok: true,
+          json: vi.fn().mockResolvedValue(mockData),
+        });
+
+        const res = await verifyMfa({ code: '123456', method: 'TOTP' });
+        expect(res).toEqual(mockData);
+      });
+
+      it('debe lanzar error con mensaje o fallback', async () => {
+        globalThis.fetch = vi.fn().mockResolvedValueOnce({
+          ok: false,
+          json: vi.fn().mockResolvedValue({ message: 'Código expirado' }),
+        });
+        await expect(verifyMfa({ code: '123456', method: 'TOTP' })).rejects.toThrow(
+          'Código expirado',
+        );
+
+        globalThis.fetch = vi.fn().mockResolvedValueOnce({
+          ok: false,
+          json: vi.fn().mockResolvedValue({}),
+        });
+        await expect(verifyMfa({ code: '123456', method: 'TOTP' })).rejects.toThrow(
+          'Error al verificar código 2FA.',
+        );
+      });
+    });
+
+    describe('sendMfaEmailOtp', () => {
+      it('debe enviar código OTP exitosamente', async () => {
+        const mockData = { status: 'success', message: 'Código enviado' };
+        globalThis.fetch = vi.fn().mockResolvedValue({
+          ok: true,
+          json: vi.fn().mockResolvedValue(mockData),
+        });
+
+        const res = await sendMfaEmailOtp();
+        expect(res).toEqual(mockData);
+      });
+
+      it('debe lanzar error con mensaje o fallback', async () => {
+        globalThis.fetch = vi.fn().mockResolvedValueOnce({
+          ok: false,
+          json: vi.fn().mockResolvedValue({ message: 'Límite alcanzado' }),
+        });
+        await expect(sendMfaEmailOtp()).rejects.toThrow('Límite alcanzado');
+
+        globalThis.fetch = vi.fn().mockResolvedValueOnce({
+          ok: false,
+          json: vi.fn().mockResolvedValue({}),
+        });
+        await expect(sendMfaEmailOtp()).rejects.toThrow('Error al enviar código por correo.');
+      });
+    });
+
+    describe('getMfaStatus', () => {
+      it('debe retornar status 2FA exitosamente', async () => {
+        const mockData = { status: 'success', is_2fa_enabled: true, remaining_recovery_codes: 8 };
+        globalThis.fetch = vi.fn().mockResolvedValue({
+          ok: true,
+          json: vi.fn().mockResolvedValue(mockData),
+        });
+
+        const res = await getMfaStatus();
+        expect(res).toEqual(mockData);
+      });
+
+      it('debe lanzar error con mensaje o fallback', async () => {
+        globalThis.fetch = vi.fn().mockResolvedValueOnce({
+          ok: false,
+          json: vi.fn().mockResolvedValue({ message: 'No autenticado' }),
+        });
+        await expect(getMfaStatus()).rejects.toThrow('No autenticado');
+
+        globalThis.fetch = vi.fn().mockResolvedValueOnce({
+          ok: false,
+          json: vi.fn().mockResolvedValue({}),
+        });
+        await expect(getMfaStatus()).rejects.toThrow('Error al obtener estado 2FA.');
+      });
+    });
+
+    describe('setupMfa', () => {
+      it('debe inicializar setup 2FA exitosamente', async () => {
+        const mockData = {
+          status: 'success',
+          secretBase32: 'JBSWY3DPEHPK3PXP',
+          otpauthUrl: 'otpauth://',
+          recoveryCodes: ['AAA', 'BBB'],
+        };
+        globalThis.fetch = vi.fn().mockResolvedValue({
+          ok: true,
+          json: vi.fn().mockResolvedValue(mockData),
+        });
+
+        const res = await setupMfa();
+        expect(res).toEqual(mockData);
+      });
+
+      it('debe lanzar error con mensaje o fallback', async () => {
+        globalThis.fetch = vi.fn().mockResolvedValueOnce({
+          ok: false,
+          json: vi.fn().mockResolvedValue({ message: 'Error interno' }),
+        });
+        await expect(setupMfa()).rejects.toThrow('Error interno');
+
+        globalThis.fetch = vi.fn().mockResolvedValueOnce({
+          ok: false,
+          json: vi.fn().mockResolvedValue({}),
+        });
+        await expect(setupMfa()).rejects.toThrow('Error al inicializar configuración 2FA.');
+      });
+    });
+
+    describe('enableMfa', () => {
+      it('debe habilitar 2FA exitosamente', async () => {
+        const mockData = { status: 'success', message: 'Habilitado' };
+        globalThis.fetch = vi.fn().mockResolvedValue({
+          ok: true,
+          json: vi.fn().mockResolvedValue(mockData),
+        });
+
+        const res = await enableMfa('123456', 'SECRET', ['CODE1']);
+        expect(res).toEqual(mockData);
+      });
+
+      it('debe lanzar error con mensaje o fallback', async () => {
+        globalThis.fetch = vi.fn().mockResolvedValueOnce({
+          ok: false,
+          json: vi.fn().mockResolvedValue({ message: 'Código erróneo' }),
+        });
+        await expect(enableMfa('123456', 'SECRET')).rejects.toThrow('Código erróneo');
+
+        globalThis.fetch = vi.fn().mockResolvedValueOnce({
+          ok: false,
+          json: vi.fn().mockResolvedValue({}),
+        });
+        await expect(enableMfa('123456', 'SECRET')).rejects.toThrow('Error al habilitar 2FA.');
+      });
+    });
+
+    describe('disableMfa', () => {
+      it('debe deshabilitar 2FA exitosamente', async () => {
+        const mockData = { status: 'success', message: 'Desactivado' };
+        globalThis.fetch = vi.fn().mockResolvedValue({
+          ok: true,
+          json: vi.fn().mockResolvedValue(mockData),
+        });
+
+        const res = await disableMfa('MyPass123', '123456');
+        expect(res).toEqual(mockData);
+      });
+
+      it('debe lanzar error con mensaje o fallback', async () => {
+        globalThis.fetch = vi.fn().mockResolvedValueOnce({
+          ok: false,
+          json: vi.fn().mockResolvedValue({ message: 'Contraseña errónea' }),
+        });
+        await expect(disableMfa('MyPass123', '123456')).rejects.toThrow('Contraseña errónea');
+
+        globalThis.fetch = vi.fn().mockResolvedValueOnce({
+          ok: false,
+          json: vi.fn().mockResolvedValue({}),
+        });
+        await expect(disableMfa('MyPass123', '123456')).rejects.toThrow('Error al desactivar 2FA.');
+      });
     });
   });
 });
