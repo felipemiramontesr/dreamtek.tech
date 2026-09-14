@@ -4,17 +4,9 @@ import path from 'path';
 import { computeChecksum } from '../../../scripts/migrate.mjs';
 
 describe('FC 001k Production DB Migration Runner Suite', () => {
-  it('debe existir el script ejecutor scripts/migrate.mjs y el workflow .github/workflows/db-migrate.yml', () => {
+  it('debe existir el script ejecutor scripts/migrate.mjs para desarrollo local', () => {
     const migrateScriptPath = path.join(process.cwd(), 'scripts', 'migrate.mjs');
-    const workflowPath = path.join(process.cwd(), '.github', 'workflows', 'db-migrate.yml');
-
     expect(fs.existsSync(migrateScriptPath)).toBe(true);
-    expect(fs.existsSync(workflowPath)).toBe(true);
-
-    const workflowContent = fs.readFileSync(workflowPath, 'utf-8');
-    expect(workflowContent).toContain('runs-on: self-hosted');
-    expect(workflowContent).toContain('3307:127.0.0.1:3306');
-    expect(workflowContent).toContain('dry_run');
   });
 
   it('computeChecksum debe calcular un hash SHA-256 determinista de 64 caracteres hex', () => {

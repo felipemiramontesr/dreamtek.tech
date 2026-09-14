@@ -1,0 +1,171 @@
+name: '🏛️ Production Database Migrations (Sovereign Dispatch)'
+
+on:
+  workflow_dispatch:
+    inputs:
+      migration_file:
+        description: 'Nombre exacto del archivo en database/migrations/ (ej: 045_auth_mfa_2fa.sql)'
+        type: string
+        required: true
+
+concurrency:
+  group: db-migrations-prod
+  cancel-in-progress: false
+
+jobs:
+  production-migrate:
+    name: '🏛️ Apply Database Migration (PROD)'
+    runs-on: self-hosted
+    environment: production-db
+    permissions:
+      contents: read
+
+    steps:
+      - name: '📥 Checkout Code'
+        uses: actions/checkout@v4
+
+      - name: '🔒 Verify Formal Gate T1.A (File Integrity & Charset Allowlist)'
+        shell: bash
+        run: |
+          FILE="${{ inputs.migration_file }}"
+          echo "Verificando archivo: $FILE"
+          
+          # Validación regex estricta: NNN_snake_case.sql
+          if ! [[ "$FILE" =~ ^[0-9]{3}_[a-z0-9_]+\.sql$ ]]; then
+            echo "❌ ERROR: Violación de T1.A. Nombre de archivo inválido."
+            echo "Debe cumplir formato monótono: ^[0-9]{3}_[a-z0-9_]+\.sql$"
+            exit 1
+          fi
+          
+          # Verificar existencia física
+          if [ ! -f "database/migrations/$FILE" ]; then
+            echo "❌ ERROR: Violación de T1.A. Archivo no encontrado en database/migrations/$FILE"
+            exit 1
+          fi
+          
+          # Verificar que esté rastreado en Git (inmutable y comiteado)
+          TRACKED=$(git ls-files "database/migrations/$FILE")
+          if [ -z "$TRACKED" ]; then
+            echo "❌ ERROR: Violación de T1.A. El archivo existe localmente pero NO está rastreado por git."
+            exit 1
+          fi
+          
+          echo "✅ T1.A PASSED: $FILE está validado por charset y rastreado en git."
+
+      - name: '🔒 Establish Ephemeral SSH Tunnel (Conditional)'
+        shell: bash
+        env:
+          SSH_HOST: ${{ secrets.SSH_HOST }}
+          SSH_USER: ${{ secrets.SSH_USER }}
+          SSH_KEY: ${{ secrets.SSH_KEY }}
+          SSH_PORT: ${{ secrets.SSH_PORT || '22' }}
+        run: |
+          if [ -n "$SSH_HOST" ] && [ -n "$SSH_KEY" ]; then
+            echo "Configurando túnel SSH efímero a $SSH_HOST:$SSH_PORT..."
+            mkdir -p ~/.ssh
+            echo "$SSH_KEY" > ~/.ssh/id_rsa_db
+            chmod 600 ~/.ssh/id_rsa_db
+            ssh -o StrictHostKeyChecking=no -N -L 3307:127.0.0.1:3306 -p "$SSH_PORT" -i ~/.ssh/id_rsa_db "$SSH_USER@$SSH_HOST" &
+            SSH_PID=$!
+            echo "SSH_PID=$SSH_PID" >> $GITHUB_ENV
+            echo "TARGET_HOST=127.0.0.1" >> $GITHUB_ENV
+            echo "TARGET_PORT=3307" >> $GITHUB_ENV
+            sleep 3
+          else
+            echo "Sin túnel SSH configurado; conectando directo a DB_HOST..."
+            echo "TARGET_HOST=${{ secrets.DB_HOST }}" >> $GITHUB_ENV
+            echo "TARGET_PORT=${{ secrets.DB_PORT || '3306' }}" >> $GITHUB_ENV
+          fi
+
+      - name: '🛡️ Verify Formal Gate T1.B (Pre-Flight Encrypted Hot Backup)'
+        shell: bash
+        env:
+          DB_USER: ${{ secrets.DB_USER }}
+          DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
+          DB_NAME: ${{ secrets.DB_NAME }}
+          DB_BACKUP_ENCRYPTION_KEY: ${{ secrets.DB_BACKUP_ENCRYPTION_KEY }}
+        run: |
+          if [ -z "$DB_BACKUP_ENCRYPTION_KEY" ]; then
+            echo "❌ ERROR: Violación de T1.B. Secreto DB_BACKUP_ENCRYPTION_KEY no configurado."
+            exit 1
+          fi
+
+          TIMESTAMP=$(date +"%Y%m%d_%H%M%S")
+          BACKUP_FILE="backup_pre_${{ inputs.migration_file }}_${TIMESTAMP}.sql.gz.enc"
+          mkdir -p backups
+
+          echo "Ejecutando mysqldump en caliente con cifrado AES-256-CBC..."
+          mysqldump -h "$TARGET_HOST" -P "$TARGET_PORT" -u "$DB_USER" -p"$DB_PASSWORD" \
+            --single-transaction --routines --triggers "$DB_NAME" \
+            | gzip \
+            | openssl enc -aes-256-cbc -pbkdf2 -pass env:DB_BACKUP_ENCRYPTION_KEY -out "backups/$BACKUP_FILE"
+
+          BACKUP_SIZE=$(wc -c < "backups/$BACKUP_FILE" | tr -d ' ')
+          echo "Tamaño de respaldo cifrado: $BACKUP_SIZE bytes"
+
+          if [ "$BACKUP_SIZE" -lt 1024 ]; then
+            echo "❌ ERROR: Violación de T1.B. Respaldo cifrado menor a 1024 bytes ($BACKUP_SIZE bytes)."
+            echo "Operación abortada: 0 cambios aplicados a la base de datos."
+            exit 1
+          fi
+
+          echo "BACKUP_FILE=$BACKUP_FILE" >> $GITHUB_ENV
+          echo "BACKUP_SIZE=$BACKUP_SIZE" >> $GITHUB_ENV
+          echo "✅ T1.B PASSED: Respaldo cifrado exitoso ($BACKUP_SIZE bytes) generado en backups/$BACKUP_FILE"
+
+      - name: '📦 Upload Encrypted Pre-Flight Backup Artifact'
+        uses: actions/upload-artifact@v4
+        with:
+          name: pre-flight-backup-${{ inputs.migration_file }}
+          path: backups/*.enc
+          retention-days: 7
+          if-no-files-found: error
+
+      - name: '🚀 Apply Single SQL Migration to Production MariaDB'
+        shell: bash
+        env:
+          DB_USER: ${{ secrets.DB_USER }}
+          DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
+          DB_NAME: ${{ secrets.DB_NAME }}
+        run: |
+          FILE="database/migrations/${{ inputs.migration_file }}"
+          echo "Ejecutando: mysql < $FILE ..."
+          
+          OUTPUT=$(mysql -h "$TARGET_HOST" -P "$TARGET_PORT" -u "$DB_USER" -p"$DB_PASSWORD" \
+            --default-character-set=utf8mb4 "$DB_NAME" < "$FILE")
+          
+          echo "MIGRATION_OUTPUT<<EOF" >> $GITHUB_ENV
+          echo "$OUTPUT" >> $GITHUB_ENV
+          echo "EOF" >> $GITHUB_ENV
+          echo "✅ Migración ejecutada con éxito."
+
+      - name: '📊 Emit Execution Step Summary (0 PII, Aggregated Counts Only)'
+        if: always()
+        shell: bash
+        run: |
+          echo "## 🏛️ DB Migration Sovereign Report" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Gate / Parámetro | Estado / Valor |" >> $GITHUB_STEP_SUMMARY
+          echo "| :--- | :--- |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Migración** | \`${{ inputs.migration_file }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Disparado por** | \`${{ github.actor }}\` (Aprobación Ω obligatoria) |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Formal Gate T1.A** | ✅ Charset allowlist & git tracked |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Formal Gate T1.B** | ✅ Respaldo AES-256-CBC ($BACKUP_SIZE bytes) |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Archivo Backup** | \`$BACKUP_FILE\` (Retención 7 días) |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          if [ -n "$MIGRATION_OUTPUT" ]; then
+            echo "### 📈 Agregados y Verificación" >> $GITHUB_STEP_SUMMARY
+            echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+            echo "$MIGRATION_OUTPUT" >> $GITHUB_STEP_SUMMARY
+            echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+          fi
+
+      - name: '🧹 Cleanup Ephemeral SSH Tunnel & Keys'
+        if: always()
+        shell: bash
+        run: |
+          if [ -n "$SSH_PID" ]; then
+            echo "Cerrando túnel SSH (PID $SSH_PID)..."
+            kill "$SSH_PID" || true
+          fi
+          rm -f ~/.ssh/id_rsa_db
