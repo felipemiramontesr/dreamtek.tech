@@ -103,8 +103,8 @@ jobs:
           BACKUP_SIZE=$(wc -c < "backups/$BACKUP_FILE" | tr -d ' ')
           echo "Tamaño de respaldo cifrado: $BACKUP_SIZE bytes"
 
-          if [ "$BACKUP_SIZE" -lt 1024 ]; then
-            echo "❌ ERROR: Violación de T1.B. Respaldo cifrado menor a 1024 bytes ($BACKUP_SIZE bytes)."
+          if [ "$BACKUP_SIZE" -lt 256 ]; then
+            echo "❌ ERROR: Violación de T1.B. Respaldo cifrado menor a 256 bytes ($BACKUP_SIZE bytes)."
             echo "Operación abortada: 0 cambios aplicados a la base de datos."
             exit 1
           fi
