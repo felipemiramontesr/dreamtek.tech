@@ -308,7 +308,7 @@ exports.checkoutRouter.post('/webhook', async (req, res) => {
                     });
                     const transporter = (0, contact_js_1.getTransporter)();
                     await transporter.sendMail({
-                        from: process.env.SMTP_FROM || 'Dreamtek Sovereign Tech <no-reply@dreamtek.tech>',
+                        from: process.env.SMTP_FROM || 'Dreamtek Sovereign Tech <contacto@dreamtek.tech>',
                         to: project.email,
                         subject: receiptEmail.subject,
                         text: receiptEmail.text,

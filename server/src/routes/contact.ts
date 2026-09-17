@@ -1,8 +1,14 @@
 import { Router, Request, Response } from 'express';
-import nodemailer from 'nodemailer';
 import { validate } from '../middleware/validate.js';
 import { contactFormSchema, sendCodeSchema } from '../schemas/contact.schema.js';
 import { invalidateCache } from '../utils/cache.js';
+import {
+  getMailerTransporter,
+  setMailerTransporterForTest,
+  OFFICIAL_SENDER,
+  OFFICIAL_SECURITY_FROM,
+  OFFICIAL_CONTACT_FROM,
+} from '../services/mailer.js';
 
 export const contactRouter = Router();
 
@@ -10,20 +16,13 @@ let testTransporter: any = null;
 
 export function setTransporterForTest(transporter: any) {
   testTransporter = transporter;
+  setMailerTransporterForTest(transporter);
 }
 
-// Nodemailer Transporter Config from ENV
+// Nodemailer Transporter Config from ENV (Delegates to centralized mailer SSOT)
 export function getTransporter() {
   if (testTransporter) return testTransporter;
-  return nodemailer.createTransport({
-    host: process.env.SMTP_HOST || 'smtp.hostinger.com',
-    port: parseInt(process.env.SMTP_PORT || '465', 10),
-    secure: process.env.SMTP_SECURE === 'true' || true,
-    auth: {
-      user: process.env.SMTP_USER || 'contacto@dreamtek.tech',
-      pass: process.env.SMTP_PASS || '',
-    },
-  });
+  return getMailerTransporter();
 }
 
 /**
@@ -47,7 +46,7 @@ contactRouter.post(
     try {
       if (process.env.NODE_ENV === 'production' && process.env.SMTP_PASS) {
         await getTransporter().sendMail({
-          from: '"Dreamtek Security" <contacto@dreamtek.tech>',
+          from: OFFICIAL_SECURITY_FROM,
           to: email,
           subject: `Código de verificación: ${code} - Dreamtek`,
           html: `<p>Tu código de verificación para enviar el formulario de contacto en Dreamtek es: <strong>${code}</strong>.</p>`,
@@ -82,8 +81,8 @@ contactRouter.post(
     try {
       if (process.env.NODE_ENV === 'production' && process.env.SMTP_PASS) {
         await getTransporter().sendMail({
-          from: '"Dreamtek Contact" <hola@dreamtek.tech>',
-          to: 'hola@dreamtek.tech',
+          from: OFFICIAL_CONTACT_FROM,
+          to: OFFICIAL_SENDER,
           subject: `Nuevo mensaje de contacto de ${name} - Dreamtek`,
           html: `
           <h3>Nuevo Mensaje de Contacto</h3>

@@ -5,6 +5,9 @@ import { escapeHtml } from '../utils/crm.js';
 export const OFFICIAL_SENDER = 'contacto@dreamtek.tech';
 export const OFFICIAL_SECURITY_FROM = 'Dreamtek Security <contacto@dreamtek.tech>';
 export const OFFICIAL_GENERAL_FROM = 'Dreamtek <contacto@dreamtek.tech>';
+export const OFFICIAL_CONTACT_FROM = 'Dreamtek Contact <contacto@dreamtek.tech>';
+export const OFFICIAL_SOLUTIONS_FROM = 'Dreamtek Solutions <contacto@dreamtek.tech>';
+export const OFFICIAL_COMMERCIAL_FROM = 'Dreamtek Dirección Comercial <contacto@dreamtek.tech>';
 
 let testTransporter: any = null;
 

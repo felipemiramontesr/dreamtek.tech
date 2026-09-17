@@ -600,21 +600,7 @@ exports.authRouter.post('/2fa/send-email-otp', async (req, res) => {
         }
         const { code, codeHash, expiresAt } = (0, totp_js_1.generateEmailOtp)(10);
         await (0, db_js_1.query)('INSERT INTO user_mfa_email_otps (user_id, code_hash, expires_at) VALUES (?, ?, ?)', [userId, codeHash, expiresAt]);
-        const transporter = getAuthTransporter();
-        await transporter.sendMail({
-            from: mailer_js_1.OFFICIAL_SECURITY_FROM,
-            to: payload.email,
-            subject: 'Tu código de verificación de 2 pasos — Dreamtek',
-            text: `Tu código de verificación de dos factores para acceder a Dreamtek es: ${code}\n\nEste código expira en 10 minutos. Si no solicitaste este acceso, protege tu cuenta de inmediato.`,
-            html: `
-        <div style="font-family: sans-serif; background: #0b0f19; color: #f3f4f6; padding: 24px; border-radius: 8px;">
-          <h2 style="color: #60a5fa; margin-bottom: 12px;">Dreamtek Security</h2>
-          <p>Tu código de verificación de 2 pasos es:</p>
-          <div style="font-size: 32px; font-weight: bold; letter-spacing: 6px; color: #38bdf8; padding: 16px 0;">${code}</div>
-          <p style="color: #9ca3af; font-size: 14px;">Este código expira en 10 minutos y es de un solo uso.</p>
-        </div>
-      `,
-        });
+        await (0, mailer_js_1.sendMfaEmailOtp)(payload.email, code);
         await (0, auditLogger_js_1.logSecurityEvent)(req, {
             eventType: 'MFA_EMAIL_OTP_SENT',
             userId,

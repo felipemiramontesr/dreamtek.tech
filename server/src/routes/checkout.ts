@@ -391,7 +391,7 @@ checkoutRouter.post('/webhook', async (req: Request, res: Response): Promise<voi
 
           const transporter = getTransporter();
           await transporter.sendMail({
-            from: process.env.SMTP_FROM || 'Dreamtek Sovereign Tech <no-reply@dreamtek.tech>',
+            from: process.env.SMTP_FROM || 'Dreamtek Sovereign Tech <contacto@dreamtek.tech>',
             to: project.email,
             subject: receiptEmail.subject,
             text: receiptEmail.text,

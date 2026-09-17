@@ -369,7 +369,7 @@ adminRouter.post(
       // Attempt SMTP dispatch with strict fail-open / 502 error handling (C-041.4)
       try {
         await getTransporter().sendMail({
-          from: '"Dreamtek Dirección Comercial" <hola@dreamtek.tech>',
+          from: '"Dreamtek Dirección Comercial" <contacto@dreamtek.tech>',
           to: lead.email,
           subject: rendered.subject,
           text: rendered.text,
@@ -1066,7 +1066,7 @@ adminRouter.put(
             transporter
               .sendMail({
                 from:
-                  process.env.SMTP_FROM || 'Dreamtek Sovereign Tech <no-reply@dreamtek.tech>',
+                  process.env.SMTP_FROM || 'Dreamtek Sovereign Tech <contacto@dreamtek.tech>',
                 to: p.email,
                 subject: emailContent.subject,
                 text: emailContent.text,

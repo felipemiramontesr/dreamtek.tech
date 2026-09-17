@@ -7,6 +7,10 @@ import {
 import { query } from '../db.js';
 import { logSecurityEvent } from '../middleware/auditLogger.js';
 import { getTransporter } from './contact.js';
+import {
+  OFFICIAL_SOLUTIONS_FROM,
+  OFFICIAL_SENDER,
+} from '../services/mailer.js';
 
 export const quotesRouter = Router();
 
@@ -139,8 +143,8 @@ quotesRouter.post('/', async (req: Request, res: Response): Promise<void> => {
     if (process.env.NODE_ENV === 'production' && process.env.SMTP_PASS) {
       getTransporter()
         .sendMail({
-          from: '"Dreamtek Solutions" <hola@dreamtek.tech>',
-          to: 'hola@dreamtek.tech',
+          from: OFFICIAL_SOLUTIONS_FROM,
+          to: OFFICIAL_SENDER,
           subject: `Nueva Cotización [${matrixResult.currency}]: ${matrixResult.serviceLabel} - ${data.full_name}`,
           html: `
             <h3>Nueva Solicitud de Cotización</h3>

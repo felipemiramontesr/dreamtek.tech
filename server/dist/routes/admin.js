@@ -287,7 +287,7 @@ exports.adminRouter.post('/leads/:id/send-email', exports.leadEmailRateLimiter, 
         // Attempt SMTP dispatch with strict fail-open / 502 error handling (C-041.4)
         try {
             await (0, contact_js_1.getTransporter)().sendMail({
-                from: '"Dreamtek Dirección Comercial" <hola@dreamtek.tech>',
+                from: '"Dreamtek Dirección Comercial" <contacto@dreamtek.tech>',
                 to: lead.email,
                 subject: rendered.subject,
                 text: rendered.text,
@@ -860,7 +860,7 @@ exports.adminRouter.put('/projects/:id/milestones/:milestoneId', async (req, res
                     const transporter = (0, contact_js_1.getTransporter)();
                     transporter
                         .sendMail({
-                        from: process.env.SMTP_FROM || 'Dreamtek Sovereign Tech <no-reply@dreamtek.tech>',
+                        from: process.env.SMTP_FROM || 'Dreamtek Sovereign Tech <contacto@dreamtek.tech>',
                         to: p.email,
                         subject: emailContent.subject,
                         text: emailContent.text,
