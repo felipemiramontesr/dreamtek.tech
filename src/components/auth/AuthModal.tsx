@@ -3,7 +3,14 @@
 import React, { useState } from 'react';
 import { Modal } from '../ui/Modal';
 import { Button } from '../ui/Button';
-import { loginUser, registerUser, verifyMfa, sendMfaEmailOtp } from '@/lib/auth/client';
+import {
+  loginUser,
+  registerUser,
+  verifyMfa,
+  sendMfaEmailOtp,
+  verifyRegistrationOtp,
+  resendRegistrationOtp,
+} from '@/lib/auth/client';
 import type { es } from '@/i18n/dictionaries/es';
 
 type Dictionary = typeof es;
@@ -25,7 +32,9 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   onLoginSuccess,
   onRegisterSuccess,
 }) => {
-  const [mode, setMode] = useState<'login' | 'register' | 'mfa'>(initialMode);
+  const [mode, setMode] = useState<'login' | 'register' | 'mfa' | 'verify_registration'>(
+    initialMode,
+  );
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
@@ -41,6 +50,9 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   const [mfaCode, setMfaCode] = useState('');
   const [emailSuccessMsg, setEmailSuccessMsg] = useState<string | null>(null);
 
+  // Registration OTP Challenge Fields
+  const [regOtpCode, setRegOtpCode] = useState('');
+
   const resetForm = () => {
     setErrorMsg(null);
     setEmailSuccessMsg(null);
@@ -50,6 +62,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
     setPassword('');
     setConfirmPassword('');
     setMfaCode('');
+    setRegOtpCode('');
     setMfaMethod('TOTP');
     setMode(initialMode);
   };
@@ -67,6 +80,26 @@ export const AuthModal: React.FC<AuthModalProps> = ({
     e.preventDefault();
     setErrorMsg(null);
     setEmailSuccessMsg(null);
+
+    if (mode === 'verify_registration') {
+      if (!regOtpCode || regOtpCode.length !== 6) {
+        setErrorMsg('Por favor ingresa el código de verificación de 6 dígitos.');
+        return;
+      }
+      setLoading(true);
+      try {
+        const res = await verifyRegistrationOtp({ code: regOtpCode });
+        setLoading(false);
+        onRegisterSuccess?.(res.user);
+        onLoginSuccess?.(res.user);
+        resetForm();
+        onClose();
+      } catch (err: unknown) {
+        setLoading(false);
+        setErrorMsg((err as Error).message || 'Error al verificar código.');
+      }
+      return;
+    }
 
     if (mode === 'mfa') {
       if (!mfaCode) {
@@ -128,9 +161,15 @@ export const AuthModal: React.FC<AuthModalProps> = ({
           phone,
         });
         setLoading(false);
-        onRegisterSuccess?.(res.user);
-        resetForm();
-        onClose();
+        if (res.status === 'verification_required') {
+          setMode('verify_registration');
+          setRegOtpCode('');
+          setEmailSuccessMsg(res.message || 'Código de verificación enviado a tu correo.');
+        } else {
+          onRegisterSuccess?.(res.user);
+          resetForm();
+          onClose();
+        }
       } catch (err: unknown) {
         setLoading(false);
         setErrorMsg((err as Error).message || 'Error al crear la cuenta.');
@@ -152,8 +191,23 @@ export const AuthModal: React.FC<AuthModalProps> = ({
     }
   };
 
+  const handleResendRegistrationOtp = async () => {
+    setErrorMsg(null);
+    setEmailSuccessMsg(null);
+    setLoading(true);
+    try {
+      const res = await resendRegistrationOtp();
+      setLoading(false);
+      setEmailSuccessMsg(res.message || 'Nuevo código enviado a tu correo.');
+    } catch (err: unknown) {
+      setLoading(false);
+      setErrorMsg((err as Error).message || 'Error al reenviar el código.');
+    }
+  };
+
   const isRegisterMode = mode === 'register';
   const isMfaMode = mode === 'mfa';
+  const isVerifyRegMode = mode === 'verify_registration';
 
   return (
     <Modal
@@ -166,12 +220,14 @@ export const AuthModal: React.FC<AuthModalProps> = ({
       title={
         isMfaMode
           ? auth?.mfaTitle || 'Verificación en Dos Pasos'
-          : auth?.title || 'Área de Clientes'
+          : isVerifyRegMode
+            ? 'Confirma tu Correo'
+            : auth?.title || 'Área de Clientes'
       }
     >
       <div className="space-y-5">
-        {/* Tab switcher only when not in MFA mode */}
-        {!isMfaMode ? (
+        {/* Tab switcher only when not in MFA/Verify mode */}
+        {!isMfaMode && !isVerifyRegMode ? (
           <div className="relative flex p-1 bg-white/5 border border-white/10 rounded-xl overflow-hidden backdrop-blur-md">
             <div
               className={`absolute top-1 bottom-1 w-[calc(50%-4px)] bg-[#FF2D00] rounded-lg shadow-lg shadow-[#FF2D00]/30 transition-transform duration-[2000ms] ease-[cubic-bezier(0.16,1,0.3,1)] ${
@@ -197,7 +253,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
               {auth?.registerTab || 'Crear Cuenta'}
             </button>
           </div>
-        ) : (
+        ) : isMfaMode ? (
           <div className="text-center space-y-1 pb-1">
             <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-cyan-500/10 border border-cyan-500/30 text-cyan-400 mb-2">
               <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -214,6 +270,25 @@ export const AuthModal: React.FC<AuthModalProps> = ({
             </h3>
             <p className="text-xs text-white/60">
               {auth?.mfaSubtitle || 'Introduce el código para verificar tu identidad'}
+            </p>
+          </div>
+        ) : (
+          <div className="text-center space-y-1 pb-1">
+            <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-cyan-500/10 border border-cyan-500/30 text-cyan-400 mb-2">
+              <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"
+                />
+              </svg>
+            </div>
+            <h3 className="text-sm font-semibold text-white tracking-wide">
+              Confirma tu Correo Electrónico
+            </h3>
+            <p className="text-xs text-white/60">
+              Ingresa el código de 6 dígitos enviado desde contacto@dreamtek.tech
             </p>
           </div>
         )}
@@ -368,6 +443,58 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                 className="text-xs text-white/50 hover:text-white transition-colors"
               >
                 {auth?.mfaBackToLogin || 'Volver a inicio de sesión'}
+              </button>
+            </div>
+          </form>
+        ) : isVerifyRegMode ? (
+          <form onSubmit={handleSubmit} className="flex flex-col space-y-4">
+            <div className="space-y-1">
+              <label className="block text-[11px] font-semibold text-white/80 uppercase tracking-wider">
+                Código de Verificación (6 dígitos)
+              </label>
+              <input
+                type="text"
+                autoFocus
+                required
+                value={regOtpCode}
+                onChange={(e) => setRegOtpCode(e.target.value.replace(/\D/g, ''))}
+                placeholder="123456"
+                className="w-full text-center tracking-[8px] font-mono text-xl px-3.5 py-2.5 bg-black/40 border border-white/10 rounded-lg text-white placeholder-white/30 focus:outline-none focus:border-cyan-400 focus:ring-1 focus:ring-cyan-400 transition-all"
+                maxLength={6}
+              />
+            </div>
+
+            <div className="pt-2">
+              <Button
+                type="submit"
+                variant="primary"
+                size="md"
+                className="w-full bg-cyan-500 hover:bg-cyan-400 text-black font-semibold transition-all active:scale-[0.98]"
+                disabled={loading}
+              >
+                {loading ? 'Verificando...' : 'Activar Cuenta y Acceder'}
+              </Button>
+            </div>
+
+            <div className="text-center pt-2 flex flex-col space-y-2">
+              <button
+                type="button"
+                disabled={loading}
+                onClick={handleResendRegistrationOtp}
+                className="text-xs text-cyan-400 hover:text-cyan-300 transition-colors underline"
+              >
+                ¿No recibiste el código? Reenviar código
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setMode('register');
+                  setErrorMsg(null);
+                  setEmailSuccessMsg(null);
+                }}
+                className="text-xs text-white/50 hover:text-white transition-colors"
+              >
+                Volver a registro
               </button>
             </div>
           </form>

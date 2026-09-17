@@ -10,6 +10,8 @@ vi.mock('@/lib/auth/client', () => ({
   registerUser: vi.fn(),
   verifyMfa: vi.fn(),
   sendMfaEmailOtp: vi.fn(),
+  verifyRegistrationOtp: vi.fn(),
+  resendRegistrationOtp: vi.fn(),
 }));
 
 describe('AuthModal Component (100% Coverage Suite)', () => {
@@ -527,5 +529,237 @@ describe('AuthModal Component (100% Coverage Suite)', () => {
     expect(
       screen.queryByText('Introduce el código para verificar tu identidad'),
     ).not.toBeInTheDocument();
+  });
+
+  it('debe transicionar a modo verify_registration tras registro exitoso y verificar código OTP', async () => {
+    vi.mocked(authClient.registerUser).mockResolvedValueOnce({
+      status: 'verification_required',
+      message: 'Código de verificación enviado a tu correo.',
+      user: { id: 200, email: 'nuevo@empresa.com' },
+    });
+    vi.mocked(authClient.verifyRegistrationOtp).mockResolvedValueOnce({
+      status: 'success',
+      user: { id: 200, email: 'nuevo@empresa.com' },
+    });
+
+    const onLoginSuccess = vi.fn();
+    const onRegisterSuccess = vi.fn();
+    const onClose = vi.fn();
+
+    render(
+      <AuthModal
+        isOpen={true}
+        onClose={onClose}
+        dict={es}
+        initialMode="register"
+        onLoginSuccess={onLoginSuccess}
+        onRegisterSuccess={onRegisterSuccess}
+      />,
+    );
+
+    fireEvent.change(screen.getByPlaceholderText('ej. Carlos Mendoza'), {
+      target: { value: 'Carlos Mendoza' },
+    });
+    fireEvent.change(screen.getByPlaceholderText('carlos@empresa.com'), {
+      target: { value: 'nuevo@empresa.com' },
+    });
+    const pwInputs1 = screen.getAllByPlaceholderText('••••••••');
+    fireEvent.change(pwInputs1[0], {
+      target: { value: 'PasswordSeguro123!' },
+    });
+    fireEvent.change(pwInputs1[1], {
+      target: { value: 'PasswordSeguro123!' },
+    });
+
+    const submitBtns1 = screen.getAllByRole('button', { name: 'Crear Cuenta' });
+    fireEvent.click(submitBtns1[submitBtns1.length - 1]);
+
+    await waitFor(() => {
+      expect(screen.getByText('Confirma tu Correo Electrónico')).toBeInTheDocument();
+      expect(screen.getByPlaceholderText('123456')).toBeInTheDocument();
+    });
+
+    // Ingresar código incorrecto de longitud < 6
+    fireEvent.change(screen.getByPlaceholderText('123456'), {
+      target: { value: '123' },
+    });
+    const verifyBtn = screen.getByRole('button', { name: 'Activar Cuenta y Acceder' });
+    fireEvent.click(verifyBtn);
+
+    await waitFor(() => {
+      expect(
+        screen.getByText('Por favor ingresa el código de verificación de 6 dígitos.'),
+      ).toBeInTheDocument();
+    });
+
+    // Ingresar código de 6 dígitos
+    fireEvent.change(screen.getByPlaceholderText('123456'), {
+      target: { value: '654321' },
+    });
+    fireEvent.click(verifyBtn);
+
+    await waitFor(() => {
+      expect(authClient.verifyRegistrationOtp).toHaveBeenCalledWith({ code: '654321' });
+      expect(onRegisterSuccess).toHaveBeenCalledWith(expect.objectContaining({ id: 200 }));
+      expect(onLoginSuccess).toHaveBeenCalledWith(expect.objectContaining({ id: 200 }));
+      expect(onClose).toHaveBeenCalled();
+    });
+  });
+
+  it('debe manejar error al verificar código OTP de registro y permitir reenvío', async () => {
+    vi.mocked(authClient.registerUser).mockResolvedValueOnce({
+      status: 'verification_required',
+    });
+    vi.mocked(authClient.verifyRegistrationOtp).mockRejectedValueOnce(
+      new Error('Código incorrecto o expirado'),
+    );
+    vi.mocked(authClient.resendRegistrationOtp).mockResolvedValueOnce({
+      message: 'Nuevo código enviado',
+    });
+
+    render(<AuthModal isOpen={true} onClose={vi.fn()} dict={es} initialMode="register" />);
+
+    fireEvent.change(screen.getByPlaceholderText('ej. Carlos Mendoza'), {
+      target: { value: 'Carlos Mendoza' },
+    });
+    fireEvent.change(screen.getByPlaceholderText('carlos@empresa.com'), {
+      target: { value: 'nuevo@empresa.com' },
+    });
+    const pwInputs2 = screen.getAllByPlaceholderText('••••••••');
+    fireEvent.change(pwInputs2[0], {
+      target: { value: 'PasswordSeguro123!' },
+    });
+    fireEvent.change(pwInputs2[1], {
+      target: { value: 'PasswordSeguro123!' },
+    });
+
+    const submitBtns2 = screen.getAllByRole('button', { name: 'Crear Cuenta' });
+    fireEvent.click(submitBtns2[submitBtns2.length - 1]);
+
+    await waitFor(() => {
+      expect(screen.getByPlaceholderText('123456')).toBeInTheDocument();
+    });
+
+    fireEvent.change(screen.getByPlaceholderText('123456'), {
+      target: { value: '111111' },
+    });
+    const verifyBtn = screen.getByRole('button', { name: 'Activar Cuenta y Acceder' });
+    fireEvent.click(verifyBtn);
+
+    await waitFor(() => {
+      expect(screen.getByText('Código incorrecto o expirado')).toBeInTheDocument();
+    });
+
+    // Reenviar código
+    const resendBtn = screen.getByRole('button', {
+      name: /¿No recibiste el código\? Reenviar código/i,
+    });
+    fireEvent.click(resendBtn);
+
+    await waitFor(() => {
+      expect(authClient.resendRegistrationOtp).toHaveBeenCalled();
+      expect(screen.getByText('Nuevo código enviado')).toBeInTheDocument();
+    });
+
+    // Volver a registro
+    const backToRegBtn = screen.getByRole('button', { name: 'Volver a registro' });
+    fireEvent.click(backToRegBtn);
+    expect(screen.getByPlaceholderText('ej. Carlos Mendoza')).toBeInTheDocument();
+  });
+
+  it('debe manejar error al reenviar código OTP de registro', async () => {
+    vi.mocked(authClient.registerUser).mockResolvedValueOnce({
+      status: 'verification_required',
+    });
+    vi.mocked(authClient.resendRegistrationOtp).mockRejectedValueOnce(
+      new Error('Límite de solicitudes alcanzado'),
+    );
+
+    render(<AuthModal isOpen={true} onClose={vi.fn()} dict={es} initialMode="register" />);
+
+    fireEvent.change(screen.getByPlaceholderText('ej. Carlos Mendoza'), {
+      target: { value: 'Carlos Mendoza' },
+    });
+    fireEvent.change(screen.getByPlaceholderText('carlos@empresa.com'), {
+      target: { value: 'nuevo@empresa.com' },
+    });
+    const pwInputs3 = screen.getAllByPlaceholderText('••••••••');
+    fireEvent.change(pwInputs3[0], {
+      target: { value: 'PasswordSeguro123!' },
+    });
+    fireEvent.change(pwInputs3[1], {
+      target: { value: 'PasswordSeguro123!' },
+    });
+
+    const submitBtns3 = screen.getAllByRole('button', { name: 'Crear Cuenta' });
+    fireEvent.click(submitBtns3[submitBtns3.length - 1]);
+
+    await waitFor(() => {
+      expect(screen.getByPlaceholderText('123456')).toBeInTheDocument();
+    });
+
+    const resendBtn = screen.getByRole('button', {
+      name: /¿No recibiste el código\? Reenviar código/i,
+    });
+    fireEvent.click(resendBtn);
+
+    await waitFor(() => {
+      expect(screen.getByText('Límite de solicitudes alcanzado')).toBeInTheDocument();
+    });
+  });
+
+  it('debe mostrar mensajes de fallback cuando los errores o respuestas de OTP carecen de message', async () => {
+    vi.mocked(authClient.registerUser).mockResolvedValueOnce({
+      status: 'verification_required',
+    });
+    vi.mocked(authClient.verifyRegistrationOtp).mockRejectedValueOnce(new Error(''));
+    vi.mocked(authClient.resendRegistrationOtp)
+      .mockResolvedValueOnce({ message: '' })
+      .mockRejectedValueOnce(new Error(''));
+
+    render(<AuthModal isOpen={true} onClose={vi.fn()} dict={es} initialMode="register" />);
+
+    fireEvent.change(screen.getByPlaceholderText('ej. Carlos Mendoza'), {
+      target: { value: 'Fallback User' },
+    });
+    fireEvent.change(screen.getByPlaceholderText('carlos@empresa.com'), {
+      target: { value: 'fallback@empresa.com' },
+    });
+    const pwInputs = screen.getAllByPlaceholderText('••••••••');
+    fireEvent.change(pwInputs[0], { target: { value: 'PasswordSeguro123!' } });
+    fireEvent.change(pwInputs[1], { target: { value: 'PasswordSeguro123!' } });
+
+    const submitBtns = screen.getAllByRole('button', { name: 'Crear Cuenta' });
+    fireEvent.click(submitBtns[submitBtns.length - 1]);
+
+    await waitFor(() => {
+      expect(screen.getByPlaceholderText('123456')).toBeInTheDocument();
+    });
+
+    // 1. Fallback en verificación
+    fireEvent.change(screen.getByPlaceholderText('123456'), { target: { value: '654321' } });
+    const verifyBtn = screen.getByRole('button', { name: 'Activar Cuenta y Acceder' });
+    fireEvent.click(verifyBtn);
+
+    await waitFor(() => {
+      expect(screen.getByText('Error al verificar código.')).toBeInTheDocument();
+    });
+
+    // 2. Fallback en reenvío exitoso sin message
+    const resendBtn = screen.getByRole('button', {
+      name: /¿No recibiste el código\? Reenviar código/i,
+    });
+    fireEvent.click(resendBtn);
+
+    await waitFor(() => {
+      expect(screen.getByText('Nuevo código enviado a tu correo.')).toBeInTheDocument();
+    });
+
+    // 3. Fallback en reenvío con error sin message
+    fireEvent.click(resendBtn);
+
+    await waitFor(() => {
+      expect(screen.getByText('Error al reenviar el código.')).toBeInTheDocument();
+    });
   });
 });

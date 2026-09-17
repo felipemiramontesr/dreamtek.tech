@@ -1,9 +1,9 @@
-<!-- L-HARNESS:BEGIN protocolVersion=V.1.9.13-core do-not-edit-inside -->
+<!-- L-HARNESS:BEGIN protocolVersion=V.1.9.15-core do-not-edit-inside -->
 
 # Dreamtek.tech — Claude Code / Antigravity instructions
 
 > **SSOT:** `protocols/north-star/001_NS_ProtocolL.md` — **L prevails**.  
-> Protocol **V.1.9.13-core** · Harness **1.6.0** · **governancePublish: local-only**  
+> Protocol **V.1.9.15-core** · Harness **1.6.0** · **governancePublish: local-only**  
 > Charters: `protocols/annex/formal/RAPTOR_CHARTERS.md`
 
 ## North Star
@@ -33,7 +33,7 @@ Host name is **never** H author. You never sign **L** (Ω only).
 ```bash
 # Alfa
 node scripts/hPost.mjs --author Alfa --message "[R-SESSION-INIT] ACK H
-L_pin=V.1.9.13-core Learned(L)=⊤
+L_pin=V.1.9.15-core Learned(L)=⊤
 Callsign=Alfa seat=O craft=architect
 FC: (state)
 Next: (one line)
@@ -41,7 +41,7 @@ No product code without signed FC"
 
 # Charlie
 node scripts/hPost.mjs --host Antigravity --as Charlie --message "[R-SESSION-INIT] ACK H
-L_pin=V.1.9.13-core Learned(L)=⊤
+L_pin=V.1.9.15-core Learned(L)=⊤
 Callsign=Charlie seat=O craft=fullstack
 FC: (state)
 Next: (one line)

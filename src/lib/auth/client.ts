@@ -46,6 +46,10 @@ export interface MfaStatusResponse {
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || 'https://apiv1.dreamtek.tech/api/v1';
 
+export interface VerifyRegistrationOtpPayload {
+  code: string;
+}
+
 /**
  * Register a new Client user
  */
@@ -62,6 +66,49 @@ export async function registerUser(payload: RegisterPayload): Promise<AuthRespon
   const data = await response.json();
   if (!response.ok) {
     throw new Error(data.error || 'Error al registrar el usuario.');
+  }
+
+  return data;
+}
+
+/**
+ * Verify registration OTP and receive session cookie (FC 049)
+ */
+export async function verifyRegistrationOtp(
+  payload: VerifyRegistrationOtpPayload,
+): Promise<AuthResponse> {
+  const response = await fetch(`${API_BASE}/auth/register/verify-otp`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    credentials: 'include',
+    body: JSON.stringify(payload),
+  });
+
+  const data = await response.json();
+  if (!response.ok) {
+    throw new Error(data.message || data.error || 'Error al verificar el código.');
+  }
+
+  return data;
+}
+
+/**
+ * Resend registration verification OTP under rate limiting (FC 049)
+ */
+export async function resendRegistrationOtp(): Promise<{ message: string }> {
+  const response = await fetch(`${API_BASE}/auth/register/resend-otp`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    credentials: 'include',
+  });
+
+  const data = await response.json();
+  if (!response.ok) {
+    throw new Error(data.message || data.error || 'Error al reenviar el código.');
   }
 
   return data;

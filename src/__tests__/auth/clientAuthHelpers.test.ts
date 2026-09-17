@@ -19,6 +19,9 @@ import {
   setupMfa,
   enableMfa,
   disableMfa,
+  registerUser,
+  verifyRegistrationOtp,
+  resendRegistrationOtp,
 } from '@/lib/auth/client';
 
 describe('Client Project Auth Helper Functions Suite (FC 044 100% Coverage)', () => {
@@ -719,6 +722,103 @@ describe('Client Project Auth Helper Functions Suite (FC 044 100% Coverage)', ()
           json: vi.fn().mockResolvedValue({}),
         });
         await expect(disableMfa('MyPass123', '123456')).rejects.toThrow('Error al desactivar 2FA.');
+      });
+    });
+
+    describe('registerUser, verifyRegistrationOtp & resendRegistrationOtp (FC 049)', () => {
+      it('registerUser debe registrar exitosamente un usuario', async () => {
+        const mockData = { status: 'verification_required', message: 'Código enviado' };
+        globalThis.fetch = vi.fn().mockResolvedValue({
+          ok: true,
+          json: vi.fn().mockResolvedValue(mockData),
+        });
+
+        const res = await registerUser({
+          email: 'nuevo@empresa.com',
+          password: 'Password123!',
+          full_name: 'Nuevo Usuario',
+        });
+        expect(res).toEqual(mockData);
+      });
+
+      it('registerUser debe lanzar error con mensaje o fallback cuando falla', async () => {
+        globalThis.fetch = vi.fn().mockResolvedValueOnce({
+          ok: false,
+          json: vi.fn().mockResolvedValue({ error: 'El correo ya existe' }),
+        });
+        await expect(
+          registerUser({
+            email: 'dup@empresa.com',
+            password: 'Password123!',
+            full_name: 'Duplicado',
+          }),
+        ).rejects.toThrow('El correo ya existe');
+
+        globalThis.fetch = vi.fn().mockResolvedValueOnce({
+          ok: false,
+          json: vi.fn().mockResolvedValue({}),
+        });
+        await expect(
+          registerUser({
+            email: 'dup@empresa.com',
+            password: 'Password123!',
+            full_name: 'Duplicado',
+          }),
+        ).rejects.toThrow('Error al registrar el usuario.');
+      });
+
+      it('verifyRegistrationOtp debe verificar código de registro exitosamente', async () => {
+        const mockData = { status: 'success', message: 'Cuenta activada' };
+        globalThis.fetch = vi.fn().mockResolvedValue({
+          ok: true,
+          json: vi.fn().mockResolvedValue(mockData),
+        });
+
+        const res = await verifyRegistrationOtp({ code: '654321' });
+        expect(res).toEqual(mockData);
+      });
+
+      it('verifyRegistrationOtp debe lanzar error con mensaje o fallback cuando falla', async () => {
+        globalThis.fetch = vi.fn().mockResolvedValueOnce({
+          ok: false,
+          json: vi.fn().mockResolvedValue({ message: 'Código incorrecto' }),
+        });
+        await expect(verifyRegistrationOtp({ code: '111111' })).rejects.toThrow(
+          'Código incorrecto',
+        );
+
+        globalThis.fetch = vi.fn().mockResolvedValueOnce({
+          ok: false,
+          json: vi.fn().mockResolvedValue({}),
+        });
+        await expect(verifyRegistrationOtp({ code: '111111' })).rejects.toThrow(
+          'Error al verificar el código.',
+        );
+      });
+
+      it('resendRegistrationOtp debe solicitar reenvío exitosamente', async () => {
+        const mockData = { message: 'Nuevo código enviado' };
+        globalThis.fetch = vi.fn().mockResolvedValue({
+          ok: true,
+          json: vi.fn().mockResolvedValue(mockData),
+        });
+
+        const res = await resendRegistrationOtp();
+        expect(res).toEqual(mockData);
+      });
+
+      it('resendRegistrationOtp debe lanzar error con mensaje o fallback cuando falla', async () => {
+        globalThis.fetch = vi.fn().mockResolvedValueOnce({
+          ok: false,
+          json: vi.fn().mockResolvedValue({ message: 'Límite excedido' }),
+        });
+        await expect(resendRegistrationOtp()).rejects.toThrow('Límite excedido');
+
+        globalThis.fetch = vi.fn().mockResolvedValueOnce({
+          ok: false,
+          json: vi.fn().mockResolvedValue({}),
+        });
+        await expect(resendRegistrationOtp()).rejects.toThrow('Error al reenviar el código.');
       });
     });
   });

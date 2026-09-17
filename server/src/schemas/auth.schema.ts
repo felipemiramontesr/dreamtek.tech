@@ -24,6 +24,7 @@ export const registerSchema = z.object({
     .string()
     .min(1, 'La contraseña es requerida.')
     .min(8, 'La contraseña debe tener al menos 8 caracteres.'),
+  phone: z.string().optional(),
   confirmPassword: z.string().optional(),
 });
 

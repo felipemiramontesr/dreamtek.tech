@@ -20,7 +20,7 @@ export function getTransporter() {
     port: parseInt(process.env.SMTP_PORT || '465', 10),
     secure: process.env.SMTP_SECURE === 'true' || true,
     auth: {
-      user: process.env.SMTP_USER || 'hola@dreamtek.tech',
+      user: process.env.SMTP_USER || 'contacto@dreamtek.tech',
       pass: process.env.SMTP_PASS || '',
     },
   });
@@ -47,7 +47,7 @@ contactRouter.post(
     try {
       if (process.env.NODE_ENV === 'production' && process.env.SMTP_PASS) {
         await getTransporter().sendMail({
-          from: '"Dreamtek Security" <hola@dreamtek.tech>',
+          from: '"Dreamtek Security" <contacto@dreamtek.tech>',
           to: email,
           subject: `Código de verificación: ${code} - Dreamtek`,
           html: `<p>Tu código de verificación para enviar el formulario de contacto en Dreamtek es: <strong>${code}</strong>.</p>`,

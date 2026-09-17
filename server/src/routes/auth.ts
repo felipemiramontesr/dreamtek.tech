@@ -1,4 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
+import crypto from 'node:crypto';
 import { Router, Request, Response } from 'express';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
@@ -24,6 +25,14 @@ import {
   generateEmailOtp,
   verifyEmailOtpHash,
 } from '../utils/totp.js';
+import {
+  sendRegistrationVerificationOtp,
+  sendMfaEmailOtp,
+  sendWelcomeEmail,
+  setMailerTransporterForTest,
+  OFFICIAL_SENDER,
+  OFFICIAL_SECURITY_FROM,
+} from '../services/mailer.js';
 
 export function getJwtSecret(): string {
   if (process.env.NODE_ENV === 'production' && !process.env.JWT_SECRET) {
@@ -37,6 +46,7 @@ export function getJwtSecret(): string {
 let authTestTransporter: any = null;
 export function setAuthTransporterForTest(transporter: any) {
   authTestTransporter = transporter;
+  setMailerTransporterForTest(transporter);
 }
 export function getAuthTransporter() {
   if (authTestTransporter) return authTestTransporter;
@@ -45,7 +55,7 @@ export function getAuthTransporter() {
     port: parseInt(process.env.SMTP_PORT || '465', 10),
     secure: process.env.SMTP_SECURE === 'true',
     auth: {
-      user: process.env.SMTP_USER || 'hola@dreamtek.tech',
+      user: process.env.SMTP_USER || OFFICIAL_SENDER,
       pass: process.env.SMTP_PASS || '',
     },
   });
@@ -54,6 +64,7 @@ export function getAuthTransporter() {
 export const authRouter = Router();
 export const COOKIE_NAME = 'dreamtek_session';
 export const MFA_COOKIE_NAME = 'dreamtek_mfa_ticket';
+export const REG_COOKIE_NAME = 'dreamtek_reg_ticket';
 
 /**
  * Helper to get authenticated user from session cookie
@@ -76,6 +87,305 @@ async function getSessionUser(req: Request): Promise<any | null> {
 }
 
 /**
+ * POST /api/v1/auth/register
+ * Public client registration with email OTP verification (FC 049 / Condition C-049.2 & C-049.3)
+ */
+authRouter.post(
+  '/register',
+  validate(registerSchema),
+  async (req: Request, res: Response): Promise<void> => {
+    try {
+      const { email, password, full_name, phone } = req.body;
+      const cleanEmail = String(email).trim().toLowerCase();
+      const cleanName = String(full_name).trim();
+
+      const existingUsers = await query<any[]>(
+        'SELECT id FROM users WHERE email = ? LIMIT 1',
+        [cleanEmail],
+      );
+
+      if (existingUsers && existingUsers.length > 0) {
+        res.status(409).json({
+          status: 'error',
+          message: 'El correo electrónico ya se encuentra registrado.',
+        });
+        return;
+      }
+
+      const passwordHash = await bcrypt.hash(password, 12);
+
+      const result: any = await query(
+        'INSERT INTO users (email, password_hash, full_name, phone, role, is_email_verified) VALUES (?, ?, ?, ?, "CLIENT", 0)',
+        [cleanEmail, passwordHash, cleanName, phone ? String(phone).trim() : null],
+      );
+
+      const userId = result.insertId;
+
+      // Generate 6-digit numeric verification OTP
+      const code = String(crypto.randomInt(100000, 1000000));
+      const codeHash = crypto.createHash('sha256').update(code).digest('hex');
+
+      await query(
+        'INSERT INTO user_email_verifications (user_id, code_hash, expires_at) VALUES (?, ?, DATE_ADD(NOW(), INTERVAL 15 MINUTE))',
+        [userId, codeHash],
+      );
+
+      // Dispatch verification email via unified mailer service
+      await sendRegistrationVerificationOtp(cleanEmail, code, cleanName);
+
+      await logSecurityEvent(req, {
+        eventType: 'USER_REGISTERED_PENDING_VERIFICATION',
+        userId,
+        status: 'SUCCESS',
+        details: `Registration OTP dispatched to ${cleanEmail}`,
+      });
+
+      // Ephemeral registration ticket strictly via HttpOnly cookie (C-049.3)
+      const regTicket = jwt.sign(
+        {
+          userId,
+          uid: userId,
+          email: cleanEmail,
+          fullName: cleanName,
+          type: 'REG_TICKET',
+          stage: 'REGISTRATION_OTP_PENDING',
+        },
+        getJwtSecret(),
+        { algorithm: 'HS512', expiresIn: '15m' },
+      );
+
+      res.cookie(REG_COOKIE_NAME, regTicket, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'lax',
+        maxAge: 15 * 60 * 1000,
+      });
+
+      res.status(201).json({
+        status: 'verification_required',
+        message: 'Cuenta creada. Por favor ingresa el código de verificación enviado a tu correo.',
+        user: {
+          id: userId,
+          email: cleanEmail,
+          full_name: cleanName,
+        },
+      });
+    } catch {
+      res.status(500).json({ status: 'error', message: 'Error interno al registrar la cuenta.' });
+    }
+  },
+);
+
+/**
+ * POST /api/v1/auth/register/verify-otp
+ * Validates registration OTP and issues official dreamtek_session cookie (Conditions C-049.2 & C-049.4)
+ */
+authRouter.post('/register/verify-otp', async (req: Request, res: Response): Promise<void> => {
+  try {
+    const ticket = req.cookies?.[REG_COOKIE_NAME];
+    if (!ticket) {
+      res.status(401).json({
+        status: 'error',
+        message: 'Sesión de registro no encontrada o expirada. Por favor regístrate nuevamente.',
+      });
+      return;
+    }
+
+    let payload: any;
+    try {
+      payload = jwt.verify(ticket, getJwtSecret(), { algorithms: ['HS512'] });
+    } catch {
+      res.status(401).json({
+        status: 'error',
+        message: 'Ticket de registro expirado o inválido.',
+      });
+      return;
+    }
+
+    if (payload.type !== 'REG_TICKET' || payload.stage !== 'REGISTRATION_OTP_PENDING') {
+      res.status(401).json({
+        status: 'error',
+        message: 'Ticket de registro inválido.',
+      });
+      return;
+    }
+
+    const code = typeof req.body.code === 'string' ? req.body.code.trim() : '';
+    if (code.length !== 6 || !/^\d{6}$/.test(code)) {
+      res.status(400).json({
+        status: 'error',
+        message: 'El código debe ser de 6 dígitos numéricos.',
+      });
+      return;
+    }
+
+    const userId = payload.userId;
+
+    const otps = await query<any[]>(
+      'SELECT id, code_hash, attempts, max_attempts, expires_at FROM user_email_verifications WHERE user_id = ? AND used = 0 AND expires_at > NOW() ORDER BY id DESC LIMIT 1',
+      [userId],
+    );
+    const otp = otps[0];
+
+    if (!otp) {
+      res.status(400).json({
+        status: 'error',
+        message: 'No hay código de verificación activo o ha expirado.',
+      });
+      return;
+    }
+
+    if (otp.attempts >= otp.max_attempts) {
+      res.status(400).json({
+        status: 'error',
+        message: 'Número máximo de intentos excedido. Solicita un nuevo código.',
+      });
+      return;
+    }
+
+    // Timing-safe comparison using crypto.timingSafeEqual (Condition C-049.4)
+    const candidateHash = crypto.createHash('sha256').update(code).digest('hex');
+    const bufA = Buffer.from(candidateHash, 'hex');
+    const bufB = Buffer.from(otp.code_hash, 'hex');
+    const isValid = bufA.length === bufB.length && crypto.timingSafeEqual(bufA, bufB);
+
+    if (!isValid) {
+      await query('UPDATE user_email_verifications SET attempts = attempts + 1 WHERE id = ?', [
+        otp.id,
+      ]);
+      res.status(400).json({
+        status: 'error',
+        message: 'Código de verificación incorrecto.',
+      });
+      return;
+    }
+
+    // Atomically mark OTP used and activate user email verification
+    await query('UPDATE user_email_verifications SET used = 1 WHERE id = ?', [otp.id]);
+    await query('UPDATE users SET is_email_verified = 1, email_verified_at = NOW() WHERE id = ?', [
+      userId,
+    ]);
+
+    // Clear registration ticket
+    res.clearCookie(REG_COOKIE_NAME);
+
+    // Issue permanent session cookie
+    const sessionToken = jwt.sign(
+      {
+        userId,
+        uid: userId,
+        email: payload.email,
+        role: 'CLIENT',
+        name: payload.fullName,
+      },
+      getJwtSecret(),
+      { algorithm: 'HS512', expiresIn: '24h' },
+    );
+
+    res.cookie(COOKIE_NAME, sessionToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      maxAge: 7 * 24 * 60 * 60 * 1000,
+    });
+
+    await logSecurityEvent(req, {
+      eventType: 'EMAIL_VERIFIED_SUCCESS',
+      userId,
+      status: 'SUCCESS',
+      details: `Email successfully verified for ${payload.email}`,
+    });
+
+    res.json({
+      status: 'success',
+      message: 'Correo verificado y cuenta activada exitosamente.',
+      user: {
+        id: userId,
+        email: payload.email,
+        role: 'CLIENT',
+        full_name: payload.fullName,
+      },
+    });
+  } catch {
+    res.status(500).json({ status: 'error', message: 'Error interno en la verificación de código.' });
+  }
+});
+
+/**
+ * POST /api/v1/auth/register/resend-otp
+ * Resends registration OTP under rate limiting (Condition C-049.5)
+ */
+authRouter.post('/register/resend-otp', async (req: Request, res: Response): Promise<void> => {
+  try {
+    const ticket = req.cookies?.[REG_COOKIE_NAME];
+    if (!ticket) {
+      res.status(401).json({
+        status: 'error',
+        message: 'Sesión de registro no encontrada o expirada. Por favor regístrate nuevamente.',
+      });
+      return;
+    }
+
+    let payload: any;
+    try {
+      payload = jwt.verify(ticket, getJwtSecret(), { algorithms: ['HS512'] });
+    } catch {
+      res.status(401).json({
+        status: 'error',
+        message: 'Ticket de registro expirado o inválido.',
+      });
+      return;
+    }
+
+    const userId = payload.userId;
+
+    // Rate limit: maximum 3 resend attempts per 15 minutes window (Condition C-049.5)
+    const recentRequests = await query<any[]>(
+      'SELECT COUNT(*) as count FROM user_email_verifications WHERE user_id = ? AND created_at >= DATE_SUB(NOW(), INTERVAL 15 MINUTE)',
+      [userId],
+    );
+    const count = recentRequests[0].count;
+    if (count >= 3) {
+      res.status(429).json({
+        status: 'error',
+        message: 'Demasiadas solicitudes de reenvío. Por favor espera 15 minutos.',
+      });
+      return;
+    }
+
+    // Invalidate previous OTPs
+    await query(
+      'UPDATE user_email_verifications SET used = 1 WHERE user_id = ? AND used = 0',
+      [userId],
+    );
+
+    const code = String(crypto.randomInt(100000, 1000000));
+    const codeHash = crypto.createHash('sha256').update(code).digest('hex');
+
+    await query(
+      'INSERT INTO user_email_verifications (user_id, code_hash, expires_at) VALUES (?, ?, DATE_ADD(NOW(), INTERVAL 15 MINUTE))',
+      [userId, codeHash],
+    );
+
+    await sendRegistrationVerificationOtp(payload.email, code, payload.fullName);
+
+    await logSecurityEvent(req, {
+      eventType: 'REGISTRATION_OTP_RESENT',
+      userId,
+      status: 'SUCCESS',
+      details: `New registration OTP dispatched to ${payload.email}`,
+    });
+
+    res.json({
+      status: 'success',
+      message: 'Nuevo código de verificación enviado a tu correo.',
+    });
+  } catch {
+    res.status(500).json({ status: 'error', message: 'Error interno al reenviar código.' });
+  }
+});
+
+/**
  * POST /api/v1/auth/login
  * Two-stage authentication entrypoint (Conditions C-047.1 & C-047.3)
  */
@@ -93,7 +403,7 @@ authRouter.post(
       }
 
       const users = await query<any[]>(
-        'SELECT id, username, email, password_hash, role, full_name, is_2fa_enabled, totp_secret_encrypted FROM users WHERE (email = ? OR username = ?) LIMIT 1',
+        'SELECT id, username, email, password_hash, role, full_name, is_2fa_enabled, totp_secret_encrypted, is_email_verified FROM users WHERE (email = ? OR username = ?) LIMIT 1',
         [identifier, identifier],
       );
       const user = users[0];
@@ -105,6 +415,22 @@ authRouter.post(
           details: `Failed login attempt for ${identifier}`,
         });
         res.status(401).json({ status: 'error', message: 'Credenciales inválidas.' });
+        return;
+      }
+
+      // Check if user email has been verified (Condition C-049.2 & FC 049)
+      if (user.is_email_verified === 0 || user.is_email_verified === false) {
+        await logSecurityEvent(req, {
+          eventType: 'LOGIN_UNVERIFIED_EMAIL',
+          userId: user.id,
+          status: 'FAILURE',
+          details: `Login blocked for unverified email: ${user.email}`,
+        });
+        res.status(403).json({
+          status: 'error',
+          code: 'EMAIL_NOT_VERIFIED',
+          message: 'Tu correo electrónico aún no ha sido verificado. Por favor confirma tu cuenta.',
+        });
         return;
       }
 
@@ -439,7 +765,7 @@ authRouter.post('/2fa/send-email-otp', async (req: Request, res: Response): Prom
 
     const transporter = getAuthTransporter();
     await transporter.sendMail({
-      from: 'Dreamtek Security <hola@dreamtek.tech>',
+      from: OFFICIAL_SECURITY_FROM,
       to: payload.email,
       subject: 'Tu código de verificación de 2 pasos — Dreamtek',
       text: `Tu código de verificación de dos factores para acceder a Dreamtek es: ${code}\n\nEste código expira en 10 minutos. Si no solicitaste este acceso, protege tu cuenta de inmediato.`,

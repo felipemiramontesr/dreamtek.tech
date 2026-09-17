@@ -1,10 +1,10 @@
-<!-- L-HARNESS:BEGIN protocolVersion=V.1.9.13-core do-not-edit-inside -->
+<!-- L-HARNESS:BEGIN protocolVersion=V.1.9.15-core do-not-edit-inside -->
 
 # Dreamtek.tech — AGENTS.md (host boot)
 
 **SSOT (law):** `protocols/north-star/001_NS_ProtocolL.md` (**local-only**)  
 **Handoff:** `protocols/north-star/002_NS_Handoff.md`  
-**Harness:** 1.6.0 · **L protocol:** V.1.9.13-core · **governancePublish:** local-only  
+**Harness:** 1.6.0 · **L protocol:** V.1.9.15-core · **governancePublish:** local-only  
 **Ω:** GrayMan (L) · **Raptors:** Alfa (O) · Bravo (R) · Charlie (O)  
 **Charters:** `protocols/annex/formal/RAPTOR_CHARTERS.md` · **Standards:** `STANDARDS_EVIDENCE.md`
 
@@ -40,18 +40,18 @@ Host **Antigravity** may drive Alfa **and** Charlie — H author is always the *
 
 ```text
 TRIGGER L · R-SESSION-INIT · callsign {Alfa|Charlie|Bravo}
-Boot L→H→hPost ACK. L_pin=V.1.9.13-core. R-ROLE-BOUND. No product code until ACK.
+Boot L→H→hPost ACK. L_pin=V.1.9.15-core. R-ROLE-BOUND. No product code until ACK.
 ```
 
 ## H channel (MANDATORY)
 
-| Rule           | Action                                                                 |
-| -------------- | ---------------------------------------------------------------------- |
-| **Write**      | ONLY `node scripts/hPost.mjs --author <Callsign>`                      |
-| **Dual host**  | `--host Antigravity --as Alfa\|Charlie` — never `--author Antigravity` |
-| **Body-guard** | No `###` headings inside `--message`                                   |
-| **Diet**       | ≤6 lines · same callsign → EXTEND · lock/dedup on                      |
-| **Check**      | `node scripts/hCheck.mjs` · `node scripts/verifyL.mjs`                 |
+| Rule           | Action                                                                                             |
+| -------------- | -------------------------------------------------------------------------------------------------- |
+| **Write**      | ONLY `node scripts/hPost.mjs --author <Callsign>`                                                  |
+| **Dual host**  | `--host Antigravity --as Alfa\|Charlie` — never `--author Antigravity`                             |
+| **Body-guard** | No `###` headings inside `--message`                                                               |
+| **Diet**       | ≤6 lines · same callsign → EXTEND · lock/dedup on                                                  |
+| **Check**      | `node scripts/hCheck.mjs` · `node scripts/verifyL.mjs` · `node scripts/phase.mjs phase-check <FC>` |
 
 ## Precedence
 
