@@ -3,7 +3,6 @@ import crypto from 'node:crypto';
 import { Router, Request, Response } from 'express';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
-import nodemailer from 'nodemailer';
 import { query } from '../db.js';
 import { logSecurityEvent } from '../middleware/auditLogger.js';
 import { validate } from '../middleware/validate.js';
@@ -30,8 +29,6 @@ import {
   sendMfaEmailOtp,
   sendWelcomeEmail,
   setMailerTransporterForTest,
-  OFFICIAL_SENDER,
-  OFFICIAL_SECURITY_FROM,
 } from '../services/mailer.js';
 
 export function getJwtSecret(): string {
@@ -43,22 +40,8 @@ export function getJwtSecret(): string {
   return process.env.JWT_SECRET || 'dreamtek_dev_jwt_secret_key_2026';
 }
 
-let authTestTransporter: any = null;
 export function setAuthTransporterForTest(transporter: any) {
-  authTestTransporter = transporter;
   setMailerTransporterForTest(transporter);
-}
-export function getAuthTransporter() {
-  if (authTestTransporter) return authTestTransporter;
-  return nodemailer.createTransport({
-    host: process.env.SMTP_HOST || 'smtp.hostinger.com',
-    port: parseInt(process.env.SMTP_PORT || '465', 10),
-    secure: process.env.SMTP_SECURE === 'true',
-    auth: {
-      user: process.env.SMTP_USER || OFFICIAL_SENDER,
-      pass: process.env.SMTP_PASS || '',
-    },
-  });
 }
 
 export const authRouter = Router();

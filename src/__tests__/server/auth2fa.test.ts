@@ -12,7 +12,6 @@ import {
   COOKIE_NAME,
   MFA_COOKIE_NAME,
   setAuthTransporterForTest,
-  getAuthTransporter,
 } from '../../../server/src/routes/auth';
 import { mfaVerifySchema } from '../../../server/src/schemas/auth.schema';
 import {
@@ -773,16 +772,7 @@ describe('FC 047 Multi-Factor Authentication (2FA) API Suite (Conditions C-047.1
       expect(resDisable500.status).toBe(500);
     });
 
-    it('covers getAuthTransporter default and mfaVerifySchema errorMap', () => {
-      setAuthTransporterForTest(null);
-      process.env.SMTP_SECURE = 'true';
-      const transporter1 = getAuthTransporter();
-      expect(transporter1).toBeDefined();
-
-      process.env.SMTP_SECURE = 'false';
-      const transporter2 = getAuthTransporter();
-      expect(transporter2).toBeDefined();
-
+    it('covers mfaVerifySchema errorMap', () => {
       const parseResult = mfaVerifySchema.safeParse({ code: '123456', method: 'INVALID' });
       expect(parseResult.success).toBe(false);
       if (!parseResult.success) {

@@ -6,13 +6,11 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.REG_COOKIE_NAME = exports.MFA_COOKIE_NAME = exports.COOKIE_NAME = exports.authRouter = void 0;
 exports.getJwtSecret = getJwtSecret;
 exports.setAuthTransporterForTest = setAuthTransporterForTest;
-exports.getAuthTransporter = getAuthTransporter;
 /* eslint-disable @typescript-eslint/no-explicit-any */
 const node_crypto_1 = __importDefault(require("node:crypto"));
 const express_1 = require("express");
 const bcryptjs_1 = __importDefault(require("bcryptjs"));
 const jsonwebtoken_1 = __importDefault(require("jsonwebtoken"));
-const nodemailer_1 = __importDefault(require("nodemailer"));
 const db_js_1 = require("../db.js");
 const auditLogger_js_1 = require("../middleware/auditLogger.js");
 const validate_js_1 = require("../middleware/validate.js");
@@ -25,23 +23,8 @@ function getJwtSecret() {
     }
     return process.env.JWT_SECRET || 'dreamtek_dev_jwt_secret_key_2026';
 }
-let authTestTransporter = null;
 function setAuthTransporterForTest(transporter) {
-    authTestTransporter = transporter;
     (0, mailer_js_1.setMailerTransporterForTest)(transporter);
-}
-function getAuthTransporter() {
-    if (authTestTransporter)
-        return authTestTransporter;
-    return nodemailer_1.default.createTransport({
-        host: process.env.SMTP_HOST || 'smtp.hostinger.com',
-        port: parseInt(process.env.SMTP_PORT || '465', 10),
-        secure: process.env.SMTP_SECURE === 'true',
-        auth: {
-            user: process.env.SMTP_USER || mailer_js_1.OFFICIAL_SENDER,
-            pass: process.env.SMTP_PASS || '',
-        },
-    });
 }
 exports.authRouter = (0, express_1.Router)();
 exports.COOKIE_NAME = 'dreamtek_session';
