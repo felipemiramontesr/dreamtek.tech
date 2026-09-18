@@ -11,15 +11,18 @@ export const contactFormSchema = z.object({
     .email('El correo electrónico debe ser una dirección válida.'),
   subject: z
     .string()
-    .min(1, 'El asunto es requerido.')
     .min(2, 'El asunto debe tener al menos 2 caracteres.')
-    .max(200, 'El asunto no debe exceder 200 caracteres.'),
+    .max(200, 'El asunto no debe exceder 200 caracteres.')
+    .optional(),
   message: z
     .string()
     .min(1, 'El mensaje es requerido.')
     .min(5, 'El mensaje debe tener al menos 5 caracteres.')
     .max(2000, 'El mensaje no debe exceder 2000 caracteres.'),
   phone: z.string().optional(),
+  company: z.string().optional(),
+  service: z.string().optional(),
+  code: z.string().optional(),
 });
 
 export const sendCodeSchema = z.object({

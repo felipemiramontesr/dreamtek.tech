@@ -77,7 +77,11 @@ export function Contact({ dict }: { dict: Dictionary }) {
           headers: {
             'Content-Type': 'application/json',
           },
-          body: JSON.stringify({ ...formData, code }),
+          body: JSON.stringify({
+            ...formData,
+            subject: formData.service,
+            code,
+          }),
         });
 
         const data = await response.json();
