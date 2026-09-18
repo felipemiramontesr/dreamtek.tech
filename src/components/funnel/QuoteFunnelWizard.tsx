@@ -504,8 +504,8 @@ export function QuoteFunnelWizard({ locale: propLocale }: QuoteFunnelWizardProps
 
   if (submittedData) {
     return (
-      <GlassCard className="p-8 max-w-2xl mx-auto border-emerald-500/30 bg-slate-900/60 backdrop-blur-xl">
-        <div className="text-center space-y-4">
+      <GlassCard className="p-8 sm:p-10 w-full border-emerald-500/30 bg-slate-900/60 backdrop-blur-xl">
+        <div className="text-center space-y-4 max-w-2xl mx-auto">
           <div className="w-14 h-14 bg-emerald-500/10 border border-emerald-500/30 rounded-2xl flex items-center justify-center mx-auto text-emerald-400">
             <svg
               className="w-7 h-7"
@@ -587,7 +587,7 @@ export function QuoteFunnelWizard({ locale: propLocale }: QuoteFunnelWizardProps
   }
 
   return (
-    <GlassCard className="p-6 sm:p-8 max-w-3xl mx-auto border-cyan-500/20 bg-slate-900/40 backdrop-blur-xl">
+    <GlassCard className="p-6 sm:p-8 lg:p-10 w-full border-cyan-500/20 bg-slate-900/40 backdrop-blur-xl">
       {/* Header & Steps */}
       <div className="mb-8">
         <div className="flex items-center justify-between gap-4 mb-3">
@@ -642,7 +642,7 @@ export function QuoteFunnelWizard({ locale: propLocale }: QuoteFunnelWizardProps
               ? 'Select the technology vertical that best describes your core need:'
               : 'Selecciona la vertical tecnológica que mejor describe el núcleo de tu necesidad:'}
           </p>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             {activeOptions.map((v) => {
               const isSelected = selectedVertical === v.id;
               return (

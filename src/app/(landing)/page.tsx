@@ -21,8 +21,10 @@ export default function Home() {
         <Hero dict={es} />
         <Services dict={es} />
         <Products dict={es} />
-        <section id="cotizador" className="py-16 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto w-full">
-          <QuoteFunnelWizard locale="es" />
+        <section id="cotizador" className="py-20 relative overflow-hidden bg-black/20">
+          <div className="max-w-[1440px] px-6 mx-auto w-full relative z-10">
+            <QuoteFunnelWizard locale="es" />
+          </div>
         </section>
         <Differential dict={es} />
         <Contact dict={es} />
