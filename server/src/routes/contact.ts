@@ -58,11 +58,8 @@ contactRouter.post(
         code: process.env.NODE_ENV !== 'production' ? code : undefined,
       });
     } catch (err: any) {
-      console.error('[CONTACT_SEND_CODE_ERROR]', err?.message || err);
-      res.status(500).json({
-        error: 'Error al enviar el código de verificación.',
-        details: err?.message || 'Error de conexión SMTP',
-      });
+      console.error('[CONTACT_SEND_CODE_ERROR]', err);
+      res.status(500).json({ error: 'Error al enviar el código de verificación.' });
     }
   },
 );
@@ -108,11 +105,8 @@ contactRouter.post(
         message: 'Mensaje de contacto enviado con éxito.',
       });
     } catch (err: any) {
-      console.error('[CONTACT_SUBMIT_ERROR]', err?.message || err);
-      res.status(500).json({
-        error: 'Error al procesar el mensaje de contacto.',
-        details: err?.message || 'Error al procesar el mensaje',
-      });
+      console.error('[CONTACT_SUBMIT_ERROR]', err);
+      res.status(500).json({ error: 'Error al procesar el mensaje de contacto.' });
     }
   },
 );
