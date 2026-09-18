@@ -35,9 +35,9 @@ export function getMailerTransporter(): any {
       user: process.env.SMTP_USER || OFFICIAL_SENDER,
       pass: process.env.SMTP_PASS || '',
     },
-    connectionTimeout: 5000,
-    greetingTimeout: 5000,
-    socketTimeout: 5000,
+    connectionTimeout: 15000,
+    greetingTimeout: 15000,
+    socketTimeout: 15000,
   });
 }
 
