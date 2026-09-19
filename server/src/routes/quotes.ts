@@ -10,6 +10,7 @@ import { getTransporter } from './contact.js';
 import {
   OFFICIAL_SOLUTIONS_FROM,
   OFFICIAL_SENDER,
+  buildQuoteNotificationEmail,
 } from '../services/mailer.js';
 
 export const quotesRouter = Router();
@@ -139,25 +140,33 @@ quotesRouter.post('/', async (req: Request, res: Response): Promise<void> => {
       // Non-blocking security audit failure
     }
 
-    // Fail-open notification email dispatch (C-039.3 & C-042.5)
+    // Fail-open notification email dispatch (C-039.3 & C-042.5 & FC 050)
     if (process.env.NODE_ENV === 'production' && process.env.SMTP_PASS) {
+      const mailContent = buildQuoteNotificationEmail({
+        serviceLabel: matrixResult.serviceLabel,
+        vertical: data.vertical,
+        scaleLabel: matrixResult.scaleLabel,
+        scale: data.scale,
+        currency: matrixResult.currency,
+        locale: matrixResult.locale,
+        estimatedBudgetMin: matrixResult.estimatedBudgetMin,
+        estimatedBudgetMax: matrixResult.estimatedBudgetMax,
+        estimatedWeeksMin: matrixResult.estimatedWeeksMin,
+        estimatedWeeksMax: matrixResult.estimatedWeeksMax,
+        fullName: data.full_name,
+        email: data.email,
+        phone: data.phone,
+        companyName: data.company_name,
+        notes: data.notes,
+      });
+
       getTransporter()
         .sendMail({
           from: OFFICIAL_SOLUTIONS_FROM,
           to: OFFICIAL_SENDER,
-          subject: `Nueva Cotización [${matrixResult.currency}]: ${matrixResult.serviceLabel} - ${data.full_name}`,
-          html: `
-            <h3>Nueva Solicitud de Cotización</h3>
-            <p><strong>Vertical:</strong> ${matrixResult.serviceLabel} (${data.vertical})</p>
-            <p><strong>Alcance:</strong> ${matrixResult.scaleLabel} (${data.scale})</p>
-            <p><strong>Moneda / Idioma:</strong> ${matrixResult.currency} (${matrixResult.locale.toUpperCase()})</p>
-            <p><strong>Rango Estimado:</strong> $${matrixResult.estimatedBudgetMin.toLocaleString()} - $${matrixResult.estimatedBudgetMax.toLocaleString()} ${matrixResult.currency}</p>
-            <p><strong>Plazo Estimado:</strong> ${matrixResult.estimatedWeeksMin} - ${matrixResult.estimatedWeeksMax} semanas</p>
-            <p><strong>Contacto:</strong> ${data.full_name} (${data.email})</p>
-            <p><strong>Teléfono:</strong> ${data.phone}</p>
-            <p><strong>Empresa:</strong> ${data.company_name || 'N/A'}</p>
-            <p><strong>Notas:</strong> ${data.notes || 'Ninguna'}</p>
-          `,
+          subject: mailContent.subject,
+          text: mailContent.text,
+          html: mailContent.html,
         })
         .catch((mailErr: unknown) => {
           console.warn('⚠️ Non-blocking email dispatch warning in quote lead:', mailErr);

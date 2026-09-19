@@ -8,6 +8,8 @@ import {
   OFFICIAL_SENDER,
   OFFICIAL_SECURITY_FROM,
   OFFICIAL_CONTACT_FROM,
+  buildContactOtpEmail,
+  buildContactNotificationEmail,
 } from '../services/mailer.js';
 
 export const contactRouter = Router();
@@ -45,11 +47,13 @@ contactRouter.post(
 
     try {
       if (process.env.NODE_ENV === 'production' && process.env.SMTP_PASS) {
+        const mailContent = buildContactOtpEmail(code);
         await getTransporter().sendMail({
           from: OFFICIAL_SECURITY_FROM,
           to: email,
-          subject: `Código de verificación: ${code} - Dreamtek`,
-          html: `<p>Tu código de verificación para enviar el formulario de contacto en Dreamtek es: <strong>${code}</strong>.</p>`,
+          subject: mailContent.subject,
+          text: mailContent.text,
+          html: mailContent.html,
         });
       }
 
@@ -81,20 +85,20 @@ contactRouter.post(
 
     try {
       if (process.env.NODE_ENV === 'production' && process.env.SMTP_PASS) {
+        const mailContent = buildContactNotificationEmail({
+          name,
+          email,
+          phone,
+          company,
+          service,
+          message,
+        });
         await getTransporter().sendMail({
           from: OFFICIAL_CONTACT_FROM,
           to: OFFICIAL_SENDER,
-          subject: `Nuevo mensaje de contacto de ${name} - Dreamtek`,
-          html: `
-          <h3>Nuevo Mensaje de Contacto</h3>
-          <p><strong>Nombre:</strong> ${name}</p>
-          <p><strong>Email:</strong> ${email}</p>
-          <p><strong>Teléfono:</strong> ${phone || 'N/A'}</p>
-          <p><strong>Empresa:</strong> ${company || 'N/A'}</p>
-          <p><strong>Servicio:</strong> ${service || 'General'}</p>
-          <p><strong>Mensaje:</strong></p>
-          <p>${message}</p>
-        `,
+          subject: mailContent.subject,
+          text: mailContent.text,
+          html: mailContent.html,
         });
       }
 

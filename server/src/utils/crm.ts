@@ -46,7 +46,7 @@ export interface RenderedLeadEmail {
 }
 
 /**
- * Generates corporate email HTML and plaintext for manual follow-up templates (FC 041 & FC 042 bilingüe)
+ * Generates corporate email HTML and plaintext for manual follow-up templates (FC 041, FC 042 & FC 050)
  */
 export function renderLeadFollowUpEmail(
   context: LeadEmailContext,
@@ -81,26 +81,33 @@ export function renderLeadFollowUpEmail(
 
         defaultSubject = `Project Deposit & Architecture Activation — Dreamtek & ${context.company || context.fullName}`;
         bodyHtml = `
-          <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 600px; margin: 0 auto; color: #1e293b; line-height: 1.6;">
-            <div style="background: linear-gradient(135deg, #0f172a 0%, #1e1b4b 100%); padding: 32px 24px; text-align: center; border-radius: 12px 12px 0 0;">
-              <h1 style="color: #38bdf8; margin: 0; font-size: 24px; font-weight: 800; letter-spacing: 0.5px;">DREAMTEK</h1>
-              <p style="color: #94a3b8; margin: 8px 0 0 0; font-size: 14px;">Sovereign Software Engineering & Defensive Cybersecurity</p>
-            </div>
-            <div style="background: #ffffff; padding: 32px 24px; border: 1px solid #e2e8f0; border-top: none; border-radius: 0 0 12px 12px;">
-              <p style="font-size: 16px; margin-top: 0;">Hello <strong>${safeName}</strong>,</p>
-              <p>Following our technical evaluation for <strong>${safeCompany}</strong>, we have generated your secure project formalization and deposit link.</p>
-              <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 16px; margin: 20px 0;">
-                <p style="margin: 0; font-size: 14px; color: #64748b;">Deposit Amount / Commitment:</p>
-                <p style="margin: 4px 0 0 0; font-size: 20px; font-weight: 800; color: #0284c7;">${formattedAmount}</p>
-                <p style="margin: 8px 0 0 0; font-size: 11px; color: #94a3b8; font-style: italic;">* Initial deposit to formalize architecture and sprint scheduling. Remaining balance governed by milestone agreements.</p>
+          <div style="background-color: #0b0f19; padding: 40px 16px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; box-sizing: border-box; color: #f3f4f6;">
+            <div style="max-width: 580px; margin: 0 auto; background: #00172B; border: 1px solid #1e293b; border-radius: 12px; overflow: hidden; box-shadow: 0 12px 32px rgba(0,0,0,0.6);">
+              <div style="background: linear-gradient(135deg, #00213D 0%, #00172B 100%); border-bottom: 2px solid #38bdf8; padding: 28px 24px 22px 24px; text-align: center;">
+                <div style="margin: 0 auto 12px auto; max-width: 180px;">
+                  <img src="https://dreamtek.tech/svg/24_DREAMTEK_LOGO_LOGOTIPO_White.svg" alt="Dreamtek" width="180" style="display: block; width: 180px; max-width: 100%; height: auto; margin: 0 auto; border: 0;" />
+                </div>
+                <h1 style="color: #ffffff; margin: 0; font-size: 20px; font-weight: 800; letter-spacing: 2px; text-transform: uppercase;">DREAMTEK</h1>
+                <p style="color: #38bdf8; margin: 4px 0 0 0; font-size: 11px; letter-spacing: 1.5px; text-transform: uppercase; font-weight: 600;">Sovereign Software Engineering &amp; Defensive Cybersecurity</p>
               </div>
-              ${safeCustomMsg ? `<div style="margin: 20px 0; padding: 16px; background: #f8fafc; border-left: 4px solid #38bdf8; font-style: italic; color: #334155;">${safeCustomMsg}</div>` : ''}
-              <div style="margin: 32px 0; text-align: center;">
-                <a href="${payUrl}" style="background: #0284c7; color: #ffffff; padding: 14px 28px; text-decoration: none; border-radius: 8px; font-weight: 600; font-size: 14px; display: inline-block;">Complete Deposit via Stripe Checkout ↗</a>
+              <div style="padding: 32px 26px; font-size: 14px; line-height: 1.65; color: #e5e7eb;">
+                <p style="font-size: 16px; margin-top: 0; color: #f9fafb;">Hello <strong>${safeName}</strong>,</p>
+                <p>Following our technical evaluation for <strong>${safeCompany}</strong>, we have generated your secure project formalization and deposit link.</p>
+                <div style="background: #08101e; border: 1px solid #1e293b; border-radius: 8px; padding: 18px; margin: 20px 0;">
+                  <p style="margin: 0; font-size: 13px; color: #94a3b8;">Deposit Amount / Commitment:</p>
+                  <p style="margin: 4px 0 0 0; font-size: 22px; font-weight: 800; color: #38bdf8;">${formattedAmount}</p>
+                  <p style="margin: 8px 0 0 0; font-size: 11px; color: #64748b; font-style: italic;">* Initial deposit to formalize architecture and sprint scheduling. Remaining balance governed by milestone agreements.</p>
+                </div>
+                ${safeCustomMsg ? `<div style="margin: 20px 0; padding: 16px; background: #08101e; border-left: 4px solid #38bdf8; font-style: italic; color: #cbd5e1;">${safeCustomMsg}</div>` : ''}
+                <div style="margin: 32px 0; text-align: center;">
+                  <a href="${payUrl}" style="background: #0284c7; color: #ffffff; padding: 14px 28px; text-decoration: none; border-radius: 8px; font-weight: 600; font-size: 14px; display: inline-block;">Complete Deposit via Stripe Checkout ↗</a>
+                </div>
+                <p style="font-size: 12px; color: #94a3b8;">This secure payment link is valid for 72 hours. All transactions are encrypted and processed by Stripe.</p>
               </div>
-              <p style="font-size: 12px; color: #64748b;">This secure payment link is valid for 72 hours. All transactions are encrypted and processed by Stripe.</p>
-              <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 24px 0;" />
-              <p style="font-size: 12px; color: #64748b; margin-bottom: 0;">Dreamtek Sovereign Tech · Commercial closing & deposit confirmation.</p>
+              <div style="background: #080d1a; border-top: 1px solid #1e293b; padding: 18px 24px; text-align: center;">
+                <p style="font-size: 11px; color: #64748b; margin: 0;">Enviado desde el emisor oficial <strong style="color: #94a3b8;">contacto@dreamtek.tech</strong> &bull; Protocolo L Soberano</p>
+                <p style="font-size: 11px; color: #475569; margin: 4px 0 0 0;">Dreamtek Sovereign Tech · Commercial closing &amp; deposit confirmation.</p>
+              </div>
             </div>
           </div>
         `;
@@ -110,21 +117,28 @@ export function renderLeadFollowUpEmail(
       case 'DIAGNOSTIC_INVITATION': {
         defaultSubject = `Technical Architecture Diagnostic Invitation — Dreamtek & ${context.company || context.fullName}`;
         bodyHtml = `
-          <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 600px; margin: 0 auto; color: #1e293b; line-height: 1.6;">
-            <div style="background: linear-gradient(135deg, #0f172a 0%, #1e1b4b 100%); padding: 32px 24px; text-align: center; border-radius: 12px 12px 0 0;">
-              <h1 style="color: #38bdf8; margin: 0; font-size: 24px; font-weight: 800; letter-spacing: 0.5px;">DREAMTEK</h1>
-              <p style="color: #94a3b8; margin: 8px 0 0 0; font-size: 14px;">Sovereign Software Engineering & Defensive Cybersecurity</p>
-            </div>
-            <div style="background: #ffffff; padding: 32px 24px; border: 1px solid #e2e8f0; border-top: none; border-radius: 0 0 12px 12px;">
-              <p style="font-size: 16px; margin-top: 0;">Hello <strong>${safeName}</strong>,</p>
-              <p>Thank you for your interest in Dreamtek's engineering capabilities for <strong>${safeCompany}</strong> in the <strong>${safeVertical}</strong> domain.</p>
-              <p>We would like to invite you to an executive 30-minute technical architecture diagnostic session at no cost with our senior engineering team to review critical requirements, security scope, and technology roadmap.</p>
-              ${safeCustomMsg ? `<div style="margin: 20px 0; padding: 16px; background: #f8fafc; border-left: 4px solid #38bdf8; font-style: italic; color: #334155;">${safeCustomMsg}</div>` : ''}
-              <div style="margin: 32px 0; text-align: center;">
-                <a href="https://dreamtek.tech/en#contact" style="background: #0284c7; color: #ffffff; padding: 14px 28px; text-decoration: none; border-radius: 8px; font-weight: 600; font-size: 14px; display: inline-block;">Schedule Diagnostic Session</a>
+          <div style="background-color: #0b0f19; padding: 40px 16px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; box-sizing: border-box; color: #f3f4f6;">
+            <div style="max-width: 580px; margin: 0 auto; background: #00172B; border: 1px solid #1e293b; border-radius: 12px; overflow: hidden; box-shadow: 0 12px 32px rgba(0,0,0,0.6);">
+              <div style="background: linear-gradient(135deg, #00213D 0%, #00172B 100%); border-bottom: 2px solid #38bdf8; padding: 28px 24px 22px 24px; text-align: center;">
+                <div style="margin: 0 auto 12px auto; max-width: 180px;">
+                  <img src="https://dreamtek.tech/svg/24_DREAMTEK_LOGO_LOGOTIPO_White.svg" alt="Dreamtek" width="180" style="display: block; width: 180px; max-width: 100%; height: auto; margin: 0 auto; border: 0;" />
+                </div>
+                <h1 style="color: #ffffff; margin: 0; font-size: 20px; font-weight: 800; letter-spacing: 2px; text-transform: uppercase;">DREAMTEK</h1>
+                <p style="color: #38bdf8; margin: 4px 0 0 0; font-size: 11px; letter-spacing: 1.5px; text-transform: uppercase; font-weight: 600;">Sovereign Software Engineering &amp; Defensive Cybersecurity</p>
               </div>
-              <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 24px 0;" />
-              <p style="font-size: 12px; color: #64748b; margin-bottom: 0;">Dreamtek Sovereign Tech · Personalized commercial follow-up from the executive team.</p>
+              <div style="padding: 32px 26px; font-size: 14px; line-height: 1.65; color: #e5e7eb;">
+                <p style="font-size: 16px; margin-top: 0; color: #f9fafb;">Hello <strong>${safeName}</strong>,</p>
+                <p>Thank you for your interest in Dreamtek's engineering capabilities for <strong>${safeCompany}</strong> in the <strong>${safeVertical}</strong> domain.</p>
+                <p>We would like to invite you to an executive 30-minute technical architecture diagnostic session at no cost with our senior engineering team to review critical requirements, security scope, and technology roadmap.</p>
+                ${safeCustomMsg ? `<div style="margin: 20px 0; padding: 16px; background: #08101e; border-left: 4px solid #38bdf8; font-style: italic; color: #cbd5e1;">${safeCustomMsg}</div>` : ''}
+                <div style="margin: 32px 0; text-align: center;">
+                  <a href="https://dreamtek.tech/en#contact" style="background: #0284c7; color: #ffffff; padding: 14px 28px; text-decoration: none; border-radius: 8px; font-weight: 600; font-size: 14px; display: inline-block;">Schedule Diagnostic Session</a>
+                </div>
+              </div>
+              <div style="background: #080d1a; border-top: 1px solid #1e293b; padding: 18px 24px; text-align: center;">
+                <p style="font-size: 11px; color: #64748b; margin: 0;">Enviado desde el emisor oficial <strong style="color: #94a3b8;">contacto@dreamtek.tech</strong> &bull; Protocolo L Soberano</p>
+                <p style="font-size: 11px; color: #475569; margin: 4px 0 0 0;">Dreamtek Sovereign Tech · Personalized commercial follow-up from the executive team.</p>
+              </div>
             </div>
           </div>
         `;
@@ -134,20 +148,27 @@ export function renderLeadFollowUpEmail(
       case 'PROPOSAL_SUBMITTED': {
         defaultSubject = `Tailored Commercial & Technical Proposal — Dreamtek`;
         bodyHtml = `
-          <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 600px; margin: 0 auto; color: #1e293b; line-height: 1.6;">
-            <div style="background: linear-gradient(135deg, #0f172a 0%, #1e1b4b 100%); padding: 32px 24px; text-align: center; border-radius: 12px 12px 0 0;">
-              <h1 style="color: #38bdf8; margin: 0; font-size: 24px; font-weight: 800; letter-spacing: 0.5px;">DREAMTEK</h1>
-              <p style="color: #94a3b8; margin: 8px 0 0 0; font-size: 14px;">Technical Proposal & Scope Estimation</p>
-            </div>
-            <div style="background: #ffffff; padding: 32px 24px; border: 1px solid #e2e8f0; border-top: none; border-radius: 0 0 12px 12px;">
-              <p style="font-size: 16px; margin-top: 0;">Hello <strong>${safeName}</strong>,</p>
-              <p>We have prepared the preliminary technical and commercial proposal for <strong>${safeCompany}</strong> regarding the <strong>${safeVertical}</strong> initiative.</p>
-              ${context.estimatedBudgetMin && context.estimatedBudgetMax ? `<p style="background: #f1f5f9; padding: 12px 16px; border-radius: 8px; font-size: 14px;"><strong>Projected Investment Range:</strong> $${context.estimatedBudgetMin.toLocaleString()} - $${context.estimatedBudgetMax.toLocaleString()} ${currency}</p>` : ''}
-              ${context.estimatedWeeksMin && context.estimatedWeeksMax ? `<p style="background: #f1f5f9; padding: 12px 16px; border-radius: 8px; font-size: 14px;"><strong>Estimated Delivery Time:</strong> ${context.estimatedWeeksMin} to ${context.estimatedWeeksMax} weeks</p>` : ''}
-              ${safeCustomMsg ? `<div style="margin: 20px 0; padding: 16px; background: #f8fafc; border-left: 4px solid #10b981; color: #334155;">${safeCustomMsg}</div>` : ''}
-              <p>We remain at your service to review any adjustments to scope or address technical inquiries.</p>
-              <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 24px 0;" />
-              <p style="font-size: 12px; color: #64748b; margin-bottom: 0;">Dreamtek Sovereign Tech · On-demand commercial follow-up.</p>
+          <div style="background-color: #0b0f19; padding: 40px 16px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; box-sizing: border-box; color: #f3f4f6;">
+            <div style="max-width: 580px; margin: 0 auto; background: #00172B; border: 1px solid #1e293b; border-radius: 12px; overflow: hidden; box-shadow: 0 12px 32px rgba(0,0,0,0.6);">
+              <div style="background: linear-gradient(135deg, #00213D 0%, #00172B 100%); border-bottom: 2px solid #38bdf8; padding: 28px 24px 22px 24px; text-align: center;">
+                <div style="margin: 0 auto 12px auto; max-width: 180px;">
+                  <img src="https://dreamtek.tech/svg/24_DREAMTEK_LOGO_LOGOTIPO_White.svg" alt="Dreamtek" width="180" style="display: block; width: 180px; max-width: 100%; height: auto; margin: 0 auto; border: 0;" />
+                </div>
+                <h1 style="color: #ffffff; margin: 0; font-size: 20px; font-weight: 800; letter-spacing: 2px; text-transform: uppercase;">DREAMTEK</h1>
+                <p style="color: #38bdf8; margin: 4px 0 0 0; font-size: 11px; letter-spacing: 1.5px; text-transform: uppercase; font-weight: 600;">Technical Proposal &amp; Scope Estimation</p>
+              </div>
+              <div style="padding: 32px 26px; font-size: 14px; line-height: 1.65; color: #e5e7eb;">
+                <p style="font-size: 16px; margin-top: 0; color: #f9fafb;">Hello <strong>${safeName}</strong>,</p>
+                <p>We have prepared the preliminary technical and commercial proposal for <strong>${safeCompany}</strong> regarding the <strong>${safeVertical}</strong> initiative.</p>
+                ${context.estimatedBudgetMin && context.estimatedBudgetMax ? `<p style="background: #08101e; border: 1px solid #1e293b; padding: 12px 16px; border-radius: 8px; font-size: 14px;"><strong>Projected Investment Range:</strong> $${context.estimatedBudgetMin.toLocaleString()} - $${context.estimatedBudgetMax.toLocaleString()} ${currency}</p>` : ''}
+                ${context.estimatedWeeksMin && context.estimatedWeeksMax ? `<p style="background: #08101e; border: 1px solid #1e293b; padding: 12px 16px; border-radius: 8px; font-size: 14px;"><strong>Estimated Delivery Time:</strong> ${context.estimatedWeeksMin} to ${context.estimatedWeeksMax} weeks</p>` : ''}
+                ${safeCustomMsg ? `<div style="margin: 20px 0; padding: 16px; background: #08101e; border-left: 4px solid #10b981; color: #cbd5e1;">${safeCustomMsg}</div>` : ''}
+                <p>We remain at your service to review any adjustments to scope or address technical inquiries.</p>
+              </div>
+              <div style="background: #080d1a; border-top: 1px solid #1e293b; padding: 18px 24px; text-align: center;">
+                <p style="font-size: 11px; color: #64748b; margin: 0;">Enviado desde el emisor oficial <strong style="color: #94a3b8;">contacto@dreamtek.tech</strong> &bull; Protocolo L Soberano</p>
+                <p style="font-size: 11px; color: #475569; margin: 4px 0 0 0;">Dreamtek Sovereign Tech · On-demand commercial follow-up.</p>
+              </div>
             </div>
           </div>
         `;
@@ -158,16 +179,23 @@ export function renderLeadFollowUpEmail(
       default: {
         defaultSubject = `Follow-up regarding your project inquiry — Dreamtek`;
         bodyHtml = `
-          <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 600px; margin: 0 auto; color: #1e293b; line-height: 1.6;">
-            <div style="background: linear-gradient(135deg, #0f172a 0%, #1e1b4b 100%); padding: 32px 24px; text-align: center; border-radius: 12px 12px 0 0;">
-              <h1 style="color: #38bdf8; margin: 0; font-size: 24px; font-weight: 800; letter-spacing: 0.5px;">DREAMTEK</h1>
-              <p style="color: #94a3b8; margin: 8px 0 0 0; font-size: 14px;">Executive Communication</p>
-            </div>
-            <div style="background: #ffffff; padding: 32px 24px; border: 1px solid #e2e8f0; border-top: none; border-radius: 0 0 12px 12px;">
-              <p style="font-size: 16px; margin-top: 0;">Hello <strong>${safeName}</strong>,</p>
-              ${safeCustomMsg ? `<p style="white-space: pre-wrap;">${safeCustomMsg}</p>` : `<p>We are reaching out to follow up on your recent inquiry at Dreamtek for ${safeCompany}. Please let us know if you have any questions or if you'd like to schedule a brief call.</p>`}
-              <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 24px 0;" />
-              <p style="font-size: 12px; color: #64748b; margin-bottom: 0;">Dreamtek Sovereign Tech · Personalized commercial follow-up.</p>
+          <div style="background-color: #0b0f19; padding: 40px 16px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; box-sizing: border-box; color: #f3f4f6;">
+            <div style="max-width: 580px; margin: 0 auto; background: #00172B; border: 1px solid #1e293b; border-radius: 12px; overflow: hidden; box-shadow: 0 12px 32px rgba(0,0,0,0.6);">
+              <div style="background: linear-gradient(135deg, #00213D 0%, #00172B 100%); border-bottom: 2px solid #38bdf8; padding: 28px 24px 22px 24px; text-align: center;">
+                <div style="margin: 0 auto 12px auto; max-width: 180px;">
+                  <img src="https://dreamtek.tech/svg/24_DREAMTEK_LOGO_LOGOTIPO_White.svg" alt="Dreamtek" width="180" style="display: block; width: 180px; max-width: 100%; height: auto; margin: 0 auto; border: 0;" />
+                </div>
+                <h1 style="color: #ffffff; margin: 0; font-size: 20px; font-weight: 800; letter-spacing: 2px; text-transform: uppercase;">DREAMTEK</h1>
+                <p style="color: #38bdf8; margin: 4px 0 0 0; font-size: 11px; letter-spacing: 1.5px; text-transform: uppercase; font-weight: 600;">Executive Communication</p>
+              </div>
+              <div style="padding: 32px 26px; font-size: 14px; line-height: 1.65; color: #e5e7eb;">
+                <p style="font-size: 16px; margin-top: 0; color: #f9fafb;">Hello <strong>${safeName}</strong>,</p>
+                ${safeCustomMsg ? `<p style="white-space: pre-wrap;">${safeCustomMsg}</p>` : `<p>We are reaching out to follow up on your recent inquiry at Dreamtek for ${safeCompany}. Please let us know if you have any questions or if you'd like to schedule a brief call.</p>`}
+              </div>
+              <div style="background: #080d1a; border-top: 1px solid #1e293b; padding: 18px 24px; text-align: center;">
+                <p style="font-size: 11px; color: #64748b; margin: 0;">Enviado desde el emisor oficial <strong style="color: #94a3b8;">contacto@dreamtek.tech</strong> &bull; Protocolo L Soberano</p>
+                <p style="font-size: 11px; color: #475569; margin: 4px 0 0 0;">Dreamtek Sovereign Tech · Personalized commercial follow-up.</p>
+              </div>
             </div>
           </div>
         `;
@@ -186,26 +214,33 @@ export function renderLeadFollowUpEmail(
 
         defaultSubject = `Enlace de Anticipo y Formalización de Proyecto — Dreamtek & ${context.company || context.fullName}`;
         bodyHtml = `
-          <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 600px; margin: 0 auto; color: #1e293b; line-height: 1.6;">
-            <div style="background: linear-gradient(135deg, #0f172a 0%, #1e1b4b 100%); padding: 32px 24px; text-align: center; border-radius: 12px 12px 0 0;">
-              <h1 style="color: #38bdf8; margin: 0; font-size: 24px; font-weight: 800; letter-spacing: 0.5px;">DREAMTEK</h1>
-              <p style="color: #94a3b8; margin: 8px 0 0 0; font-size: 14px;">Ingeniería de Software Soberana & Ciberseguridad Defensiva</p>
-            </div>
-            <div style="background: #ffffff; padding: 32px 24px; border: 1px solid #e2e8f0; border-top: none; border-radius: 0 0 12px 12px;">
-              <p style="font-size: 16px; margin-top: 0;">Hola <strong>${safeName}</strong>,</p>
-              <p>Tras nuestra evaluación técnica para <strong>${safeCompany}</strong>, hemos generado tu enlace seguro de formalización y anticipo de proyecto.</p>
-              <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 16px; margin: 20px 0;">
-                <p style="margin: 0; font-size: 14px; color: #64748b;">Monto de Anticipo / Compromiso:</p>
-                <p style="margin: 4px 0 0 0; font-size: 20px; font-weight: 800; color: #0284c7;">${formattedAmount}</p>
-                <p style="margin: 8px 0 0 0; font-size: 11px; color: #94a3b8; font-style: italic;">* Anticipo inicial para formalizar arquitectura y reserva de sprints. El saldo restante se liquida según los hitos pactados.</p>
+          <div style="background-color: #0b0f19; padding: 40px 16px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; box-sizing: border-box; color: #f3f4f6;">
+            <div style="max-width: 580px; margin: 0 auto; background: #00172B; border: 1px solid #1e293b; border-radius: 12px; overflow: hidden; box-shadow: 0 12px 32px rgba(0,0,0,0.6);">
+              <div style="background: linear-gradient(135deg, #00213D 0%, #00172B 100%); border-bottom: 2px solid #38bdf8; padding: 28px 24px 22px 24px; text-align: center;">
+                <div style="margin: 0 auto 12px auto; max-width: 180px;">
+                  <img src="https://dreamtek.tech/svg/24_DREAMTEK_LOGO_LOGOTIPO_White.svg" alt="Dreamtek" width="180" style="display: block; width: 180px; max-width: 100%; height: auto; margin: 0 auto; border: 0;" />
+                </div>
+                <h1 style="color: #ffffff; margin: 0; font-size: 20px; font-weight: 800; letter-spacing: 2px; text-transform: uppercase;">DREAMTEK</h1>
+                <p style="color: #38bdf8; margin: 4px 0 0 0; font-size: 11px; letter-spacing: 1.5px; text-transform: uppercase; font-weight: 600;">Ingeniería de Software Soberana &amp; Ciberseguridad Defensiva</p>
               </div>
-              ${safeCustomMsg ? `<div style="margin: 20px 0; padding: 16px; background: #f8fafc; border-left: 4px solid #38bdf8; font-style: italic; color: #334155;">${safeCustomMsg}</div>` : ''}
-              <div style="margin: 32px 0; text-align: center;">
-                <a href="${payUrl}" style="background: #0284c7; color: #ffffff; padding: 14px 28px; text-decoration: none; border-radius: 8px; font-weight: 600; font-size: 14px; display: inline-block;">Completar Anticipo vía Stripe Checkout ↗</a>
+              <div style="padding: 32px 26px; font-size: 14px; line-height: 1.65; color: #e5e7eb;">
+                <p style="font-size: 16px; margin-top: 0; color: #f9fafb;">Hola <strong>${safeName}</strong>,</p>
+                <p>Tras nuestra evaluación técnica para <strong>${safeCompany}</strong>, hemos generado tu enlace seguro de formalización y anticipo de proyecto.</p>
+                <div style="background: #08101e; border: 1px solid #1e293b; border-radius: 8px; padding: 18px; margin: 20px 0;">
+                  <p style="margin: 0; font-size: 13px; color: #94a3b8;">Monto de Anticipo / Compromiso:</p>
+                  <p style="margin: 4px 0 0 0; font-size: 22px; font-weight: 800; color: #38bdf8;">${formattedAmount}</p>
+                  <p style="margin: 8px 0 0 0; font-size: 11px; color: #64748b; font-style: italic;">* Anticipo inicial para formalizar arquitectura y reserva de sprints. El saldo restante se liquida según los hitos pactados.</p>
+                </div>
+                ${safeCustomMsg ? `<div style="margin: 20px 0; padding: 16px; background: #08101e; border-left: 4px solid #38bdf8; font-style: italic; color: #cbd5e1;">${safeCustomMsg}</div>` : ''}
+                <div style="margin: 32px 0; text-align: center;">
+                  <a href="${payUrl}" style="background: #0284c7; color: #ffffff; padding: 14px 28px; text-decoration: none; border-radius: 8px; font-weight: 600; font-size: 14px; display: inline-block;">Completar Anticipo vía Stripe Checkout ↗</a>
+                </div>
+                <p style="font-size: 12px; color: #94a3b8;">Este enlace seguro de pago tiene una vigencia de 72 horas. Todas las transacciones están encriptadas y procesadas por Stripe.</p>
               </div>
-              <p style="font-size: 12px; color: #64748b;">Este enlace seguro de pago tiene una vigencia de 72 horas. Todas las transacciones están encriptadas y procesadas por Stripe.</p>
-              <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 24px 0;" />
-              <p style="font-size: 12px; color: #64748b; margin-bottom: 0;">Dreamtek Sovereign Tech · Cierre comercial y formalización de anticipo.</p>
+              <div style="background: #080d1a; border-top: 1px solid #1e293b; padding: 18px 24px; text-align: center;">
+                <p style="font-size: 11px; color: #64748b; margin: 0;">Enviado desde el emisor oficial <strong style="color: #94a3b8;">contacto@dreamtek.tech</strong> &bull; Protocolo L Soberano</p>
+                <p style="font-size: 11px; color: #475569; margin: 4px 0 0 0;">Dreamtek Sovereign Tech · Cierre comercial y formalización de anticipo.</p>
+              </div>
             </div>
           </div>
         `;
@@ -215,21 +250,28 @@ export function renderLeadFollowUpEmail(
       case 'DIAGNOSTIC_INVITATION': {
         defaultSubject = `Invitación a Diagnóstico Técnico de Arquitectura — Dreamtek & ${context.company || context.fullName}`;
         bodyHtml = `
-          <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 600px; margin: 0 auto; color: #1e293b; line-height: 1.6;">
-            <div style="background: linear-gradient(135deg, #0f172a 0%, #1e1b4b 100%); padding: 32px 24px; text-align: center; border-radius: 12px 12px 0 0;">
-              <h1 style="color: #38bdf8; margin: 0; font-size: 24px; font-weight: 800; letter-spacing: 0.5px;">DREAMTEK</h1>
-              <p style="color: #94a3b8; margin: 8px 0 0 0; font-size: 14px;">Ingeniería de Software Soberana & Ciberseguridad Defensiva</p>
-            </div>
-            <div style="background: #ffffff; padding: 32px 24px; border: 1px solid #e2e8f0; border-top: none; border-radius: 0 0 12px 12px;">
-              <p style="font-size: 16px; margin-top: 0;">Hola <strong>${safeName}</strong>,</p>
-              <p>Gracias por tu interés en las capacidades técnicas de Dreamtek para <strong>${safeCompany}</strong> en el sector de <strong>${safeVertical}</strong>.</p>
-              <p>Nos gustaría invitarte a una sesión ejecutiva de diagnóstico técnico (30 minutos) sin costo con nuestro equipo de arquitectura para revisar tus requerimientos críticos, alcances de seguridad y hoja de ruta tecnológica.</p>
-              ${safeCustomMsg ? `<div style="margin: 20px 0; padding: 16px; background: #f8fafc; border-left: 4px solid #38bdf8; font-style: italic; color: #334155;">${safeCustomMsg}</div>` : ''}
-              <div style="margin: 32px 0; text-align: center;">
-                <a href="https://dreamtek.tech/#contacto" style="background: #0284c7; color: #ffffff; padding: 14px 28px; text-decoration: none; border-radius: 8px; font-weight: 600; font-size: 14px; display: inline-block;">Agendar Sesión de Diagnóstico</a>
+          <div style="background-color: #0b0f19; padding: 40px 16px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; box-sizing: border-box; color: #f3f4f6;">
+            <div style="max-width: 580px; margin: 0 auto; background: #00172B; border: 1px solid #1e293b; border-radius: 12px; overflow: hidden; box-shadow: 0 12px 32px rgba(0,0,0,0.6);">
+              <div style="background: linear-gradient(135deg, #00213D 0%, #00172B 100%); border-bottom: 2px solid #38bdf8; padding: 28px 24px 22px 24px; text-align: center;">
+                <div style="margin: 0 auto 12px auto; max-width: 180px;">
+                  <img src="https://dreamtek.tech/svg/24_DREAMTEK_LOGO_LOGOTIPO_White.svg" alt="Dreamtek" width="180" style="display: block; width: 180px; max-width: 100%; height: auto; margin: 0 auto; border: 0;" />
+                </div>
+                <h1 style="color: #ffffff; margin: 0; font-size: 20px; font-weight: 800; letter-spacing: 2px; text-transform: uppercase;">DREAMTEK</h1>
+                <p style="color: #38bdf8; margin: 4px 0 0 0; font-size: 11px; letter-spacing: 1.5px; text-transform: uppercase; font-weight: 600;">Ingeniería de Software Soberana &amp; Ciberseguridad Defensiva</p>
               </div>
-              <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 24px 0;" />
-              <p style="font-size: 12px; color: #64748b; margin-bottom: 0;">Dreamtek Sovereign Tech · Seguimiento comercial personalizado emitido por el equipo directivo.</p>
+              <div style="padding: 32px 26px; font-size: 14px; line-height: 1.65; color: #e5e7eb;">
+                <p style="font-size: 16px; margin-top: 0; color: #f9fafb;">Hola <strong>${safeName}</strong>,</p>
+                <p>Gracias por tu interés en las capacidades técnicas de Dreamtek para <strong>${safeCompany}</strong> en el sector de <strong>${safeVertical}</strong>.</p>
+                <p>Nos gustaría invitarte a una sesión ejecutiva de diagnóstico técnico (30 minutos) sin costo con nuestro equipo de arquitectura para revisar tus requerimientos críticos, alcances de seguridad y hoja de ruta tecnológica.</p>
+                ${safeCustomMsg ? `<div style="margin: 20px 0; padding: 16px; background: #08101e; border-left: 4px solid #38bdf8; font-style: italic; color: #cbd5e1;">${safeCustomMsg}</div>` : ''}
+                <div style="margin: 32px 0; text-align: center;">
+                  <a href="https://dreamtek.tech/#contacto" style="background: #0284c7; color: #ffffff; padding: 14px 28px; text-decoration: none; border-radius: 8px; font-weight: 600; font-size: 14px; display: inline-block;">Agendar Sesión de Diagnóstico</a>
+                </div>
+              </div>
+              <div style="background: #080d1a; border-top: 1px solid #1e293b; padding: 18px 24px; text-align: center;">
+                <p style="font-size: 11px; color: #64748b; margin: 0;">Enviado desde el emisor oficial <strong style="color: #94a3b8;">contacto@dreamtek.tech</strong> &bull; Protocolo L Soberano</p>
+                <p style="font-size: 11px; color: #475569; margin: 4px 0 0 0;">Dreamtek Sovereign Tech · Seguimiento comercial personalizado emitido por el equipo directivo.</p>
+              </div>
             </div>
           </div>
         `;
@@ -239,20 +281,27 @@ export function renderLeadFollowUpEmail(
       case 'PROPOSAL_SUBMITTED': {
         defaultSubject = `Propuesta Comercial y Técnica Personalizada — Dreamtek`;
         bodyHtml = `
-          <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 600px; margin: 0 auto; color: #1e293b; line-height: 1.6;">
-            <div style="background: linear-gradient(135deg, #0f172a 0%, #1e1b4b 100%); padding: 32px 24px; text-align: center; border-radius: 12px 12px 0 0;">
-              <h1 style="color: #38bdf8; margin: 0; font-size: 24px; font-weight: 800; letter-spacing: 0.5px;">DREAMTEK</h1>
-              <p style="color: #94a3b8; margin: 8px 0 0 0; font-size: 14px;">Propuesta Técnica & Estimación de Alcance</p>
-            </div>
-            <div style="background: #ffffff; padding: 32px 24px; border: 1px solid #e2e8f0; border-top: none; border-radius: 0 0 12px 12px;">
-              <p style="font-size: 16px; margin-top: 0;">Hola <strong>${safeName}</strong>,</p>
-              <p>Hemos preparado la propuesta técnica y comercial preliminar para <strong>${safeCompany}</strong> referente a la iniciativa de <strong>${safeVertical}</strong>.</p>
-              ${context.estimatedBudgetMin && context.estimatedBudgetMax ? `<p style="background: #f1f5f9; padding: 12px 16px; border-radius: 8px; font-size: 14px;"><strong>Rango de Inversión Proyectado:</strong> $${context.estimatedBudgetMin.toLocaleString()} - $${context.estimatedBudgetMax.toLocaleString()} ${currency}</p>` : ''}
-              ${context.estimatedWeeksMin && context.estimatedWeeksMax ? `<p style="background: #f1f5f9; padding: 12px 16px; border-radius: 8px; font-size: 14px;"><strong>Tiempo Estimado de Entrega:</strong> ${context.estimatedWeeksMin} a ${context.estimatedWeeksMax} semanas</p>` : ''}
-              ${safeCustomMsg ? `<div style="margin: 20px 0; padding: 16px; background: #f8fafc; border-left: 4px solid #10b981; color: #334155;">${safeCustomMsg}</div>` : ''}
-              <p>Quedamos a tu entera disposición para revisar cualquier ajuste a los términos o resolver dudas técnicas.</p>
-              <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 24px 0;" />
-              <p style="font-size: 12px; color: #64748b; margin-bottom: 0;">Dreamtek Sovereign Tech · Seguimiento comercial manual bajo demanda.</p>
+          <div style="background-color: #0b0f19; padding: 40px 16px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; box-sizing: border-box; color: #f3f4f6;">
+            <div style="max-width: 580px; margin: 0 auto; background: #00172B; border: 1px solid #1e293b; border-radius: 12px; overflow: hidden; box-shadow: 0 12px 32px rgba(0,0,0,0.6);">
+              <div style="background: linear-gradient(135deg, #00213D 0%, #00172B 100%); border-bottom: 2px solid #38bdf8; padding: 28px 24px 22px 24px; text-align: center;">
+                <div style="margin: 0 auto 12px auto; max-width: 180px;">
+                  <img src="https://dreamtek.tech/svg/24_DREAMTEK_LOGO_LOGOTIPO_White.svg" alt="Dreamtek" width="180" style="display: block; width: 180px; max-width: 100%; height: auto; margin: 0 auto; border: 0;" />
+                </div>
+                <h1 style="color: #ffffff; margin: 0; font-size: 20px; font-weight: 800; letter-spacing: 2px; text-transform: uppercase;">DREAMTEK</h1>
+                <p style="color: #38bdf8; margin: 4px 0 0 0; font-size: 11px; letter-spacing: 1.5px; text-transform: uppercase; font-weight: 600;">Propuesta Técnica &amp; Estimación de Alcance</p>
+              </div>
+              <div style="padding: 32px 26px; font-size: 14px; line-height: 1.65; color: #e5e7eb;">
+                <p style="font-size: 16px; margin-top: 0; color: #f9fafb;">Hola <strong>${safeName}</strong>,</p>
+                <p>Hemos preparado la propuesta técnica y comercial preliminar para <strong>${safeCompany}</strong> referente a la iniciativa de <strong>${safeVertical}</strong>.</p>
+                ${context.estimatedBudgetMin && context.estimatedBudgetMax ? `<p style="background: #08101e; border: 1px solid #1e293b; padding: 12px 16px; border-radius: 8px; font-size: 14px;"><strong>Rango de Inversión Proyectado:</strong> $${context.estimatedBudgetMin.toLocaleString()} - $${context.estimatedBudgetMax.toLocaleString()} ${currency}</p>` : ''}
+                ${context.estimatedWeeksMin && context.estimatedWeeksMax ? `<p style="background: #08101e; border: 1px solid #1e293b; padding: 12px 16px; border-radius: 8px; font-size: 14px;"><strong>Tiempo Estimado de Entrega:</strong> ${context.estimatedWeeksMin} a ${context.estimatedWeeksMax} semanas</p>` : ''}
+                ${safeCustomMsg ? `<div style="margin: 20px 0; padding: 16px; background: #08101e; border-left: 4px solid #10b981; color: #cbd5e1;">${safeCustomMsg}</div>` : ''}
+                <p>Quedamos a tu entera disposición para revisar cualquier ajuste a los términos o resolver dudas técnicas.</p>
+              </div>
+              <div style="background: #080d1a; border-top: 1px solid #1e293b; padding: 18px 24px; text-align: center;">
+                <p style="font-size: 11px; color: #64748b; margin: 0;">Enviado desde el emisor oficial <strong style="color: #94a3b8;">contacto@dreamtek.tech</strong> &bull; Protocolo L Soberano</p>
+                <p style="font-size: 11px; color: #475569; margin: 4px 0 0 0;">Dreamtek Sovereign Tech · Seguimiento comercial manual bajo demanda.</p>
+              </div>
             </div>
           </div>
         `;
@@ -263,16 +312,23 @@ export function renderLeadFollowUpEmail(
       default: {
         defaultSubject = `Seguimiento a tu solicitud de proyecto — Dreamtek`;
         bodyHtml = `
-          <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 600px; margin: 0 auto; color: #1e293b; line-height: 1.6;">
-            <div style="background: linear-gradient(135deg, #0f172a 0%, #1e1b4b 100%); padding: 32px 24px; text-align: center; border-radius: 12px 12px 0 0;">
-              <h1 style="color: #38bdf8; margin: 0; font-size: 24px; font-weight: 800; letter-spacing: 0.5px;">DREAMTEK</h1>
-              <p style="color: #94a3b8; margin: 8px 0 0 0; font-size: 14px;">Comunicación Ejecutiva</p>
-            </div>
-            <div style="background: #ffffff; padding: 32px 24px; border: 1px solid #e2e8f0; border-top: none; border-radius: 0 0 12px 12px;">
-              <p style="font-size: 16px; margin-top: 0;">Hola <strong>${safeName}</strong>,</p>
-              ${safeCustomMsg ? `<p style="white-space: pre-wrap;">${safeCustomMsg}</p>` : `<p>Te contactamos para dar seguimiento a tu reciente solicitud en Dreamtek para ${safeCompany}. Por favor dinos si tienes alguna duda adicional o si deseas coordinar una breve llamada.</p>`}
-              <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 24px 0;" />
-              <p style="font-size: 12px; color: #64748b; margin-bottom: 0;">Dreamtek Sovereign Tech · Seguimiento comercial personalizado.</p>
+          <div style="background-color: #0b0f19; padding: 40px 16px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; box-sizing: border-box; color: #f3f4f6;">
+            <div style="max-width: 580px; margin: 0 auto; background: #00172B; border: 1px solid #1e293b; border-radius: 12px; overflow: hidden; box-shadow: 0 12px 32px rgba(0,0,0,0.6);">
+              <div style="background: linear-gradient(135deg, #00213D 0%, #00172B 100%); border-bottom: 2px solid #38bdf8; padding: 28px 24px 22px 24px; text-align: center;">
+                <div style="margin: 0 auto 12px auto; max-width: 180px;">
+                  <img src="https://dreamtek.tech/svg/24_DREAMTEK_LOGO_LOGOTIPO_White.svg" alt="Dreamtek" width="180" style="display: block; width: 180px; max-width: 100%; height: auto; margin: 0 auto; border: 0;" />
+                </div>
+                <h1 style="color: #ffffff; margin: 0; font-size: 20px; font-weight: 800; letter-spacing: 2px; text-transform: uppercase;">DREAMTEK</h1>
+                <p style="color: #38bdf8; margin: 4px 0 0 0; font-size: 11px; letter-spacing: 1.5px; text-transform: uppercase; font-weight: 600;">Comunicación Ejecutiva</p>
+              </div>
+              <div style="padding: 32px 26px; font-size: 14px; line-height: 1.65; color: #e5e7eb;">
+                <p style="font-size: 16px; margin-top: 0; color: #f9fafb;">Hola <strong>${safeName}</strong>,</p>
+                ${safeCustomMsg ? `<p style="white-space: pre-wrap;">${safeCustomMsg}</p>` : `<p>Te contactamos para dar seguimiento a tu reciente solicitud en Dreamtek para ${safeCompany}. Por favor dinos si tienes alguna duda adicional o si deseas coordinar una breve llamada.</p>`}
+              </div>
+              <div style="background: #080d1a; border-top: 1px solid #1e293b; padding: 18px 24px; text-align: center;">
+                <p style="font-size: 11px; color: #64748b; margin: 0;">Enviado desde el emisor oficial <strong style="color: #94a3b8;">contacto@dreamtek.tech</strong> &bull; Protocolo L Soberano</p>
+                <p style="font-size: 11px; color: #475569; margin: 4px 0 0 0;">Dreamtek Sovereign Tech · Seguimiento comercial personalizado.</p>
+              </div>
             </div>
           </div>
         `;
@@ -314,40 +370,54 @@ export function renderMilestoneReviewEmail(context: MilestoneReviewEmailContext)
 
   const bodyHtml = isEn
     ? `
-      <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 600px; margin: 0 auto; color: #1e293b; line-height: 1.6;">
-        <div style="background: linear-gradient(135deg, #0f172a 0%, #1e1b4b 100%); padding: 32px 24px; text-align: center; border-radius: 12px 12px 0 0;">
-          <h1 style="color: #38bdf8; margin: 0; font-size: 24px; font-weight: 800; letter-spacing: 0.5px;">DREAMTEK</h1>
-          <p style="color: #94a3b8; margin: 8px 0 0 0; font-size: 14px;">B2B Project Workspace</p>
-        </div>
-        <div style="background: #ffffff; padding: 32px 24px; border: 1px solid #e2e8f0; border-top: none; border-radius: 0 0 12px 12px;">
-          <p style="font-size: 16px; margin-top: 0;">Hello <strong>${safeName}</strong>,</p>
-          <p>We are pleased to inform you that milestone <strong>#${context.milestoneIndex}: ${safeMilestone}</strong> for project <strong>${safeProject}</strong> is ready for your review.</p>
-          ${safeStaging ? `<div style="margin: 20px 0; padding: 16px; background: #f0fdf4; border-left: 4px solid #22c55e; border-radius: 4px;"><p style="margin: 0; font-size: 14px; color: #15803d;"><strong>Staging Environment URL:</strong> <a href="${safeStaging}" style="color: #0284c7; word-break: break-all;" target="_blank">${safeStaging}</a></p></div>` : ''}
-          <p>Please log in to your Client Portal to review the progress and provide your formal sign-off:</p>
-          <div style="text-align: center; margin: 28px 0;">
-            <a href="${safeDashboard}" style="background: #0284c7; color: #ffffff; padding: 12px 28px; text-decoration: none; border-radius: 8px; font-weight: 700; display: inline-block;">Access Project Portal</a>
+      <div style="background-color: #0b0f19; padding: 40px 16px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; box-sizing: border-box; color: #f3f4f6;">
+        <div style="max-width: 580px; margin: 0 auto; background: #00172B; border: 1px solid #1e293b; border-radius: 12px; overflow: hidden; box-shadow: 0 12px 32px rgba(0,0,0,0.6);">
+          <div style="background: linear-gradient(135deg, #00213D 0%, #00172B 100%); border-bottom: 2px solid #38bdf8; padding: 28px 24px 22px 24px; text-align: center;">
+            <div style="margin: 0 auto 12px auto; max-width: 180px;">
+              <img src="https://dreamtek.tech/svg/24_DREAMTEK_LOGO_LOGOTIPO_White.svg" alt="Dreamtek" width="180" style="display: block; width: 180px; max-width: 100%; height: auto; margin: 0 auto; border: 0;" />
+            </div>
+            <h1 style="color: #ffffff; margin: 0; font-size: 20px; font-weight: 800; letter-spacing: 2px; text-transform: uppercase;">DREAMTEK</h1>
+            <p style="color: #38bdf8; margin: 4px 0 0 0; font-size: 11px; letter-spacing: 1.5px; text-transform: uppercase; font-weight: 600;">B2B Project Workspace</p>
           </div>
-          <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 24px 0;" />
-          <p style="font-size: 12px; color: #64748b; margin-bottom: 0;">Dreamtek Sovereign Tech · Automated Project Notification</p>
+          <div style="padding: 32px 26px; font-size: 14px; line-height: 1.65; color: #e5e7eb;">
+            <p style="font-size: 16px; margin-top: 0; color: #f9fafb;">Hello <strong>${safeName}</strong>,</p>
+            <p>We are pleased to inform you that milestone <strong>#${context.milestoneIndex}: ${safeMilestone}</strong> for project <strong>${safeProject}</strong> is ready for your review.</p>
+            ${safeStaging ? `<div style="margin: 20px 0; padding: 16px; background: #08101e; border-left: 4px solid #22c55e; border-radius: 4px;"><p style="margin: 0; font-size: 14px; color: #4ade80;"><strong>Staging Environment URL:</strong> <a href="${safeStaging}" style="color: #38bdf8; word-break: break-all;" target="_blank">${safeStaging}</a></p></div>` : ''}
+            <p>Please log in to your Client Portal to review the progress and provide your formal sign-off:</p>
+            <div style="text-align: center; margin: 28px 0;">
+              <a href="${safeDashboard}" style="background: #0284c7; color: #ffffff; padding: 12px 28px; text-decoration: none; border-radius: 8px; font-weight: 700; display: inline-block;">Access Project Portal</a>
+            </div>
+          </div>
+          <div style="background: #080d1a; border-top: 1px solid #1e293b; padding: 18px 24px; text-align: center;">
+            <p style="font-size: 11px; color: #64748b; margin: 0;">Enviado desde el emisor oficial <strong style="color: #94a3b8;">contacto@dreamtek.tech</strong> &bull; Protocolo L Soberano</p>
+            <p style="font-size: 11px; color: #475569; margin: 4px 0 0 0;">Dreamtek Sovereign Tech · Automated Project Notification</p>
+          </div>
         </div>
       </div>
     `
     : `
-      <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 600px; margin: 0 auto; color: #1e293b; line-height: 1.6;">
-        <div style="background: linear-gradient(135deg, #0f172a 0%, #1e1b4b 100%); padding: 32px 24px; text-align: center; border-radius: 12px 12px 0 0;">
-          <h1 style="color: #38bdf8; margin: 0; font-size: 24px; font-weight: 800; letter-spacing: 0.5px;">DREAMTEK</h1>
-          <p style="color: #94a3b8; margin: 8px 0 0 0; font-size: 14px;">Portal de Proyectos B2B</p>
-        </div>
-        <div style="background: #ffffff; padding: 32px 24px; border: 1px solid #e2e8f0; border-top: none; border-radius: 0 0 12px 12px;">
-          <p style="font-size: 16px; margin-top: 0;">Hola <strong>${safeName}</strong>,</p>
-          <p>Te informamos que el hito <strong>#${context.milestoneIndex}: ${safeMilestone}</strong> para el proyecto <strong>${safeProject}</strong> está listo para tu revisión.</p>
-          ${safeStaging ? `<div style="margin: 20px 0; padding: 16px; background: #f0fdf4; border-left: 4px solid #22c55e; border-radius: 4px;"><p style="margin: 0; font-size: 14px; color: #15803d;"><strong>Ambiente de Staging:</strong> <a href="${safeStaging}" style="color: #0284c7; word-break: break-all;" target="_blank">${safeStaging}</a></p></div>` : ''}
-          <p>Por favor ingresa a tu Portal de Cliente para revisar el avance y otorgar tu visto bueno formal:</p>
-          <div style="text-align: center; margin: 28px 0;">
-            <a href="${safeDashboard}" style="background: #0284c7; color: #ffffff; padding: 12px 28px; text-decoration: none; border-radius: 8px; font-weight: 700; display: inline-block;">Ingresar al Portal</a>
+      <div style="background-color: #0b0f19; padding: 40px 16px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; box-sizing: border-box; color: #f3f4f6;">
+        <div style="max-width: 580px; margin: 0 auto; background: #00172B; border: 1px solid #1e293b; border-radius: 12px; overflow: hidden; box-shadow: 0 12px 32px rgba(0,0,0,0.6);">
+          <div style="background: linear-gradient(135deg, #00213D 0%, #00172B 100%); border-bottom: 2px solid #38bdf8; padding: 28px 24px 22px 24px; text-align: center;">
+            <div style="margin: 0 auto 12px auto; max-width: 180px;">
+              <img src="https://dreamtek.tech/svg/24_DREAMTEK_LOGO_LOGOTIPO_White.svg" alt="Dreamtek" width="180" style="display: block; width: 180px; max-width: 100%; height: auto; margin: 0 auto; border: 0;" />
+            </div>
+            <h1 style="color: #ffffff; margin: 0; font-size: 20px; font-weight: 800; letter-spacing: 2px; text-transform: uppercase;">DREAMTEK</h1>
+            <p style="color: #38bdf8; margin: 4px 0 0 0; font-size: 11px; letter-spacing: 1.5px; text-transform: uppercase; font-weight: 600;">Portal de Proyectos B2B</p>
           </div>
-          <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 24px 0;" />
-          <p style="font-size: 12px; color: #64748b; margin-bottom: 0;">Dreamtek Sovereign Tech · Notificación de Proyecto Automatizada</p>
+          <div style="padding: 32px 26px; font-size: 14px; line-height: 1.65; color: #e5e7eb;">
+            <p style="font-size: 16px; margin-top: 0; color: #f9fafb;">Hola <strong>${safeName}</strong>,</p>
+            <p>Te informamos que el hito <strong>#${context.milestoneIndex}: ${safeMilestone}</strong> para el proyecto <strong>${safeProject}</strong> está listo para tu revisión.</p>
+            ${safeStaging ? `<div style="margin: 20px 0; padding: 16px; background: #08101e; border-left: 4px solid #22c55e; border-radius: 4px;"><p style="margin: 0; font-size: 14px; color: #4ade80;"><strong>Ambiente de Staging:</strong> <a href="${safeStaging}" style="color: #38bdf8; word-break: break-all;" target="_blank">${safeStaging}</a></p></div>` : ''}
+            <p>Por favor ingresa a tu Portal de Cliente para revisar el avance y otorgar tu visto bueno formal:</p>
+            <div style="text-align: center; margin: 28px 0;">
+              <a href="${safeDashboard}" style="background: #0284c7; color: #ffffff; padding: 12px 28px; text-decoration: none; border-radius: 8px; font-weight: 700; display: inline-block;">Ingresar al Portal</a>
+            </div>
+          </div>
+          <div style="background: #080d1a; border-top: 1px solid #1e293b; padding: 18px 24px; text-align: center;">
+            <p style="font-size: 11px; color: #64748b; margin: 0;">Enviado desde el emisor oficial <strong style="color: #94a3b8;">contacto@dreamtek.tech</strong> &bull; Protocolo L Soberano</p>
+            <p style="font-size: 11px; color: #475569; margin: 4px 0 0 0;">Dreamtek Sovereign Tech · Notificación de Proyecto Automatizada</p>
+          </div>
         </div>
       </div>
     `;
@@ -376,6 +446,7 @@ export function renderFinalSettlementReceiptEmail(context: FinalSettlementReceip
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   });
+
   const safeName = escapeHtml(context.fullName || (isEn ? 'Valued Client' : 'Estimado/a Cliente'));
   const safeProject = escapeHtml(context.projectName);
   const safeDashboard = escapeHtml(context.dashboardUrl);
@@ -386,48 +457,62 @@ export function renderFinalSettlementReceiptEmail(context: FinalSettlementReceip
 
   const bodyHtml = isEn
     ? `
-      <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 600px; margin: 0 auto; color: #1e293b; line-height: 1.6;">
-        <div style="background: linear-gradient(135deg, #0f172a 0%, #1e1b4b 100%); padding: 32px 24px; text-align: center; border-radius: 12px 12px 0 0;">
-          <h1 style="color: #38bdf8; margin: 0; font-size: 24px; font-weight: 800; letter-spacing: 0.5px;">DREAMTEK</h1>
-          <p style="color: #22c55e; margin: 8px 0 0 0; font-size: 15px; font-weight: 700;">PROYECTO ENTREGADO & FINIQUITADO</p>
-        </div>
-        <div style="background: #ffffff; padding: 32px 24px; border: 1px solid #e2e8f0; border-top: none; border-radius: 0 0 12px 12px;">
-          <p style="font-size: 16px; margin-top: 0;">Hello <strong>${safeName}</strong>,</p>
-          <p>We confirm receipt of the final settlement payment for project <strong>${safeProject}</strong>.</p>
-          <div style="margin: 24px 0; padding: 20px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; text-align: center;">
-            <p style="margin: 0; font-size: 13px; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px;">Final Settlement Amount Paid</p>
-            <p style="margin: 8px 0 0 0; font-size: 28px; font-weight: 800; color: #0f172a;">$${formattedAmount} ${currency}</p>
-            <p style="margin: 4px 0 0 0; font-size: 13px; color: #16a34a; font-weight: 600;">Status: 100% Fully Settled</p>
+      <div style="background-color: #0b0f19; padding: 40px 16px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; box-sizing: border-box; color: #f3f4f6;">
+        <div style="max-width: 580px; margin: 0 auto; background: #00172B; border: 1px solid #1e293b; border-radius: 12px; overflow: hidden; box-shadow: 0 12px 32px rgba(0,0,0,0.6);">
+          <div style="background: linear-gradient(135deg, #00213D 0%, #00172B 100%); border-bottom: 2px solid #22c55e; padding: 28px 24px 22px 24px; text-align: center;">
+            <div style="margin: 0 auto 12px auto; max-width: 180px;">
+              <img src="https://dreamtek.tech/svg/24_DREAMTEK_LOGO_LOGOTIPO_White.svg" alt="Dreamtek" width="180" style="display: block; width: 180px; max-width: 100%; height: auto; margin: 0 auto; border: 0;" />
+            </div>
+            <h1 style="color: #ffffff; margin: 0; font-size: 20px; font-weight: 800; letter-spacing: 2px; text-transform: uppercase;">DREAMTEK</h1>
+            <p style="color: #22c55e; margin: 4px 0 0 0; font-size: 12px; font-weight: 700; letter-spacing: 1px;">PROYECTO ENTREGADO &amp; FINIQUITADO</p>
           </div>
-          <p>All project deliverables, repository assets, and deployment environments have been released and marked as Delivered in your workspace.</p>
-          <div style="text-align: center; margin: 28px 0;">
-            <a href="${safeDashboard}" style="background: #0284c7; color: #ffffff; padding: 12px 28px; text-decoration: none; border-radius: 8px; font-weight: 700; display: inline-block;">View Workspace Deliverables</a>
+          <div style="padding: 32px 26px; font-size: 14px; line-height: 1.65; color: #e5e7eb;">
+            <p style="font-size: 16px; margin-top: 0; color: #f9fafb;">Hello <strong>${safeName}</strong>,</p>
+            <p>We confirm receipt of the final settlement payment for project <strong>${safeProject}</strong>.</p>
+            <div style="margin: 24px 0; padding: 20px; background: #08101e; border: 1px solid #1e293b; border-radius: 8px; text-align: center;">
+              <p style="margin: 0; font-size: 13px; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.5px;">Final Settlement Amount Paid</p>
+              <p style="margin: 8px 0 0 0; font-size: 28px; font-weight: 800; color: #f9fafb;">$${formattedAmount} ${currency}</p>
+              <p style="margin: 4px 0 0 0; font-size: 13px; color: #22c55e; font-weight: 600;">Status: 100% Fully Settled</p>
+            </div>
+            <p>All project deliverables, repository assets, and deployment environments have been released and marked as Delivered in your workspace.</p>
+            <div style="text-align: center; margin: 28px 0;">
+              <a href="${safeDashboard}" style="background: #0284c7; color: #ffffff; padding: 12px 28px; text-decoration: none; border-radius: 8px; font-weight: 700; display: inline-block;">View Workspace Deliverables</a>
+            </div>
           </div>
-          <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 24px 0;" />
-          <p style="font-size: 12px; color: #64748b; margin-bottom: 0;">Dreamtek Sovereign Tech · Official Settlement Receipt</p>
+          <div style="background: #080d1a; border-top: 1px solid #1e293b; padding: 18px 24px; text-align: center;">
+            <p style="font-size: 11px; color: #64748b; margin: 0;">Enviado desde el emisor oficial <strong style="color: #94a3b8;">contacto@dreamtek.tech</strong> &bull; Protocolo L Soberano</p>
+            <p style="font-size: 11px; color: #475569; margin: 4px 0 0 0;">Dreamtek Sovereign Tech · Official Settlement Receipt</p>
+          </div>
         </div>
       </div>
     `
     : `
-      <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 600px; margin: 0 auto; color: #1e293b; line-height: 1.6;">
-        <div style="background: linear-gradient(135deg, #0f172a 0%, #1e1b4b 100%); padding: 32px 24px; text-align: center; border-radius: 12px 12px 0 0;">
-          <h1 style="color: #38bdf8; margin: 0; font-size: 24px; font-weight: 800; letter-spacing: 0.5px;">DREAMTEK</h1>
-          <p style="color: #22c55e; margin: 8px 0 0 0; font-size: 15px; font-weight: 700;">PROYECTO ENTREGADO & FINIQUITADO</p>
-        </div>
-        <div style="background: #ffffff; padding: 32px 24px; border: 1px solid #e2e8f0; border-top: none; border-radius: 0 0 12px 12px;">
-          <p style="font-size: 16px; margin-top: 0;">Hola <strong>${safeName}</strong>,</p>
-          <p>Confirmamos la recepción del pago de finiquito para el proyecto <strong>${safeProject}</strong>.</p>
-          <div style="margin: 24px 0; padding: 20px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; text-align: center;">
-            <p style="margin: 0; font-size: 13px; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px;">Monto de Finiquito Liquidado</p>
-            <p style="margin: 8px 0 0 0; font-size: 28px; font-weight: 800; color: #0f172a;">$${formattedAmount} ${currency}</p>
-            <p style="margin: 4px 0 0 0; font-size: 13px; color: #16a34a; font-weight: 600;">Estado: 100% Finiquitado</p>
+      <div style="background-color: #0b0f19; padding: 40px 16px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; box-sizing: border-box; color: #f3f4f6;">
+        <div style="max-width: 580px; margin: 0 auto; background: #00172B; border: 1px solid #1e293b; border-radius: 12px; overflow: hidden; box-shadow: 0 12px 32px rgba(0,0,0,0.6);">
+          <div style="background: linear-gradient(135deg, #00213D 0%, #00172B 100%); border-bottom: 2px solid #22c55e; padding: 28px 24px 22px 24px; text-align: center;">
+            <div style="margin: 0 auto 12px auto; max-width: 180px;">
+              <img src="https://dreamtek.tech/svg/24_DREAMTEK_LOGO_LOGOTIPO_White.svg" alt="Dreamtek" width="180" style="display: block; width: 180px; max-width: 100%; height: auto; margin: 0 auto; border: 0;" />
+            </div>
+            <h1 style="color: #ffffff; margin: 0; font-size: 20px; font-weight: 800; letter-spacing: 2px; text-transform: uppercase;">DREAMTEK</h1>
+            <p style="color: #22c55e; margin: 4px 0 0 0; font-size: 12px; font-weight: 700; letter-spacing: 1px;">PROYECTO ENTREGADO &amp; FINIQUITADO</p>
           </div>
-          <p>Todos los entregables, repositorio de código y accesos de despliegue han sido formalmente liberados y marcados como Entregados en tu workspace.</p>
-          <div style="text-align: center; margin: 28px 0;">
-            <a href="${safeDashboard}" style="background: #0284c7; color: #ffffff; padding: 12px 28px; text-decoration: none; border-radius: 8px; font-weight: 700; display: inline-block;">Ver Entregables en Portal</a>
+          <div style="padding: 32px 26px; font-size: 14px; line-height: 1.65; color: #e5e7eb;">
+            <p style="font-size: 16px; margin-top: 0; color: #f9fafb;">Hola <strong>${safeName}</strong>,</p>
+            <p>Confirmamos la recepción del pago de finiquito para el proyecto <strong>${safeProject}</strong>.</p>
+            <div style="margin: 24px 0; padding: 20px; background: #08101e; border: 1px solid #1e293b; border-radius: 8px; text-align: center;">
+              <p style="margin: 0; font-size: 13px; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.5px;">Monto de Finiquito Liquidado</p>
+              <p style="margin: 8px 0 0 0; font-size: 28px; font-weight: 800; color: #f9fafb;">$${formattedAmount} ${currency}</p>
+              <p style="margin: 4px 0 0 0; font-size: 13px; color: #22c55e; font-weight: 600;">Estado: 100% Finiquitado</p>
+            </div>
+            <p>Todos los entregables, repositorio de código y accesos de despliegue han sido formalmente liberados y marcados como Entregados en tu workspace.</p>
+            <div style="text-align: center; margin: 28px 0;">
+              <a href="${safeDashboard}" style="background: #0284c7; color: #ffffff; padding: 12px 28px; text-decoration: none; border-radius: 8px; font-weight: 700; display: inline-block;">Ver Entregables en Portal</a>
+            </div>
           </div>
-          <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 24px 0;" />
-          <p style="font-size: 12px; color: #64748b; margin-bottom: 0;">Dreamtek Sovereign Tech · Constancia Oficial de Finiquito</p>
+          <div style="background: #080d1a; border-top: 1px solid #1e293b; padding: 18px 24px; text-align: center;">
+            <p style="font-size: 11px; color: #64748b; margin: 0;">Enviado desde el emisor oficial <strong style="color: #94a3b8;">contacto@dreamtek.tech</strong> &bull; Protocolo L Soberano</p>
+            <p style="font-size: 11px; color: #475569; margin: 4px 0 0 0;">Dreamtek Sovereign Tech · Constancia Oficial de Finiquito</p>
+          </div>
         </div>
       </div>
     `;
