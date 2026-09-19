@@ -6,6 +6,7 @@ export const en = {
     home: 'Home',
     services: 'Services',
     products: 'Products',
+    diagnostic: 'Diagnostic',
     differential: 'Differential',
     contact: 'Contact',
     clientArea: 'Client Area',

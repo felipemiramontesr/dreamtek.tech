@@ -44,9 +44,11 @@ export function Hero({ dict, onOpenAuthModal }: HeroProps) {
 
         {/* CTA */}
         <div className="flex flex-col sm:flex-row items-center justify-center gap-4 w-full mt-4">
-          <Button variant="primary" size="lg" className="w-full sm:w-[320px]">
-            {dict.hero.ctaPrimary}
-          </Button>
+          <a href="#diagnostico" className="w-full sm:w-[320px]">
+            <Button variant="primary" size="lg" className="w-full">
+              {dict.hero.ctaPrimary}
+            </Button>
+          </a>
           <Button
             variant="outline"
             size="lg"

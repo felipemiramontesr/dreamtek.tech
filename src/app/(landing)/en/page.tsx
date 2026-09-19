@@ -34,7 +34,10 @@ export default function HomeEN() {
         <Hero dict={en} />
         <Services dict={en} />
         <Products dict={en} />
-        <section id="cotizador" className="py-20 relative overflow-hidden bg-black/20">
+        <section
+          id="diagnostico"
+          className="py-20 relative overflow-hidden bg-black/20 scroll-mt-20"
+        >
           <div className="max-w-[1440px] px-6 mx-auto w-full relative z-10">
             <QuoteFunnelWizard locale="en" />
           </div>

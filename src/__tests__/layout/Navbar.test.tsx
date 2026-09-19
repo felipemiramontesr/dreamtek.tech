@@ -31,6 +31,7 @@ describe('Navbar Component (100% Coverage Suite)', () => {
     expect(screen.getAllByRole('link', { name: es.navbar.home }).length).toBeGreaterThan(0);
     expect(screen.getAllByRole('link', { name: es.navbar.services }).length).toBeGreaterThan(0);
     expect(screen.getAllByRole('link', { name: es.navbar.products }).length).toBeGreaterThan(0);
+    expect(screen.getAllByRole('link', { name: es.navbar.diagnostic }).length).toBeGreaterThan(0);
     expect(screen.getAllByRole('link', { name: es.navbar.differential }).length).toBeGreaterThan(0);
     expect(screen.getAllByRole('link', { name: es.navbar.contact }).length).toBeGreaterThan(0);
   });
