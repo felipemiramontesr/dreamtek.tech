@@ -117,8 +117,8 @@ export function renderSovereignEmailWrapper(options: SovereignEmailWrapperOption
         <div style="background: linear-gradient(135deg, #00213D 0%, #00172B 100%); border-bottom: 2px solid ${accentColor}; padding: 28px 24px 22px 24px; text-align: center;">
           <table role="presentation" border="0" cellpadding="0" cellspacing="0" style="margin: 0 auto;">
             <tr>
-              <td style="vertical-align: middle; padding-right: 7px;">
-                <img src="https://dreamtek.tech/svg/24_DREAMTEK_LOGO_ISOTIPO_Teck%20Red.svg" alt="Dreamtek Isotipo" width="57" height="57" style="display: block; width: 57px; height: 57px; border: 0; outline: none; text-decoration: none;" />
+              <td style="vertical-align: middle; padding-right: 11px;">
+                <img src="https://dreamtek.tech/svg/24_DREAMTEK_LOGO_ISOTIPO_Teck%20Red_Tight.svg" alt="Dreamtek Isotipo" width="38" height="29" style="display: block; width: 38px; height: 29px; border: 0; outline: none; text-decoration: none;" />
               </td>
               <td style="vertical-align: middle;">
                 <span style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; font-size: 28px; font-weight: 700; letter-spacing: -0.5px; color: #ffffff; line-height: 1;">Dreamtek<span style="color: #FF2D00;">.</span></span>

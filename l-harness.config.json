@@ -1,6 +1,6 @@
 {
     "harnessVersion":  "1.6.0",
-    "protocolVersion":  "V.1.9.13-core",
+    "protocolVersion":  "V.1.9.15-core",
     "preset":  "inject-existing",
     "governancePublish":  "local-only",
     "omega":  {
