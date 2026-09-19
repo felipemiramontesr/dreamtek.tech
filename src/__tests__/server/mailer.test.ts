@@ -125,8 +125,8 @@ describe('FC 049 & FC 050 Sovereign Mailer Service Suite', () => {
         accentColor: '#FF2D00',
       });
 
-      expect(html).toContain('24_DREAMTEK_LOGO_LOGOTIPO_White.svg');
-      expect(html).toContain('DREAMTEK');
+      expect(html).toContain('24_DREAMTEK_LOGO_ISOTIPO_Teck%20Red.svg');
+      expect(html).toContain('Dreamtek<span style="color: #FF2D00;">.</span>');
       expect(html).toContain('Sovereign Tech &bull; Software &amp; Ciberseguridad');
       expect(html).toContain('Vista previa en inbox');
       expect(html).toContain('Exclusivo');
@@ -145,7 +145,8 @@ describe('FC 049 & FC 050 Sovereign Mailer Service Suite', () => {
         bodyHtml: '<p>Contenido mínimo</p>',
       });
 
-      expect(html).toContain('24_DREAMTEK_LOGO_LOGOTIPO_White.svg');
+      expect(html).toContain('24_DREAMTEK_LOGO_ISOTIPO_Teck%20Red.svg');
+      expect(html).toContain('Dreamtek<span style="color: #FF2D00;">.</span>');
       expect(html).toContain('Contenido mínimo');
       expect(html).toContain('#38bdf8'); // default accent
       expect(html).toContain('Este mensaje es confidencial y para uso exclusivo del destinatario.');

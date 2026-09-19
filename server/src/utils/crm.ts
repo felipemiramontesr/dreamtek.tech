@@ -24,6 +24,23 @@ export function escapeLikeWildcards(str: string): string {
     .replace(/_/g, '\\_');
 }
 
+/**
+ * Canonical brand header logo matching Navbar and Landing Page exactly:
+ * Nautilus Teck Red Isotipo + Dreamtek. with Teck Red dot (C-050.3)
+ */
+export const BRAND_HEADER_LOGO_HTML = `
+  <table role="presentation" border="0" cellpadding="0" cellspacing="0" style="margin: 0 auto;">
+    <tr>
+      <td style="vertical-align: middle; padding-right: 12px;">
+        <img src="https://dreamtek.tech/svg/24_DREAMTEK_LOGO_ISOTIPO_Teck%20Red.svg" alt="Dreamtek Isotipo" width="38" height="38" style="display: block; width: 38px; height: 38px; border: 0; outline: none; text-decoration: none;" />
+      </td>
+      <td style="vertical-align: middle;">
+        <span style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; font-size: 28px; font-weight: 700; letter-spacing: -0.5px; color: #ffffff; line-height: 1;">Dreamtek<span style="color: #FF2D00;">.</span></span>
+      </td>
+    </tr>
+  </table>
+`.trim();
+
 export interface LeadEmailContext {
   fullName: string;
   email: string;
@@ -84,11 +101,8 @@ export function renderLeadFollowUpEmail(
           <div style="background-color: #0b0f19; padding: 40px 16px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; box-sizing: border-box; color: #f3f4f6;">
             <div style="max-width: 580px; margin: 0 auto; background: #00172B; border: 1px solid #1e293b; border-radius: 12px; overflow: hidden; box-shadow: 0 12px 32px rgba(0,0,0,0.6);">
               <div style="background: linear-gradient(135deg, #00213D 0%, #00172B 100%); border-bottom: 2px solid #38bdf8; padding: 28px 24px 22px 24px; text-align: center;">
-                <div style="margin: 0 auto 12px auto; max-width: 180px;">
-                  <img src="https://dreamtek.tech/svg/24_DREAMTEK_LOGO_LOGOTIPO_White.svg" alt="Dreamtek" width="180" style="display: block; width: 180px; max-width: 100%; height: auto; margin: 0 auto; border: 0;" />
-                </div>
-                <h1 style="color: #ffffff; margin: 0; font-size: 20px; font-weight: 800; letter-spacing: 2px; text-transform: uppercase;">DREAMTEK</h1>
-                <p style="color: #38bdf8; margin: 4px 0 0 0; font-size: 11px; letter-spacing: 1.5px; text-transform: uppercase; font-weight: 600;">Sovereign Software Engineering &amp; Defensive Cybersecurity</p>
+                ${BRAND_HEADER_LOGO_HTML}
+                <p style="color: #38bdf8; margin: 8px 0 0 0; font-size: 11px; letter-spacing: 1.5px; text-transform: uppercase; font-weight: 600;">Sovereign Software Engineering &amp; Defensive Cybersecurity</p>
               </div>
               <div style="padding: 32px 26px; font-size: 14px; line-height: 1.65; color: #e5e7eb;">
                 <p style="font-size: 16px; margin-top: 0; color: #f9fafb;">Hello <strong>${safeName}</strong>,</p>
@@ -120,11 +134,8 @@ export function renderLeadFollowUpEmail(
           <div style="background-color: #0b0f19; padding: 40px 16px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; box-sizing: border-box; color: #f3f4f6;">
             <div style="max-width: 580px; margin: 0 auto; background: #00172B; border: 1px solid #1e293b; border-radius: 12px; overflow: hidden; box-shadow: 0 12px 32px rgba(0,0,0,0.6);">
               <div style="background: linear-gradient(135deg, #00213D 0%, #00172B 100%); border-bottom: 2px solid #38bdf8; padding: 28px 24px 22px 24px; text-align: center;">
-                <div style="margin: 0 auto 12px auto; max-width: 180px;">
-                  <img src="https://dreamtek.tech/svg/24_DREAMTEK_LOGO_LOGOTIPO_White.svg" alt="Dreamtek" width="180" style="display: block; width: 180px; max-width: 100%; height: auto; margin: 0 auto; border: 0;" />
-                </div>
-                <h1 style="color: #ffffff; margin: 0; font-size: 20px; font-weight: 800; letter-spacing: 2px; text-transform: uppercase;">DREAMTEK</h1>
-                <p style="color: #38bdf8; margin: 4px 0 0 0; font-size: 11px; letter-spacing: 1.5px; text-transform: uppercase; font-weight: 600;">Sovereign Software Engineering &amp; Defensive Cybersecurity</p>
+                ${BRAND_HEADER_LOGO_HTML}
+                <p style="color: #38bdf8; margin: 8px 0 0 0; font-size: 11px; letter-spacing: 1.5px; text-transform: uppercase; font-weight: 600;">Sovereign Software Engineering &amp; Defensive Cybersecurity</p>
               </div>
               <div style="padding: 32px 26px; font-size: 14px; line-height: 1.65; color: #e5e7eb;">
                 <p style="font-size: 16px; margin-top: 0; color: #f9fafb;">Hello <strong>${safeName}</strong>,</p>
@@ -151,11 +162,8 @@ export function renderLeadFollowUpEmail(
           <div style="background-color: #0b0f19; padding: 40px 16px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; box-sizing: border-box; color: #f3f4f6;">
             <div style="max-width: 580px; margin: 0 auto; background: #00172B; border: 1px solid #1e293b; border-radius: 12px; overflow: hidden; box-shadow: 0 12px 32px rgba(0,0,0,0.6);">
               <div style="background: linear-gradient(135deg, #00213D 0%, #00172B 100%); border-bottom: 2px solid #38bdf8; padding: 28px 24px 22px 24px; text-align: center;">
-                <div style="margin: 0 auto 12px auto; max-width: 180px;">
-                  <img src="https://dreamtek.tech/svg/24_DREAMTEK_LOGO_LOGOTIPO_White.svg" alt="Dreamtek" width="180" style="display: block; width: 180px; max-width: 100%; height: auto; margin: 0 auto; border: 0;" />
-                </div>
-                <h1 style="color: #ffffff; margin: 0; font-size: 20px; font-weight: 800; letter-spacing: 2px; text-transform: uppercase;">DREAMTEK</h1>
-                <p style="color: #38bdf8; margin: 4px 0 0 0; font-size: 11px; letter-spacing: 1.5px; text-transform: uppercase; font-weight: 600;">Technical Proposal &amp; Scope Estimation</p>
+                ${BRAND_HEADER_LOGO_HTML}
+                <p style="color: #38bdf8; margin: 8px 0 0 0; font-size: 11px; letter-spacing: 1.5px; text-transform: uppercase; font-weight: 600;">Technical Proposal &amp; Scope Estimation</p>
               </div>
               <div style="padding: 32px 26px; font-size: 14px; line-height: 1.65; color: #e5e7eb;">
                 <p style="font-size: 16px; margin-top: 0; color: #f9fafb;">Hello <strong>${safeName}</strong>,</p>
@@ -182,11 +190,8 @@ export function renderLeadFollowUpEmail(
           <div style="background-color: #0b0f19; padding: 40px 16px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; box-sizing: border-box; color: #f3f4f6;">
             <div style="max-width: 580px; margin: 0 auto; background: #00172B; border: 1px solid #1e293b; border-radius: 12px; overflow: hidden; box-shadow: 0 12px 32px rgba(0,0,0,0.6);">
               <div style="background: linear-gradient(135deg, #00213D 0%, #00172B 100%); border-bottom: 2px solid #38bdf8; padding: 28px 24px 22px 24px; text-align: center;">
-                <div style="margin: 0 auto 12px auto; max-width: 180px;">
-                  <img src="https://dreamtek.tech/svg/24_DREAMTEK_LOGO_LOGOTIPO_White.svg" alt="Dreamtek" width="180" style="display: block; width: 180px; max-width: 100%; height: auto; margin: 0 auto; border: 0;" />
-                </div>
-                <h1 style="color: #ffffff; margin: 0; font-size: 20px; font-weight: 800; letter-spacing: 2px; text-transform: uppercase;">DREAMTEK</h1>
-                <p style="color: #38bdf8; margin: 4px 0 0 0; font-size: 11px; letter-spacing: 1.5px; text-transform: uppercase; font-weight: 600;">Executive Communication</p>
+                ${BRAND_HEADER_LOGO_HTML}
+                <p style="color: #38bdf8; margin: 8px 0 0 0; font-size: 11px; letter-spacing: 1.5px; text-transform: uppercase; font-weight: 600;">Executive Communication</p>
               </div>
               <div style="padding: 32px 26px; font-size: 14px; line-height: 1.65; color: #e5e7eb;">
                 <p style="font-size: 16px; margin-top: 0; color: #f9fafb;">Hello <strong>${safeName}</strong>,</p>
@@ -217,11 +222,8 @@ export function renderLeadFollowUpEmail(
           <div style="background-color: #0b0f19; padding: 40px 16px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; box-sizing: border-box; color: #f3f4f6;">
             <div style="max-width: 580px; margin: 0 auto; background: #00172B; border: 1px solid #1e293b; border-radius: 12px; overflow: hidden; box-shadow: 0 12px 32px rgba(0,0,0,0.6);">
               <div style="background: linear-gradient(135deg, #00213D 0%, #00172B 100%); border-bottom: 2px solid #38bdf8; padding: 28px 24px 22px 24px; text-align: center;">
-                <div style="margin: 0 auto 12px auto; max-width: 180px;">
-                  <img src="https://dreamtek.tech/svg/24_DREAMTEK_LOGO_LOGOTIPO_White.svg" alt="Dreamtek" width="180" style="display: block; width: 180px; max-width: 100%; height: auto; margin: 0 auto; border: 0;" />
-                </div>
-                <h1 style="color: #ffffff; margin: 0; font-size: 20px; font-weight: 800; letter-spacing: 2px; text-transform: uppercase;">DREAMTEK</h1>
-                <p style="color: #38bdf8; margin: 4px 0 0 0; font-size: 11px; letter-spacing: 1.5px; text-transform: uppercase; font-weight: 600;">Ingeniería de Software Soberana &amp; Ciberseguridad Defensiva</p>
+                ${BRAND_HEADER_LOGO_HTML}
+                <p style="color: #38bdf8; margin: 8px 0 0 0; font-size: 11px; letter-spacing: 1.5px; text-transform: uppercase; font-weight: 600;">Ingeniería de Software Soberana &amp; Ciberseguridad Defensiva</p>
               </div>
               <div style="padding: 32px 26px; font-size: 14px; line-height: 1.65; color: #e5e7eb;">
                 <p style="font-size: 16px; margin-top: 0; color: #f9fafb;">Hola <strong>${safeName}</strong>,</p>
@@ -253,11 +255,8 @@ export function renderLeadFollowUpEmail(
           <div style="background-color: #0b0f19; padding: 40px 16px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; box-sizing: border-box; color: #f3f4f6;">
             <div style="max-width: 580px; margin: 0 auto; background: #00172B; border: 1px solid #1e293b; border-radius: 12px; overflow: hidden; box-shadow: 0 12px 32px rgba(0,0,0,0.6);">
               <div style="background: linear-gradient(135deg, #00213D 0%, #00172B 100%); border-bottom: 2px solid #38bdf8; padding: 28px 24px 22px 24px; text-align: center;">
-                <div style="margin: 0 auto 12px auto; max-width: 180px;">
-                  <img src="https://dreamtek.tech/svg/24_DREAMTEK_LOGO_LOGOTIPO_White.svg" alt="Dreamtek" width="180" style="display: block; width: 180px; max-width: 100%; height: auto; margin: 0 auto; border: 0;" />
-                </div>
-                <h1 style="color: #ffffff; margin: 0; font-size: 20px; font-weight: 800; letter-spacing: 2px; text-transform: uppercase;">DREAMTEK</h1>
-                <p style="color: #38bdf8; margin: 4px 0 0 0; font-size: 11px; letter-spacing: 1.5px; text-transform: uppercase; font-weight: 600;">Ingeniería de Software Soberana &amp; Ciberseguridad Defensiva</p>
+                ${BRAND_HEADER_LOGO_HTML}
+                <p style="color: #38bdf8; margin: 8px 0 0 0; font-size: 11px; letter-spacing: 1.5px; text-transform: uppercase; font-weight: 600;">Ingeniería de Software Soberana &amp; Ciberseguridad Defensiva</p>
               </div>
               <div style="padding: 32px 26px; font-size: 14px; line-height: 1.65; color: #e5e7eb;">
                 <p style="font-size: 16px; margin-top: 0; color: #f9fafb;">Hola <strong>${safeName}</strong>,</p>
@@ -284,11 +283,8 @@ export function renderLeadFollowUpEmail(
           <div style="background-color: #0b0f19; padding: 40px 16px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; box-sizing: border-box; color: #f3f4f6;">
             <div style="max-width: 580px; margin: 0 auto; background: #00172B; border: 1px solid #1e293b; border-radius: 12px; overflow: hidden; box-shadow: 0 12px 32px rgba(0,0,0,0.6);">
               <div style="background: linear-gradient(135deg, #00213D 0%, #00172B 100%); border-bottom: 2px solid #38bdf8; padding: 28px 24px 22px 24px; text-align: center;">
-                <div style="margin: 0 auto 12px auto; max-width: 180px;">
-                  <img src="https://dreamtek.tech/svg/24_DREAMTEK_LOGO_LOGOTIPO_White.svg" alt="Dreamtek" width="180" style="display: block; width: 180px; max-width: 100%; height: auto; margin: 0 auto; border: 0;" />
-                </div>
-                <h1 style="color: #ffffff; margin: 0; font-size: 20px; font-weight: 800; letter-spacing: 2px; text-transform: uppercase;">DREAMTEK</h1>
-                <p style="color: #38bdf8; margin: 4px 0 0 0; font-size: 11px; letter-spacing: 1.5px; text-transform: uppercase; font-weight: 600;">Propuesta Técnica &amp; Estimación de Alcance</p>
+                ${BRAND_HEADER_LOGO_HTML}
+                <p style="color: #38bdf8; margin: 8px 0 0 0; font-size: 11px; letter-spacing: 1.5px; text-transform: uppercase; font-weight: 600;">Propuesta Técnica &amp; Estimación de Alcance</p>
               </div>
               <div style="padding: 32px 26px; font-size: 14px; line-height: 1.65; color: #e5e7eb;">
                 <p style="font-size: 16px; margin-top: 0; color: #f9fafb;">Hola <strong>${safeName}</strong>,</p>
@@ -315,11 +311,8 @@ export function renderLeadFollowUpEmail(
           <div style="background-color: #0b0f19; padding: 40px 16px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; box-sizing: border-box; color: #f3f4f6;">
             <div style="max-width: 580px; margin: 0 auto; background: #00172B; border: 1px solid #1e293b; border-radius: 12px; overflow: hidden; box-shadow: 0 12px 32px rgba(0,0,0,0.6);">
               <div style="background: linear-gradient(135deg, #00213D 0%, #00172B 100%); border-bottom: 2px solid #38bdf8; padding: 28px 24px 22px 24px; text-align: center;">
-                <div style="margin: 0 auto 12px auto; max-width: 180px;">
-                  <img src="https://dreamtek.tech/svg/24_DREAMTEK_LOGO_LOGOTIPO_White.svg" alt="Dreamtek" width="180" style="display: block; width: 180px; max-width: 100%; height: auto; margin: 0 auto; border: 0;" />
-                </div>
-                <h1 style="color: #ffffff; margin: 0; font-size: 20px; font-weight: 800; letter-spacing: 2px; text-transform: uppercase;">DREAMTEK</h1>
-                <p style="color: #38bdf8; margin: 4px 0 0 0; font-size: 11px; letter-spacing: 1.5px; text-transform: uppercase; font-weight: 600;">Comunicación Ejecutiva</p>
+                ${BRAND_HEADER_LOGO_HTML}
+                <p style="color: #38bdf8; margin: 8px 0 0 0; font-size: 11px; letter-spacing: 1.5px; text-transform: uppercase; font-weight: 600;">Comunicación Ejecutiva</p>
               </div>
               <div style="padding: 32px 26px; font-size: 14px; line-height: 1.65; color: #e5e7eb;">
                 <p style="font-size: 16px; margin-top: 0; color: #f9fafb;">Hola <strong>${safeName}</strong>,</p>
@@ -373,11 +366,8 @@ export function renderMilestoneReviewEmail(context: MilestoneReviewEmailContext)
       <div style="background-color: #0b0f19; padding: 40px 16px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; box-sizing: border-box; color: #f3f4f6;">
         <div style="max-width: 580px; margin: 0 auto; background: #00172B; border: 1px solid #1e293b; border-radius: 12px; overflow: hidden; box-shadow: 0 12px 32px rgba(0,0,0,0.6);">
           <div style="background: linear-gradient(135deg, #00213D 0%, #00172B 100%); border-bottom: 2px solid #38bdf8; padding: 28px 24px 22px 24px; text-align: center;">
-            <div style="margin: 0 auto 12px auto; max-width: 180px;">
-              <img src="https://dreamtek.tech/svg/24_DREAMTEK_LOGO_LOGOTIPO_White.svg" alt="Dreamtek" width="180" style="display: block; width: 180px; max-width: 100%; height: auto; margin: 0 auto; border: 0;" />
-            </div>
-            <h1 style="color: #ffffff; margin: 0; font-size: 20px; font-weight: 800; letter-spacing: 2px; text-transform: uppercase;">DREAMTEK</h1>
-            <p style="color: #38bdf8; margin: 4px 0 0 0; font-size: 11px; letter-spacing: 1.5px; text-transform: uppercase; font-weight: 600;">B2B Project Workspace</p>
+            ${BRAND_HEADER_LOGO_HTML}
+            <p style="color: #38bdf8; margin: 8px 0 0 0; font-size: 11px; letter-spacing: 1.5px; text-transform: uppercase; font-weight: 600;">B2B Project Workspace</p>
           </div>
           <div style="padding: 32px 26px; font-size: 14px; line-height: 1.65; color: #e5e7eb;">
             <p style="font-size: 16px; margin-top: 0; color: #f9fafb;">Hello <strong>${safeName}</strong>,</p>
@@ -399,11 +389,8 @@ export function renderMilestoneReviewEmail(context: MilestoneReviewEmailContext)
       <div style="background-color: #0b0f19; padding: 40px 16px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; box-sizing: border-box; color: #f3f4f6;">
         <div style="max-width: 580px; margin: 0 auto; background: #00172B; border: 1px solid #1e293b; border-radius: 12px; overflow: hidden; box-shadow: 0 12px 32px rgba(0,0,0,0.6);">
           <div style="background: linear-gradient(135deg, #00213D 0%, #00172B 100%); border-bottom: 2px solid #38bdf8; padding: 28px 24px 22px 24px; text-align: center;">
-            <div style="margin: 0 auto 12px auto; max-width: 180px;">
-              <img src="https://dreamtek.tech/svg/24_DREAMTEK_LOGO_LOGOTIPO_White.svg" alt="Dreamtek" width="180" style="display: block; width: 180px; max-width: 100%; height: auto; margin: 0 auto; border: 0;" />
-            </div>
-            <h1 style="color: #ffffff; margin: 0; font-size: 20px; font-weight: 800; letter-spacing: 2px; text-transform: uppercase;">DREAMTEK</h1>
-            <p style="color: #38bdf8; margin: 4px 0 0 0; font-size: 11px; letter-spacing: 1.5px; text-transform: uppercase; font-weight: 600;">Portal de Proyectos B2B</p>
+            ${BRAND_HEADER_LOGO_HTML}
+            <p style="color: #38bdf8; margin: 8px 0 0 0; font-size: 11px; letter-spacing: 1.5px; text-transform: uppercase; font-weight: 600;">Portal de Proyectos B2B</p>
           </div>
           <div style="padding: 32px 26px; font-size: 14px; line-height: 1.65; color: #e5e7eb;">
             <p style="font-size: 16px; margin-top: 0; color: #f9fafb;">Hola <strong>${safeName}</strong>,</p>
@@ -460,11 +447,8 @@ export function renderFinalSettlementReceiptEmail(context: FinalSettlementReceip
       <div style="background-color: #0b0f19; padding: 40px 16px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; box-sizing: border-box; color: #f3f4f6;">
         <div style="max-width: 580px; margin: 0 auto; background: #00172B; border: 1px solid #1e293b; border-radius: 12px; overflow: hidden; box-shadow: 0 12px 32px rgba(0,0,0,0.6);">
           <div style="background: linear-gradient(135deg, #00213D 0%, #00172B 100%); border-bottom: 2px solid #22c55e; padding: 28px 24px 22px 24px; text-align: center;">
-            <div style="margin: 0 auto 12px auto; max-width: 180px;">
-              <img src="https://dreamtek.tech/svg/24_DREAMTEK_LOGO_LOGOTIPO_White.svg" alt="Dreamtek" width="180" style="display: block; width: 180px; max-width: 100%; height: auto; margin: 0 auto; border: 0;" />
-            </div>
-            <h1 style="color: #ffffff; margin: 0; font-size: 20px; font-weight: 800; letter-spacing: 2px; text-transform: uppercase;">DREAMTEK</h1>
-            <p style="color: #22c55e; margin: 4px 0 0 0; font-size: 12px; font-weight: 700; letter-spacing: 1px;">PROYECTO ENTREGADO &amp; FINIQUITADO</p>
+            ${BRAND_HEADER_LOGO_HTML}
+            <p style="color: #22c55e; margin: 8px 0 0 0; font-size: 12px; font-weight: 700; letter-spacing: 1px;">PROYECTO ENTREGADO &amp; FINIQUITADO</p>
           </div>
           <div style="padding: 32px 26px; font-size: 14px; line-height: 1.65; color: #e5e7eb;">
             <p style="font-size: 16px; margin-top: 0; color: #f9fafb;">Hello <strong>${safeName}</strong>,</p>
@@ -490,11 +474,8 @@ export function renderFinalSettlementReceiptEmail(context: FinalSettlementReceip
       <div style="background-color: #0b0f19; padding: 40px 16px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; box-sizing: border-box; color: #f3f4f6;">
         <div style="max-width: 580px; margin: 0 auto; background: #00172B; border: 1px solid #1e293b; border-radius: 12px; overflow: hidden; box-shadow: 0 12px 32px rgba(0,0,0,0.6);">
           <div style="background: linear-gradient(135deg, #00213D 0%, #00172B 100%); border-bottom: 2px solid #22c55e; padding: 28px 24px 22px 24px; text-align: center;">
-            <div style="margin: 0 auto 12px auto; max-width: 180px;">
-              <img src="https://dreamtek.tech/svg/24_DREAMTEK_LOGO_LOGOTIPO_White.svg" alt="Dreamtek" width="180" style="display: block; width: 180px; max-width: 100%; height: auto; margin: 0 auto; border: 0;" />
-            </div>
-            <h1 style="color: #ffffff; margin: 0; font-size: 20px; font-weight: 800; letter-spacing: 2px; text-transform: uppercase;">DREAMTEK</h1>
-            <p style="color: #22c55e; margin: 4px 0 0 0; font-size: 12px; font-weight: 700; letter-spacing: 1px;">PROYECTO ENTREGADO &amp; FINIQUITADO</p>
+            ${BRAND_HEADER_LOGO_HTML}
+            <p style="color: #22c55e; margin: 8px 0 0 0; font-size: 12px; font-weight: 700; letter-spacing: 1px;">PROYECTO ENTREGADO &amp; FINIQUITADO</p>
           </div>
           <div style="padding: 32px 26px; font-size: 14px; line-height: 1.65; color: #e5e7eb;">
             <p style="font-size: 16px; margin-top: 0; color: #f9fafb;">Hola <strong>${safeName}</strong>,</p>

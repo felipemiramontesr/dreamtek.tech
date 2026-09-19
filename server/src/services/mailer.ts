@@ -113,13 +113,19 @@ export function renderSovereignEmailWrapper(options: SovereignEmailWrapperOption
     <div style="background-color: #0b0f19; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; padding: 40px 16px; color: #f3f4f6; box-sizing: border-box;">
       ${preheaderHtml}
       <div style="max-width: 580px; margin: 0 auto; background: #00172B; border: 1px solid #1e293b; border-radius: 12px; overflow: hidden; box-shadow: 0 12px 32px rgba(0,0,0,0.6);">
-        <!-- Sovereign Header with Official Brand Logo & Typography (C-050.3) -->
+        <!-- Sovereign Header with Official Brand Logo & Typography (Matching Navbar & Landing Page) -->
         <div style="background: linear-gradient(135deg, #00213D 0%, #00172B 100%); border-bottom: 2px solid ${accentColor}; padding: 28px 24px 22px 24px; text-align: center;">
-          <div style="margin: 0 auto 12px auto; max-width: 180px;">
-            <img src="https://dreamtek.tech/svg/24_DREAMTEK_LOGO_LOGOTIPO_White.svg" alt="Dreamtek" width="180" style="display: block; width: 180px; max-width: 100%; height: auto; margin: 0 auto; border: 0; outline: none; text-decoration: none;" />
-          </div>
-          <h1 style="color: #ffffff; margin: 0; font-size: 20px; letter-spacing: 2px; font-weight: 800; text-transform: uppercase;">DREAMTEK</h1>
-          <p style="color: ${accentColor}; margin: 4px 0 0 0; font-size: 11px; letter-spacing: 1.5px; text-transform: uppercase; font-weight: 600;">Sovereign Tech &bull; Software &amp; Ciberseguridad</p>
+          <table role="presentation" border="0" cellpadding="0" cellspacing="0" style="margin: 0 auto;">
+            <tr>
+              <td style="vertical-align: middle; padding-right: 12px;">
+                <img src="https://dreamtek.tech/svg/24_DREAMTEK_LOGO_ISOTIPO_Teck%20Red.svg" alt="Dreamtek Isotipo" width="38" height="38" style="display: block; width: 38px; height: 38px; border: 0; outline: none; text-decoration: none;" />
+              </td>
+              <td style="vertical-align: middle;">
+                <span style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; font-size: 28px; font-weight: 700; letter-spacing: -0.5px; color: #ffffff; line-height: 1;">Dreamtek<span style="color: #FF2D00;">.</span></span>
+              </td>
+            </tr>
+          </table>
+          <p style="color: ${accentColor}; margin: 8px 0 0 0; font-size: 11px; letter-spacing: 1.5px; text-transform: uppercase; font-weight: 600;">Sovereign Tech &bull; Software &amp; Ciberseguridad</p>
           ${badgeHtml}
         </div>
         <!-- Body Content -->
