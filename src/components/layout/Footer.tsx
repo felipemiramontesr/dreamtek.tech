@@ -44,11 +44,11 @@ export function Footer({ dict, lang = 'es' }: { dict: Dictionary; lang?: 'es' | 
               <Link href="#servicios" className="hover:text-white transition-colors">
                 {dict.navbar.services}
               </Link>
-              <Link href="#diagnostico" className="hover:text-white transition-colors">
-                {dict.navbar.diagnostic}
-              </Link>
               <Link href="#diferencial" className="hover:text-white transition-colors">
                 {dict.navbar.differential}
+              </Link>
+              <Link href="#diagnostico" className="hover:text-white transition-colors">
+                {dict.navbar.diagnostic}
               </Link>
               <Link href="#contacto" className="hover:text-white transition-colors">
                 {dict.navbar.contact}

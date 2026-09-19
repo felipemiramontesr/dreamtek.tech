@@ -45,8 +45,8 @@ export function Navbar({ dict, lang = 'es', onOpenAuthModal }: NavbarProps) {
     { label: dict.navbar.home, href: '#inicio' },
     { label: dict.navbar.services, href: '#servicios' },
     { label: dict.navbar.products, href: '#productos' },
-    { label: dict.navbar.diagnostic, href: '#diagnostico' },
     { label: dict.navbar.differential, href: '#diferencial' },
+    { label: dict.navbar.diagnostic, href: '#diagnostico' },
     { label: dict.navbar.contact, href: '#contacto' },
   ];
 

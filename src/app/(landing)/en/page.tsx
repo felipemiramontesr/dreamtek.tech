@@ -34,6 +34,7 @@ export default function HomeEN() {
         <Hero dict={en} />
         <Services dict={en} />
         <Products dict={en} />
+        <Differential dict={en} />
         <section
           id="diagnostico"
           className="py-20 relative overflow-hidden bg-black/20 scroll-mt-20"
@@ -42,7 +43,6 @@ export default function HomeEN() {
             <QuoteFunnelWizard locale="en" />
           </div>
         </section>
-        <Differential dict={en} />
         <Contact dict={en} />
       </main>
       <script
