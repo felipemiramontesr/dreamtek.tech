@@ -37,7 +37,7 @@ export default function HomeEN() {
         <Differential dict={en} />
         <section
           id="diagnostico"
-          className="py-20 relative overflow-hidden bg-black/20 scroll-mt-20"
+          className="py-24 sm:py-28 relative overflow-hidden bg-black/20 scroll-mt-20"
         >
           <div className="max-w-[1440px] px-6 mx-auto w-full relative z-10">
             <QuoteFunnelWizard locale="en" />

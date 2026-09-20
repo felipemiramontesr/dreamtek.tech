@@ -506,12 +506,12 @@ export function QuoteFunnelWizard({ locale: propLocale }: QuoteFunnelWizardProps
     return (
       <GlassCard
         hover={false}
-        className="p-8 sm:p-10 w-full border-emerald-500/30 bg-slate-900/60 backdrop-blur-xl"
+        className="p-8 sm:p-12 lg:p-16 w-full min-h-[640px] sm:min-h-[720px] lg:min-h-[760px] border-emerald-500/30 bg-slate-900/60 backdrop-blur-xl flex flex-col justify-center items-center"
       >
-        <div className="text-center space-y-4 max-w-2xl mx-auto">
-          <div className="w-14 h-14 bg-emerald-500/10 border border-emerald-500/30 rounded-2xl flex items-center justify-center mx-auto text-emerald-400">
+        <div className="text-center space-y-6 max-w-2xl mx-auto my-auto w-full">
+          <div className="w-16 h-16 bg-emerald-500/10 border border-emerald-500/30 rounded-2xl flex items-center justify-center mx-auto text-emerald-400">
             <svg
-              className="w-7 h-7"
+              className="w-8 h-8"
               fill="none"
               stroke="currentColor"
               viewBox="0 0 24 24"
@@ -525,10 +525,10 @@ export function QuoteFunnelWizard({ locale: propLocale }: QuoteFunnelWizardProps
               />
             </svg>
           </div>
-          <h3 className="text-2xl font-bold text-white tracking-tight">
+          <h3 className="text-2xl sm:text-3xl font-bold text-white tracking-tight">
             {isEn ? 'Diagnostic Registered Successfully!' : '¡Diagnóstico Registrado con Éxito!'}
           </h3>
-          <p className="text-sm text-slate-300">
+          <p className="text-sm sm:text-base text-slate-300">
             {isEn ? (
               <>
                 We have received your requirements for{' '}
@@ -544,20 +544,20 @@ export function QuoteFunnelWizard({ locale: propLocale }: QuoteFunnelWizardProps
             )}
           </p>
 
-          <div className="p-4 rounded-xl bg-slate-800/40 border border-slate-700/50 text-left space-y-2 mt-4 text-xs font-mono text-slate-300">
-            <div className="flex justify-between py-1 border-b border-slate-800">
+          <div className="p-5 rounded-2xl bg-slate-800/40 border border-slate-700/50 text-left space-y-3 mt-6 text-xs sm:text-sm font-mono text-slate-300">
+            <div className="flex justify-between py-1.5 border-b border-slate-800">
               <span className="text-slate-400 font-sans">{isEn ? 'Service:' : 'Servicio:'}</span>
               <span className="text-white font-sans font-medium">
                 {submittedData.service_label}
               </span>
             </div>
-            <div className="flex justify-between py-1 border-b border-slate-800">
+            <div className="flex justify-between py-1.5 border-b border-slate-800">
               <span className="text-slate-400 font-sans">{isEn ? 'Scope:' : 'Alcance:'}</span>
               <span className="text-cyan-400 font-sans font-medium">
                 {submittedData.scale_label}
               </span>
             </div>
-            <div className="flex justify-between py-1 border-b border-slate-800">
+            <div className="flex justify-between py-1.5 border-b border-slate-800">
               <span className="text-slate-400 font-sans">
                 {isEn ? 'Estimated Range:' : 'Rango Estimado:'}
               </span>
@@ -566,7 +566,7 @@ export function QuoteFunnelWizard({ locale: propLocale }: QuoteFunnelWizardProps
                 {submittedData.estimated_budget_max.toLocaleString()} {submittedData.currency}
               </span>
             </div>
-            <div className="flex justify-between py-1">
+            <div className="flex justify-between py-1.5">
               <span className="text-slate-400 font-sans">
                 {isEn ? 'Delivery Timeframe:' : 'Plazo de Entrega:'}
               </span>
@@ -577,9 +577,9 @@ export function QuoteFunnelWizard({ locale: propLocale }: QuoteFunnelWizardProps
             </div>
           </div>
 
-          <p className="text-[11px] text-slate-500 italic mt-2">* {submittedData.disclaimer}</p>
+          <p className="text-xs text-slate-500 italic mt-3">* {submittedData.disclaimer}</p>
 
-          <div className="pt-4">
+          <div className="pt-6">
             <Button variant="outline" onClick={handleReset} className="w-full sm:w-auto">
               {isEn ? 'Perform another estimation' : 'Realizar otra cotización'}
             </Button>
@@ -592,28 +592,28 @@ export function QuoteFunnelWizard({ locale: propLocale }: QuoteFunnelWizardProps
   return (
     <GlassCard
       hover={false}
-      className="p-6 sm:p-8 lg:p-10 w-full border-cyan-500/20 bg-slate-900/40 backdrop-blur-xl"
+      className="p-8 sm:p-10 lg:p-14 w-full min-h-[660px] sm:min-h-[720px] lg:min-h-[760px] border-cyan-500/20 bg-slate-900/40 backdrop-blur-xl flex flex-col justify-between"
     >
       {/* Header & Steps */}
-      <div className="mb-8">
-        <div className="flex items-center justify-between gap-4 mb-3">
+      <div className="mb-8 sm:mb-10">
+        <div className="flex items-center justify-between gap-4 mb-4">
           <div>
-            <span className="text-[11px] uppercase tracking-widest text-cyan-400 font-semibold">
+            <span className="text-[11px] sm:text-xs uppercase tracking-widest text-cyan-400 font-semibold">
               {isEn
                 ? 'Interactive Quote & Technical Diagnostic'
                 : 'Cotizador Interactivo & Diagnóstico'}
             </span>
-            <h2 className="text-xl sm:text-2xl font-bold text-white tracking-tight">
+            <h2 className="text-xl sm:text-2xl lg:text-3xl font-bold text-white tracking-tight mt-1">
               {isEn ? 'Calculate your project scope' : 'Calcula el alcance de tu proyecto'}
             </h2>
           </div>
-          <span className="text-xs font-mono text-slate-400 bg-slate-800/60 px-2.5 py-1 rounded-full border border-slate-700">
+          <span className="text-xs font-mono text-slate-400 bg-slate-800/60 px-3 py-1.5 rounded-full border border-slate-700">
             {isEn ? `Step ${step} of 4` : `Paso ${step} de 4`}
           </span>
         </div>
 
         {/* Progress Bar */}
-        <div className="w-full h-1.5 bg-slate-800 rounded-full overflow-hidden">
+        <div className="w-full h-2 bg-slate-800 rounded-full overflow-hidden mt-3">
           <div
             className="h-full bg-gradient-to-r from-cyan-500 via-purple-500 to-emerald-500 transition-all duration-300"
             style={{ width: `${(step / 4) * 100}%` }}
@@ -642,45 +642,47 @@ export function QuoteFunnelWizard({ locale: propLocale }: QuoteFunnelWizardProps
 
       {/* Step 1: Vertical Selection */}
       {step === 1 && (
-        <div className="space-y-4">
-          <p className="text-xs text-slate-400">
-            {isEn
-              ? 'Select the technology vertical that best describes your core need:'
-              : 'Selecciona la vertical tecnológica que mejor describe el núcleo de tu necesidad:'}
-          </p>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            {activeOptions.map((v) => {
-              const isSelected = selectedVertical === v.id;
-              return (
-                <button
-                  key={v.id}
-                  type="button"
-                  onClick={() => handleVerticalSelect(v.id)}
-                  className={`p-4 rounded-xl text-left border transition-all flex flex-col justify-between ${
-                    isSelected
-                      ? 'border-cyan-500 bg-cyan-500/10 shadow-[0_0_20px_rgba(6,182,212,0.15)] ring-1 ring-cyan-500/40'
-                      : 'border-slate-800 bg-slate-800/20 hover:border-slate-700 hover:bg-slate-800/40'
-                  }`}
-                >
-                  <div className="space-y-2">
-                    <div className="flex items-center justify-between">
-                      <div
-                        className={`p-2 rounded-lg ${isSelected ? 'bg-cyan-500/20 text-cyan-300' : 'bg-slate-800 text-slate-400'}`}
-                      >
-                        {v.icon}
+        <div className="space-y-6 flex-1 flex flex-col justify-between">
+          <div className="space-y-4">
+            <p className="text-xs sm:text-sm text-slate-400">
+              {isEn
+                ? 'Select the technology vertical that best describes your core need:'
+                : 'Selecciona la vertical tecnológica que mejor describe el núcleo de tu necesidad:'}
+            </p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
+              {activeOptions.map((v) => {
+                const isSelected = selectedVertical === v.id;
+                return (
+                  <button
+                    key={v.id}
+                    type="button"
+                    onClick={() => handleVerticalSelect(v.id)}
+                    className={`p-5 sm:p-6 rounded-2xl text-left border transition-all flex flex-col justify-between min-h-[220px] sm:min-h-[270px] ${
+                      isSelected
+                        ? 'border-cyan-500 bg-cyan-500/10 shadow-[0_0_20px_rgba(6,182,212,0.15)] ring-1 ring-cyan-500/40'
+                        : 'border-slate-800 bg-slate-800/20 hover:border-slate-700 hover:bg-slate-800/40'
+                    }`}
+                  >
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between">
+                        <div
+                          className={`p-2.5 rounded-xl ${isSelected ? 'bg-cyan-500/20 text-cyan-300' : 'bg-slate-800 text-slate-400'}`}
+                        >
+                          {v.icon}
+                        </div>
+                        <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-slate-800/80 text-slate-300 border border-slate-700/50">
+                          {v.badge}
+                        </span>
                       </div>
-                      <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-slate-800/80 text-slate-300 border border-slate-700/50">
-                        {v.badge}
-                      </span>
+                      <div className="font-semibold text-white text-sm sm:text-base">{v.title}</div>
+                      <p className="text-xs text-slate-400 leading-relaxed">{v.subtitle}</p>
                     </div>
-                    <div className="font-semibold text-white text-sm">{v.title}</div>
-                    <p className="text-xs text-slate-400 leading-relaxed">{v.subtitle}</p>
-                  </div>
-                </button>
-              );
-            })}
+                  </button>
+                );
+              })}
+            </div>
           </div>
-          <div className="pt-4 flex justify-end">
+          <div className="pt-6 flex justify-end border-t border-slate-800/40 mt-6">
             <Button variant="primary" onClick={handleNextStep}>
               {isEn ? 'Continue to Step 2 →' : 'Continuar al Paso 2 →'}
             </Button>
@@ -690,48 +692,52 @@ export function QuoteFunnelWizard({ locale: propLocale }: QuoteFunnelWizardProps
 
       {/* Step 2: Scale Selection */}
       {step === 2 && (
-        <div className="space-y-4">
-          <div>
-            <span className="text-xs text-cyan-400 font-mono">
-              {isEn ? 'Vertical:' : 'Vertical:'} {currentVerticalObj.title}
-            </span>
-            <p className="text-xs text-slate-400 mt-1">
-              {isEn
-                ? 'Select the estimated scope or scale for the implementation:'
-                : 'Selecciona el alcance o escala estimada para la implementación:'}
-            </p>
+        <div className="space-y-6 flex-1 flex flex-col justify-between">
+          <div className="space-y-4">
+            <div>
+              <span className="text-xs sm:text-sm text-cyan-400 font-mono">
+                {isEn ? 'Vertical:' : 'Vertical:'} {currentVerticalObj.title}
+              </span>
+              <p className="text-xs sm:text-sm text-slate-400 mt-1">
+                {isEn
+                  ? 'Select the estimated scope or scale for the implementation:'
+                  : 'Selecciona el alcance o escala estimada para la implementación:'}
+              </p>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
+              {currentVerticalObj.scales.map((s) => {
+                const isSelected = selectedScale === s.id;
+                return (
+                  <button
+                    key={s.id}
+                    type="button"
+                    onClick={() => setSelectedScale(s.id)}
+                    className={`p-6 sm:p-7 rounded-2xl text-left border transition-all flex flex-col justify-between min-h-[220px] sm:min-h-[250px] ${
+                      isSelected
+                        ? 'border-purple-500 bg-purple-500/10 shadow-[0_0_20px_rgba(168,85,247,0.15)] ring-1 ring-purple-500/40'
+                        : 'border-slate-800 bg-slate-800/20 hover:border-slate-700 hover:bg-slate-800/40'
+                    }`}
+                  >
+                    <div className="space-y-3">
+                      <div className="font-bold text-white text-base sm:text-lg">{s.title}</div>
+                      <p className="text-xs sm:text-sm text-slate-400 leading-relaxed">
+                        {s.description}
+                      </p>
+                    </div>
+                    <div className="mt-6 pt-4 border-t border-slate-800/60 flex items-center justify-between text-xs font-mono">
+                      <span className="text-slate-400">
+                        {isEn ? 'Guiding range:' : 'Rango orientativo:'}
+                      </span>
+                      <span className="text-purple-300 font-semibold text-sm">
+                        ${s.budgetMin.toLocaleString()} – ${s.budgetMax.toLocaleString()} {currency}
+                      </span>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
           </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            {currentVerticalObj.scales.map((s) => {
-              const isSelected = selectedScale === s.id;
-              return (
-                <button
-                  key={s.id}
-                  type="button"
-                  onClick={() => setSelectedScale(s.id)}
-                  className={`p-5 rounded-xl text-left border transition-all flex flex-col justify-between ${
-                    isSelected
-                      ? 'border-purple-500 bg-purple-500/10 shadow-[0_0_20px_rgba(168,85,247,0.15)] ring-1 ring-purple-500/40'
-                      : 'border-slate-800 bg-slate-800/20 hover:border-slate-700 hover:bg-slate-800/40'
-                  }`}
-                >
-                  <div className="space-y-2">
-                    <div className="font-bold text-white text-sm">{s.title}</div>
-                    <p className="text-xs text-slate-400 leading-relaxed">{s.description}</p>
-                  </div>
-                  <div className="mt-4 pt-3 border-t border-slate-800/60 flex items-center justify-between text-[11px] font-mono">
-                    <span className="text-slate-400">
-                      {isEn ? 'Guiding range:' : 'Rango orientativo:'}
-                    </span>
-                    <span className="text-purple-300 font-semibold">
-                      ${s.budgetMin.toLocaleString()} – ${s.budgetMax.toLocaleString()} {currency}
-                    </span>
-                  </div>
-                </button>
-              );
-            })}
-          </div>
-          <div className="pt-4 flex items-center justify-between">
+          <div className="pt-6 flex items-center justify-between border-t border-slate-800/40 mt-6">
             <Button variant="outline" onClick={handlePrevStep}>
               {isEn ? '← Back' : '← Volver'}
             </Button>
@@ -744,54 +750,56 @@ export function QuoteFunnelWizard({ locale: propLocale }: QuoteFunnelWizardProps
 
       {/* Step 3: Parametric Estimation Review */}
       {step === 3 && (
-        <div className="space-y-6">
-          <div className="p-5 rounded-2xl bg-gradient-to-br from-slate-900 via-slate-800/40 to-cyan-950/20 border border-cyan-500/30 space-y-4">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-slate-700/60">
+        <div className="space-y-6 flex-1 flex flex-col justify-between">
+          <div className="p-6 sm:p-8 rounded-2xl bg-gradient-to-br from-slate-900 via-slate-800/40 to-cyan-950/20 border border-cyan-500/30 space-y-6">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-4 border-b border-slate-700/60">
               <div>
-                <span className="text-[10px] uppercase font-mono tracking-wider text-cyan-400">
+                <span className="text-[11px] uppercase font-mono tracking-wider text-cyan-400">
                   {isEn ? 'Parametric Projection' : 'Proyección Paramétrica'}
                 </span>
-                <h3 className="text-base font-bold text-white">{currentVerticalObj.title}</h3>
-                <span className="text-xs text-slate-400">{currentScaleObj.title}</span>
+                <h3 className="text-lg sm:text-xl font-bold text-white mt-1">
+                  {currentVerticalObj.title}
+                </h3>
+                <span className="text-xs sm:text-sm text-slate-400">{currentScaleObj.title}</span>
               </div>
               <div className="text-right">
-                <span className="px-2.5 py-1 rounded-full text-[10px] font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                <span className="px-3 py-1 rounded-full text-xs font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
                   {isEn ? 'Technical Transparency' : 'Transparencia Técnica'}
                 </span>
               </div>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div className="p-4 rounded-xl bg-slate-900/60 border border-slate-800">
-                <span className="text-xs text-slate-400 block mb-1">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
+              <div className="p-5 sm:p-6 rounded-xl bg-slate-900/60 border border-slate-800">
+                <span className="text-xs sm:text-sm text-slate-400 block mb-2">
                   {isEn
                     ? `Base Investment Range (${currency})`
                     : `Rango de Inversión Base (${currency})`}
                 </span>
-                <div className="text-xl sm:text-2xl font-black text-emerald-400 tracking-tight">
+                <div className="text-2xl sm:text-3xl font-black text-emerald-400 tracking-tight">
                   ${currentScaleObj.budgetMin.toLocaleString()} – $
                   {currentScaleObj.budgetMax.toLocaleString()}
                 </div>
-                <span className="text-[10px] text-slate-500">
+                <span className="text-xs text-slate-500 mt-1 block">
                   {isEn ? 'Estimated before taxes' : 'Estimación antes de impuestos'}
                 </span>
               </div>
 
-              <div className="p-4 rounded-xl bg-slate-900/60 border border-slate-800">
-                <span className="text-xs text-slate-400 block mb-1">
+              <div className="p-5 sm:p-6 rounded-xl bg-slate-900/60 border border-slate-800">
+                <span className="text-xs sm:text-sm text-slate-400 block mb-2">
                   {isEn ? 'Estimated Delivery Time' : 'Tiempo de Entrega Estimado'}
                 </span>
-                <div className="text-xl sm:text-2xl font-black text-purple-400 tracking-tight">
+                <div className="text-2xl sm:text-3xl font-black text-purple-400 tracking-tight">
                   {currentScaleObj.weeksMin} {isEn ? 'to' : 'a'} {currentScaleObj.weeksMax}{' '}
                   {isEn ? 'Weeks' : 'Semanas'}
                 </div>
-                <span className="text-[10px] text-slate-500">
+                <span className="text-xs text-slate-500 mt-1 block">
                   {isEn ? 'Continuous bi-weekly sprints' : 'Sprints quincenales continuos'}
                 </span>
               </div>
             </div>
 
-            <div className="p-3 rounded-lg bg-cyan-950/30 border border-cyan-500/20 text-[11px] text-cyan-200/80 leading-relaxed">
+            <div className="p-4 rounded-xl bg-cyan-950/30 border border-cyan-500/20 text-xs sm:text-sm text-cyan-200/80 leading-relaxed">
               <strong>{isEn ? 'Technical Honesty Notice:' : 'Aviso de Honestidad Técnica:'}</strong>{' '}
               {isEn
                 ? 'This range represents a parametric estimation based on typical technical complexity. List prices designed for international market; not a live financial exchange rate.'
@@ -799,7 +807,7 @@ export function QuoteFunnelWizard({ locale: propLocale }: QuoteFunnelWizardProps
             </div>
           </div>
 
-          <div className="flex items-center justify-between">
+          <div className="pt-6 flex items-center justify-between border-t border-slate-800/40 mt-6">
             <Button variant="outline" onClick={handlePrevStep}>
               {isEn ? '← Change Scope' : '← Cambiar Alcance'}
             </Button>
@@ -812,107 +820,112 @@ export function QuoteFunnelWizard({ locale: propLocale }: QuoteFunnelWizardProps
 
       {/* Step 4: Contact & Agendado */}
       {step === 4 && (
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <p className="text-xs text-slate-400">
-            {isEn
-              ? 'Enter your contact details so a Dreamtek software architect can prepare the technical blueprint and contact you:'
-              : 'Ingresa tus datos de contacto para que un arquitecto de software de Dreamtek prepare el anteproyecto técnico y te contacte:'}
-          </p>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div>
-              <label
-                htmlFor="funnel-name"
-                className="block text-xs text-slate-300 mb-1 font-medium"
-              >
-                {isEn ? 'Full Name *' : 'Nombre Completo *'}
-              </label>
-              <input
-                id="funnel-name"
-                type="text"
-                required
-                value={fullName}
-                onChange={(e) => setFullName(e.target.value)}
-                placeholder={isEn ? 'e.g. John Doe' : 'Ej. Ing. Carlos Medina'}
-                className="w-full px-3.5 py-2.5 rounded-lg bg-slate-800/40 border border-slate-700 text-white text-xs placeholder-slate-500 focus:outline-none focus:border-cyan-500 transition-colors"
-              />
-            </div>
-
-            <div>
-              <label
-                htmlFor="funnel-email"
-                className="block text-xs text-slate-300 mb-1 font-medium"
-              >
-                {isEn ? 'Corporate Email *' : 'Correo Corporativo *'}
-              </label>
-              <input
-                id="funnel-email"
-                type="email"
-                required
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder={isEn ? 'john@company.com' : 'carlos@empresa.com'}
-                className="w-full px-3.5 py-2.5 rounded-lg bg-slate-800/40 border border-slate-700 text-white text-xs placeholder-slate-500 focus:outline-none focus:border-cyan-500 transition-colors"
-              />
-            </div>
-
-            <div>
-              <label
-                htmlFor="funnel-phone"
-                className="block text-xs text-slate-300 mb-1 font-medium"
-              >
-                {isEn ? 'Phone / WhatsApp *' : 'Teléfono / WhatsApp *'}
-              </label>
-              <input
-                id="funnel-phone"
-                type="tel"
-                required
-                value={phone}
-                onChange={(e) => setPhone(e.target.value)}
-                placeholder={isEn ? '+1 (555) 234-5678' : '+52 55 1234 5678'}
-                className="w-full px-3.5 py-2.5 rounded-lg bg-slate-800/40 border border-slate-700 text-white text-xs placeholder-slate-500 focus:outline-none focus:border-cyan-500 transition-colors"
-              />
-            </div>
-
-            <div>
-              <label
-                htmlFor="funnel-company"
-                className="block text-xs text-slate-300 mb-1 font-medium"
-              >
-                {isEn ? 'Company / Organization' : 'Empresa / Organización'}
-              </label>
-              <input
-                id="funnel-company"
-                type="text"
-                value={company}
-                onChange={(e) => setCompany(e.target.value)}
-                placeholder={isEn ? 'Your company name' : 'Nombre de tu empresa'}
-                className="w-full px-3.5 py-2.5 rounded-lg bg-slate-800/40 border border-slate-700 text-white text-xs placeholder-slate-500 focus:outline-none focus:border-cyan-500 transition-colors"
-              />
-            </div>
-          </div>
-
-          <div>
-            <label htmlFor="funnel-notes" className="block text-xs text-slate-300 mb-1 font-medium">
+        <form onSubmit={handleSubmit} className="space-y-6 flex-1 flex flex-col justify-between">
+          <div className="space-y-5">
+            <p className="text-xs sm:text-sm text-slate-400">
               {isEn
-                ? 'Additional Details or Core Challenge (Optional)'
-                : 'Detalles Adicionales o Reto Principal (Opcional)'}
-            </label>
-            <textarea
-              id="funnel-notes"
-              rows={3}
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-              placeholder={
-                isEn
-                  ? 'Briefly tell us about your current stack, target timeline, or specific integration requirements...'
-                  : 'Cuéntanos brevemente sobre tus integraciones actuales, plazos deseados o requerimientos específicos...'
-              }
-              className="w-full px-3.5 py-2.5 rounded-lg bg-slate-800/40 border border-slate-700 text-white text-xs placeholder-slate-500 focus:outline-none focus:border-cyan-500 transition-colors resize-none"
-            />
+                ? 'Enter your contact details so a Dreamtek software architect can prepare the technical blueprint and contact you:'
+                : 'Ingresa tus datos de contacto para que un arquitecto de software de Dreamtek prepare el anteproyecto técnico y te contacte:'}
+            </p>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
+              <div>
+                <label
+                  htmlFor="funnel-name"
+                  className="block text-xs sm:text-sm text-slate-300 mb-1.5 font-medium"
+                >
+                  {isEn ? 'Full Name *' : 'Nombre Completo *'}
+                </label>
+                <input
+                  id="funnel-name"
+                  type="text"
+                  required
+                  value={fullName}
+                  onChange={(e) => setFullName(e.target.value)}
+                  placeholder={isEn ? 'e.g. John Doe' : 'Ej. Ing. Carlos Medina'}
+                  className="w-full px-4 py-3 rounded-xl bg-slate-800/40 border border-slate-700 text-white text-xs sm:text-sm placeholder-slate-500 focus:outline-none focus:border-cyan-500 transition-colors"
+                />
+              </div>
+
+              <div>
+                <label
+                  htmlFor="funnel-email"
+                  className="block text-xs sm:text-sm text-slate-300 mb-1.5 font-medium"
+                >
+                  {isEn ? 'Corporate Email *' : 'Correo Corporativo *'}
+                </label>
+                <input
+                  id="funnel-email"
+                  type="email"
+                  required
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder={isEn ? 'john@company.com' : 'carlos@empresa.com'}
+                  className="w-full px-4 py-3 rounded-xl bg-slate-800/40 border border-slate-700 text-white text-xs sm:text-sm placeholder-slate-500 focus:outline-none focus:border-cyan-500 transition-colors"
+                />
+              </div>
+
+              <div>
+                <label
+                  htmlFor="funnel-phone"
+                  className="block text-xs sm:text-sm text-slate-300 mb-1.5 font-medium"
+                >
+                  {isEn ? 'Phone / WhatsApp *' : 'Teléfono / WhatsApp *'}
+                </label>
+                <input
+                  id="funnel-phone"
+                  type="tel"
+                  required
+                  value={phone}
+                  onChange={(e) => setPhone(e.target.value)}
+                  placeholder={isEn ? '+1 (555) 234-5678' : '+52 55 1234 5678'}
+                  className="w-full px-4 py-3 rounded-xl bg-slate-800/40 border border-slate-700 text-white text-xs sm:text-sm placeholder-slate-500 focus:outline-none focus:border-cyan-500 transition-colors"
+                />
+              </div>
+
+              <div>
+                <label
+                  htmlFor="funnel-company"
+                  className="block text-xs sm:text-sm text-slate-300 mb-1.5 font-medium"
+                >
+                  {isEn ? 'Company / Organization' : 'Empresa / Organización'}
+                </label>
+                <input
+                  id="funnel-company"
+                  type="text"
+                  value={company}
+                  onChange={(e) => setCompany(e.target.value)}
+                  placeholder={isEn ? 'Your company name' : 'Nombre de tu empresa'}
+                  className="w-full px-4 py-3 rounded-xl bg-slate-800/40 border border-slate-700 text-white text-xs sm:text-sm placeholder-slate-500 focus:outline-none focus:border-cyan-500 transition-colors"
+                />
+              </div>
+            </div>
+
+            <div>
+              <label
+                htmlFor="funnel-notes"
+                className="block text-xs sm:text-sm text-slate-300 mb-1.5 font-medium"
+              >
+                {isEn
+                  ? 'Additional Details or Core Challenge (Optional)'
+                  : 'Detalles Adicionales o Reto Principal (Opcional)'}
+              </label>
+              <textarea
+                id="funnel-notes"
+                rows={4}
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
+                placeholder={
+                  isEn
+                    ? 'Briefly tell us about your current stack, target timeline, or specific integration requirements...'
+                    : 'Cuéntanos brevemente sobre tus integraciones actuales, plazos deseados o requerimientos específicos...'
+                }
+                className="w-full px-4 py-3 rounded-xl bg-slate-800/40 border border-slate-700 text-white text-xs sm:text-sm placeholder-slate-500 focus:outline-none focus:border-cyan-500 transition-colors resize-none"
+              />
+            </div>
           </div>
 
-          <div className="pt-2 flex items-center justify-between">
+          <div className="pt-6 flex items-center justify-between border-t border-slate-800/40 mt-6">
             <Button variant="outline" type="button" onClick={handlePrevStep} disabled={loading}>
               {isEn ? '← Back' : '← Volver'}
             </Button>
