@@ -6,7 +6,12 @@ import type { es } from '@/i18n/dictionaries/es';
 
 type Dictionary = typeof es;
 
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || 'https://apiv1.dreamtek.tech/api/v1';
+const API_BASE =
+  process.env.NEXT_PUBLIC_API_BASE_URL ||
+  (typeof window !== 'undefined' &&
+  (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
+    ? 'http://localhost:3001/api/v1'
+    : 'https://apiv1.dreamtek.tech/api/v1');
 
 export function Contact({ dict }: { dict: Dictionary }) {
   const [formData, setFormData] = useState({
