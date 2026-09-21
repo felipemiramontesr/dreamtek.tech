@@ -309,12 +309,12 @@ export const ClientMfaSettingsWidget: React.FC = () => {
                     required
                     value={disablePassword}
                     onChange={(e) => setDisablePassword(e.target.value)}
-                    className="w-full pl-3 pr-10 py-2 bg-black/50 border border-white/10 rounded-lg text-white"
+                    className="w-full pl-3 pr-11 py-2 bg-black/50 border border-white/10 rounded-lg text-white"
                   />
                   <button
                     type="button"
                     onClick={() => setShowDisablePassword(!showDisablePassword)}
-                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-white/40 hover:text-white transition-colors focus:outline-none p-1 cursor-pointer"
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1.5 rounded-md text-slate-300 hover:text-white bg-slate-800/80 hover:bg-slate-700/90 border border-white/10 transition-colors focus:outline-none focus:ring-1 focus:ring-[#FF2D00] cursor-pointer shadow-sm z-10"
                     aria-label={showDisablePassword ? 'Ocultar contraseña' : 'Ver contraseña'}
                     tabIndex={-1}
                   >
