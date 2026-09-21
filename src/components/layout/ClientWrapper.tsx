@@ -1,6 +1,6 @@
 'use client';
 
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { es } from '@/i18n/dictionaries/es';
 import { en } from '@/i18n/dictionaries/en';
@@ -11,6 +11,7 @@ import { WhatsAppPill } from '../ui/WhatsAppPill';
 import { AuthModal } from '../auth/AuthModal';
 
 export function ClientWrapper({ children }: { children: React.ReactNode }) {
+  const router = useRouter();
   const pathname = usePathname();
   const lang = pathname.startsWith('/en') ? 'en' : 'es';
   const dict = lang === 'en' ? en : es;
@@ -55,6 +56,9 @@ export function ClientWrapper({ children }: { children: React.ReactNode }) {
       <AuthModal
         isOpen={isAuthModalOpen}
         onClose={() => setIsAuthModalOpen(false)}
+        onLoginSuccess={() => {
+          router.push('/client/dashboard/');
+        }}
         dict={dict}
         initialMode={authMode}
       />

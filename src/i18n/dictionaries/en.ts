@@ -28,6 +28,8 @@ export const en = {
     fullNamePlaceholder: 'e.g. John Doe',
     emailLabel: 'Email Address',
     emailPlaceholder: 'john@company.com',
+    emailOrUserLabel: 'Email or Username',
+    loginIdentifierPlaceholder: 'admin@dreamtek.tech or GrayMan',
     phoneLabel: 'Phone Number',
     phonePlaceholder: '+1 555 123 4567',
     passwordLabel: 'Password',

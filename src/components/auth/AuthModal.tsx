@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { Modal } from '../ui/Modal';
 import { Button } from '../ui/Button';
 import {
@@ -32,6 +33,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   onLoginSuccess,
   onRegisterSuccess,
 }) => {
+  const router = useRouter();
   const [mode, setMode] = useState<'login' | 'register' | 'mfa' | 'verify_registration'>(
     initialMode,
   );
@@ -91,7 +93,11 @@ export const AuthModal: React.FC<AuthModalProps> = ({
         const res = await verifyRegistrationOtp({ code: regOtpCode });
         setLoading(false);
         onRegisterSuccess?.(res.user);
-        onLoginSuccess?.(res.user);
+        if (onLoginSuccess) {
+          onLoginSuccess(res.user);
+        } else {
+          router.push('/client/dashboard/');
+        }
         resetForm();
         onClose();
       } catch (err: unknown) {
@@ -110,7 +116,11 @@ export const AuthModal: React.FC<AuthModalProps> = ({
       try {
         const res = await verifyMfa({ code: mfaCode, method: mfaMethod });
         setLoading(false);
-        onLoginSuccess?.(res.user);
+        if (onLoginSuccess) {
+          onLoginSuccess(res.user);
+        } else {
+          router.push('/client/dashboard/');
+        }
         resetForm();
         onClose();
       } catch (err: unknown) {
@@ -135,7 +145,11 @@ export const AuthModal: React.FC<AuthModalProps> = ({
           setMfaCode('');
           setErrorMsg(null);
         } else {
-          onLoginSuccess?.(res.user);
+          if (onLoginSuccess) {
+            onLoginSuccess(res.user);
+          } else {
+            router.push('/client/dashboard/');
+          }
           resetForm();
           onClose();
         }
@@ -530,17 +544,23 @@ export const AuthModal: React.FC<AuthModalProps> = ({
               </div>
             </div>
 
-            {/* Email Field (Always visible) */}
+            {/* Email / Username Field (Always visible) */}
             <div className="space-y-1 mb-3.5">
               <label className="block text-[11px] font-semibold text-white/80 uppercase tracking-wider">
-                {dict.auth?.emailLabel || 'Correo Electrónico'}
+                {isRegisterMode
+                  ? dict.auth?.emailLabel || 'Correo Electrónico'
+                  : dict.auth?.emailOrUserLabel || 'Correo Electrónico o Usuario'}
               </label>
               <input
-                type="email"
+                type={isRegisterMode ? 'email' : 'text'}
                 required
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                placeholder={dict.auth?.emailPlaceholder || 'carlos@empresa.com'}
+                placeholder={
+                  isRegisterMode
+                    ? dict.auth?.emailPlaceholder || 'carlos@empresa.com'
+                    : dict.auth?.loginIdentifierPlaceholder || 'admin@dreamtek.tech o GrayMan'
+                }
                 className="w-full px-3.5 py-2.5 bg-black/40 border border-white/10 rounded-lg text-sm text-white placeholder-white/30 focus:outline-none focus:border-[#FF2D00] focus:ring-1 focus:ring-[#FF2D00] transition-all duration-[1000ms]"
               />
             </div>

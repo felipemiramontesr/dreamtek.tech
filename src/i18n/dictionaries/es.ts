@@ -28,6 +28,8 @@ export const es = {
     fullNamePlaceholder: 'ej. Carlos Mendoza',
     emailLabel: 'Correo Electrónico',
     emailPlaceholder: 'carlos@empresa.com',
+    emailOrUserLabel: 'Correo Electrónico o Usuario',
+    loginIdentifierPlaceholder: 'admin@dreamtek.tech o GrayMan',
     phoneLabel: 'Teléfono',
     phonePlaceholder: '+52 55 1234 5678',
     passwordLabel: 'Contraseña',

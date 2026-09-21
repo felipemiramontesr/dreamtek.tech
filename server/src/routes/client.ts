@@ -78,7 +78,7 @@ clientRouter.get('/dashboard', async (req: AuthenticatedRequest, res: Response):
     const userId = req.user?.userId;
 
     const users = await query<any[]>(
-      'SELECT id, full_name, email, role, created_at FROM users WHERE id = ? LIMIT 1',
+      'SELECT id, username, full_name, email, role, created_at FROM users WHERE id = ? LIMIT 1',
       [userId],
     );
 
@@ -181,6 +181,7 @@ clientRouter.get('/dashboard', async (req: AuthenticatedRequest, res: Response):
       status: 'success',
       profile: {
         id: user.id,
+        username: user.username,
         full_name: user.full_name,
         email: user.email,
         role: user.role,
