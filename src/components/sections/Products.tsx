@@ -85,23 +85,23 @@ export function Products({ dict }: { dict: Dictionary }) {
   return (
     <section
       id="productos"
-      className="min-h-screen lg:h-screen lg:min-h-0 flex flex-col justify-center pt-20 pb-4 scroll-mt-0 relative overflow-hidden bg-black/20"
+      className="min-h-screen lg:h-screen lg:min-h-0 flex flex-col justify-center pt-28 lg:pt-32 pb-4 lg:pb-6 scroll-mt-0 relative overflow-hidden bg-black/20"
     >
       {/* Decorative gradient blob */}
       <div className="absolute top-1/2 left-0 -translate-y-1/2 -translate-x-1/2 w-[600px] h-[600px] bg-[#FF2D00]/5 rounded-full blur-[100px] pointer-events-none" />
 
       <div className="max-w-[1440px] px-6 mx-auto w-full relative z-10">
-        <div className="text-center mb-10 lg:mb-6">
-          <h2 className="text-3xl md:text-5xl font-bold text-white mb-4">
+        <div className="text-center mb-8 lg:mb-5">
+          <h2 className="text-3xl md:text-5xl font-bold text-white mb-3 lg:mb-2">
             {dict.products.heading1}
             <span className="text-[#FF2D00]">{dict.products.heading2}</span>
           </h2>
-          <p className="text-white/60 max-w-xl mx-auto text-lg lg:text-base font-light mb-8 lg:mb-4">
+          <p className="text-white/60 max-w-xl mx-auto text-lg lg:text-sm font-light mb-4 lg:mb-3">
             {dict.products.subtitle}
           </p>
 
           {/* Billing Toggle Switch */}
-          <div className="flex flex-col items-center gap-1.5 mt-6 lg:mt-3">
+          <div className="flex flex-col items-center gap-1 mt-4 lg:mt-2">
             <div className="flex items-center gap-3 bg-white/5 border border-white/10 px-4 py-1.5 rounded-full backdrop-blur-md">
               <span
                 className={`text-sm font-medium transition-colors duration-200 ${!isAnnual ? 'text-white' : 'text-white/70'}`}
@@ -124,7 +124,7 @@ export function Products({ dict }: { dict: Dictionary }) {
                 {dict.products.annual}
               </span>
             </div>
-            <div className="h-5 flex items-center justify-center">
+            <div className="h-4 flex items-center justify-center">
               {isAnnual && (
                 <span className="text-[10px] sm:text-xs bg-[#FF2D00] text-white px-2.5 py-0.5 rounded-full font-bold shadow-[0_0_10px_rgba(255,45,0,0.4)] animate-pulse">
                   {dict.products.save}
@@ -134,29 +134,29 @@ export function Products({ dict }: { dict: Dictionary }) {
           </div>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 items-stretch">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 lg:gap-6 items-stretch">
           {plans.map((plan) => (
             <GlassCard
               key={plan.id}
               featured={plan.featured}
-              className={`h-full flex flex-col justify-between pb-4 lg:pb-4 lg:p-6 transition-all duration-500 hover:-translate-y-2 ${
+              className={`h-full flex flex-col justify-between p-6 lg:p-5 transition-all duration-500 hover:-translate-y-2 ${
                 plan.featured ? 'border-[#FF2D00]/40 shadow-[0_0_30px_rgba(255,45,0,0.15)]' : ''
               }`}
             >
               <div>
                 {plan.badge && (
-                  <span className="inline-block text-[10px] uppercase tracking-widest text-[#FF2D00] font-semibold mb-3 bg-[#FF2D00]/10 px-2.5 py-1 rounded-full border border-[#FF2D00]/20 font-sans">
+                  <span className="inline-block text-[10px] uppercase tracking-widest text-[#FF2D00] font-semibold mb-2 bg-[#FF2D00]/10 px-2.5 py-0.5 rounded-full border border-[#FF2D00]/20 font-sans">
                     {plan.badge}
                   </span>
                 )}
-                <h3 className="text-2xl font-bold text-white mb-2">{plan.title}</h3>
-                <p className="text-white/50 text-sm font-light mb-6 min-h-[48px]">
+                <h3 className="text-xl lg:text-2xl font-bold text-white mb-1.5">{plan.title}</h3>
+                <p className="text-white/50 text-sm font-light mb-4 lg:mb-3 min-h-[44px] lg:min-h-[38px]">
                   {plan.description}
                 </p>
 
-                <div className="flex flex-col mb-8 border-b border-white/10 pb-6">
+                <div className="flex flex-col mb-5 lg:mb-4 border-b border-white/10 pb-4 lg:pb-3">
                   <div className="flex items-baseline gap-2 flex-wrap">
-                    <span className="text-4xl sm:text-5xl font-bold text-white transition-all duration-300">
+                    <span className="text-3xl sm:text-4xl lg:text-4xl font-bold text-white transition-all duration-300">
                       {isAnnual ? plan.annualPrice : plan.price}
                     </span>
                     {plan.priceSuffix ? (
@@ -173,14 +173,14 @@ export function Products({ dict }: { dict: Dictionary }) {
                     )}
                   </div>
                   {plan.subPriceText && (
-                    <span className="text-xs text-white/50 font-light mt-2 block">
+                    <span className="text-xs text-white/50 font-light mt-1.5 block">
                       {isAnnual && plan.annualSubPriceText
                         ? plan.annualSubPriceText
                         : plan.subPriceText}
                     </span>
                   )}
                   <span
-                    className={`text-xs text-[#FF2D00] font-medium tracking-wide mt-2 block transition-opacity duration-300 min-h-[20px] ${
+                    className={`text-xs text-[#FF2D00] font-medium tracking-wide mt-1.5 block transition-opacity duration-300 min-h-[16px] ${
                       isAnnual && plan.annualTotal ? 'opacity-100' : 'opacity-0 pointer-events-none'
                     }`}
                   >
@@ -189,14 +189,14 @@ export function Products({ dict }: { dict: Dictionary }) {
                   </span>
                 </div>
 
-                <ul className="space-y-4 mb-8">
+                <ul className="space-y-2.5 lg:space-y-2 mb-5 lg:mb-4">
                   {plan.features.map((feature, idx) => (
                     <li
                       key={idx}
-                      className="flex items-start gap-3 text-sm text-white/80 font-light"
+                      className="flex items-start gap-2.5 text-xs lg:text-sm text-white/80 font-light"
                     >
                       <svg
-                        className="w-5 h-5 text-[#FF2D00] shrink-0 mt-0.5"
+                        className="w-4 h-4 text-[#FF2D00] shrink-0 mt-0.5"
                         fill="none"
                         viewBox="0 0 24 24"
                         stroke="currentColor"
@@ -210,7 +210,7 @@ export function Products({ dict }: { dict: Dictionary }) {
                 </ul>
               </div>
 
-              <div className="mt-auto pt-4">
+              <div className="mt-auto pt-2 lg:pt-1.5">
                 {plan.id === 'starterkit' ? (
                   <Button
                     variant="outline"
