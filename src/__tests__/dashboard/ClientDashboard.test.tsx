@@ -20,7 +20,7 @@ vi.mock('@/lib/auth/client', () => ({
   getMfaStatus: vi.fn().mockResolvedValue({ status: 'success', is_2fa_enabled: false }),
 }));
 
-describe('ClientDashboardPage Component Suite (FC 038 100% Coverage)', () => {
+describe('ClientDashboardPage (Modular Hub Launchpad - FC 051)', () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
@@ -62,7 +62,7 @@ describe('ClientDashboardPage Component Suite (FC 038 100% Coverage)', () => {
     });
   });
 
-  it('debe renderizar la vista de CLIENTE con sus módulos y procesar navegación y logout', async () => {
+  it('debe renderizar el Hub con todas sus tarjetas de módulos y procesar acciones', async () => {
     const openSpy = vi.spyOn(window, 'open').mockImplementation(() => null);
 
     const mockData: authClient.ClientDashboardData = {
@@ -92,6 +92,32 @@ describe('ClientDashboardPage Component Suite (FC 038 100% Coverage)', () => {
           ssl: 1,
         },
       ],
+      projects: [
+        {
+          id: 77,
+          tenant_id: 1,
+          user_id: 42,
+          project_name: 'Proyecto Alpha',
+          vertical: 'custom_dev',
+          status: 'IN_PROGRESS',
+          currency: 'USD',
+          budget_cents: 200000,
+          paid_amount_cents: 100000,
+          pending_balance_cents: 100000,
+          estimated_weeks: 4,
+          created_at: '2026-09-01',
+          updated_at: '2026-09-01',
+          milestones: [
+            {
+              id: 1,
+              title: 'Hito 1',
+              status: 'APPROVED',
+              amount_cents: 50000,
+              order_index: 1,
+            },
+          ],
+        },
+      ],
     };
 
     vi.mocked(authClient.fetchClientDashboard).mockResolvedValueOnce(mockData);
@@ -103,31 +129,41 @@ describe('ClientDashboardPage Component Suite (FC 038 100% Coverage)', () => {
       expect(screen.getByText('Hola,')).toBeInTheDocument();
       expect(screen.getAllByText('Cliente Prueba').length).toBeGreaterThan(0);
       expect(screen.getByText('DTK-USR-42')).toBeInTheDocument();
+      expect(screen.getByText('2 Activos')).toBeInTheDocument();
     });
+
+    // Validar tarjetas del Hub presentes
+    expect(screen.getByTestId('hub-card-escolta')).toBeInTheDocument();
+    expect(screen.getByTestId('hub-card-archon')).toBeInTheDocument();
+    expect(screen.getByTestId('hub-card-cyber')).toBeInTheDocument();
+    expect(screen.getByTestId('hub-card-projects')).toBeInTheDocument();
+    expect(screen.getByTestId('hub-card-billing')).toBeInTheDocument();
+    expect(screen.getByTestId('hub-card-security')).toBeInTheDocument();
+    expect(screen.getByTestId('hub-card-support')).toBeInTheDocument();
 
     // Click logo para volver al home
     const logoBtn = screen.getByText(/DREAMTEK/i);
     fireEvent.click(logoBtn);
     expect(mockPush).toHaveBeenCalledWith('/');
 
-    // Botones de acción externa de los widgets
-    const supportBtn = screen.getByRole('button', { name: 'Solicitar Soporte Técnico' });
-    fireEvent.click(supportBtn);
+    // Botones de acción rápida en las tarjetas
+    const supportActionBtn = screen.getByRole('button', { name: 'Soporte' });
+    fireEvent.click(supportActionBtn);
     expect(openSpy).toHaveBeenCalledWith('mailto:soporte@dreamtek.tech', '_blank');
 
-    const demoArchonBtn = screen.getByRole('button', {
-      name: 'Solicitar Demostración Bespoke',
-    });
-    fireEvent.click(demoArchonBtn);
+    const demoActionBtn = screen.getByRole('button', { name: 'Demo' });
+    fireEvent.click(demoActionBtn);
     expect(openSpy).toHaveBeenCalledWith('https://dreamtek.tech/#products', '_blank');
 
-    const cyberBtn = screen.getByRole('button', {
-      name: 'Solicitar Auditoría Táctica ($1,800 USD)',
-    });
-    fireEvent.click(cyberBtn);
+    const cyberActionBtn = screen.getByRole('button', { name: 'Cotizar' });
+    fireEvent.click(cyberActionBtn);
     expect(openSpy).toHaveBeenCalledWith('https://dreamtek.tech/#contact', '_blank');
 
-    // Click cerrar sesión
+    const ticketActionBtn = screen.getByRole('button', { name: 'Ticket' });
+    fireEvent.click(ticketActionBtn);
+    expect(openSpy).toHaveBeenCalledWith('mailto:soporte@dreamtek.tech', '_blank');
+
+    // Cerrar sesión
     const logoutBtn = screen.getByRole('button', { name: 'Cerrar Sesión' });
     fireEvent.click(logoutBtn);
 
@@ -200,7 +236,7 @@ describe('ClientDashboardPage Component Suite (FC 038 100% Coverage)', () => {
           id: 1,
           domain: 'dreamtek.tech',
           status: 'live',
-          ssl: true,
+          ssl: 1,
         },
       ],
     };
@@ -233,7 +269,7 @@ describe('ClientDashboardPage Component Suite (FC 038 100% Coverage)', () => {
   });
 
   it('debe manejar ramas de nombres por defecto y data nula', async () => {
-    // 1. Data nula sin mensaje de error explícito
+    // 1. Data nula
     vi.mocked(authClient.fetchClientDashboard).mockResolvedValueOnce(
       null as unknown as authClient.ClientDashboardData,
     );
@@ -257,9 +293,7 @@ describe('ClientDashboardPage Component Suite (FC 038 100% Coverage)', () => {
         role: 'CLIENT',
         created_at: '2026-09-01',
       },
-      services: [
-        { id: '1', name: '', status: 'active', billing_cycle: 'm', amount: 10, renews_at: '' },
-      ],
+      services: [],
       sites: [],
     };
 
@@ -320,147 +354,5 @@ describe('ClientDashboardPage Component Suite (FC 038 100% Coverage)', () => {
     const { unmount } = render(<ClientDashboardPage />);
     unmount();
     rejectPromise(new Error('Abort'));
-  });
-
-  it('debe refrescar datos vía onProjectUpdated cuando se actualiza un proyecto B2B', async () => {
-    const mockDataWithProject: authClient.ClientDashboardData = {
-      status: 'success',
-      profile: {
-        id: 42,
-        full_name: 'Cliente Corporativo B2B',
-        email: 'b2b@empresa.com',
-        role: 'CLIENT',
-        created_at: '2026-09-01',
-      },
-      services: [],
-      sites: [],
-      projects: [
-        {
-          id: 77,
-          tenant_id: 1,
-          user_id: 42,
-          project_name: 'Proyecto Onboarding',
-          vertical: 'custom_dev',
-          status: 'ONBOARDING_BRIEF',
-          currency: 'USD',
-          budget_cents: 200000,
-          paid_amount_cents: 100000,
-          pending_balance_cents: 100000,
-          estimated_weeks: 4,
-          created_at: '2026-09-01',
-          updated_at: '2026-09-01',
-        },
-      ],
-    };
-
-    vi.mocked(authClient.fetchClientDashboard).mockResolvedValueOnce(mockDataWithProject);
-    vi.mocked(authClient.updateClientProjectBriefing).mockResolvedValueOnce({
-      status: 'success',
-      message: 'OK',
-      briefing: {} as unknown as authClient.ClientProjectBriefing,
-      status_updated: 'ARCHITECTURE_DESIGN',
-    });
-
-    // Mock segunda llamada tras update
-    vi.mocked(authClient.fetchClientDashboard).mockResolvedValueOnce({
-      ...mockDataWithProject,
-      projects: [
-        {
-          ...mockDataWithProject.projects![0],
-          status: 'ARCHITECTURE_DESIGN',
-        },
-      ],
-    });
-
-    render(<ClientDashboardPage />);
-
-    await waitFor(() => {
-      expect(screen.getByText('Proyecto Onboarding')).toBeInTheDocument();
-    });
-
-    const openModalBtn = screen.getByRole('button', { name: 'Completar Briefing' });
-    fireEvent.click(openModalBtn);
-
-    const goalsInput = screen.getByPlaceholderText(/Describe qué problema resuelve/);
-    fireEvent.change(goalsInput, {
-      target: { value: 'Objetivos comerciales para el portal corporativo' },
-    });
-
-    const submitBtn = screen.getByRole('button', { name: 'Guardar Briefing' });
-    fireEvent.click(submitBtn);
-
-    await waitFor(
-      () => {
-        expect(authClient.fetchClientDashboard).toHaveBeenCalledTimes(2);
-      },
-      { timeout: 3000 },
-    );
-  });
-
-  it('debe manejar error silencioso en onProjectUpdated si fetchClientDashboard falla', async () => {
-    const mockDataWithProject: authClient.ClientDashboardData = {
-      status: 'success',
-      profile: {
-        id: 42,
-        full_name: 'Cliente Corporativo B2B',
-        email: 'b2b@empresa.com',
-        role: 'CLIENT',
-        created_at: '2026-09-01',
-      },
-      services: [],
-      sites: [],
-      projects: [
-        {
-          id: 88,
-          tenant_id: 1,
-          user_id: 42,
-          project_name: 'Proyecto Error Update',
-          vertical: 'custom_dev',
-          status: 'ONBOARDING_BRIEF',
-          currency: 'USD',
-          budget_cents: 200000,
-          paid_amount_cents: 100000,
-          pending_balance_cents: 100000,
-          estimated_weeks: 4,
-          created_at: '2026-09-01',
-          updated_at: '2026-09-01',
-        },
-      ],
-    };
-
-    vi.mocked(authClient.fetchClientDashboard).mockResolvedValueOnce(mockDataWithProject);
-    vi.mocked(authClient.updateClientProjectBriefing).mockResolvedValueOnce({
-      status: 'success',
-      message: 'OK',
-      briefing: {} as unknown as authClient.ClientProjectBriefing,
-      status_updated: 'ARCHITECTURE_DESIGN',
-    });
-
-    // Mock que rechaza en el callback
-    vi.mocked(authClient.fetchClientDashboard).mockRejectedValueOnce(
-      new Error('Network error on refresh'),
-    );
-
-    render(<ClientDashboardPage />);
-
-    await waitFor(() => {
-      expect(screen.getByText('Proyecto Error Update')).toBeInTheDocument();
-    });
-
-    const openModalBtn = screen.getByRole('button', { name: 'Completar Briefing' });
-    fireEvent.click(openModalBtn);
-
-    const goalsInput = screen.getByPlaceholderText(/Describe qué problema resuelve/);
-    fireEvent.change(goalsInput, { target: { value: 'Objetivos para probar catch en refresh' } });
-
-    const submitBtn = screen.getByRole('button', { name: 'Guardar Briefing' });
-    fireEvent.click(submitBtn);
-
-    await waitFor(
-      () => {
-        expect(authClient.fetchClientDashboard).toHaveBeenCalledTimes(2);
-      },
-      { timeout: 3000 },
-    );
   });
 });

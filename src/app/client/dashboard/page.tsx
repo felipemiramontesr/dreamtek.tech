@@ -5,13 +5,8 @@ import { useRouter } from 'next/navigation';
 import { GlassCard } from '@/components/ui/GlassCard';
 import { Button } from '@/components/ui/Button';
 import { fetchClientDashboard, logoutUser, type ClientDashboardData } from '@/lib/auth/client';
-import { EscoltaWidget } from '@/components/dashboard/escolta/EscoltaWidget';
-import { ArchonWidget } from '@/components/dashboard/archon/ArchonWidget';
-import { CyberAuditWidget } from '@/components/dashboard/cyber/CyberAuditWidget';
-import { B2BProjectWorkspaceWidget } from '@/components/dashboard/client/B2BProjectWorkspaceWidget';
-import { ClientTaxProfileWidget } from '@/components/dashboard/client/ClientTaxProfileWidget';
-import { ClientMfaSettingsWidget } from '@/components/dashboard/client/ClientMfaSettingsWidget';
 import { OmnipotentAdminPanel } from '@/components/dashboard/admin/OmnipotentAdminPanel';
+import { ClientHubModuleCard } from '@/components/dashboard/client/ClientHubModuleCard';
 
 export default function ClientDashboardPage() {
   const router = useRouter();
@@ -90,7 +85,7 @@ export default function ClientDashboardPage() {
               variant="primary"
               size="sm"
               onClick={() => router.push('/')}
-              className="bg-cyan-600 hover:bg-cyan-500"
+              className="bg-cyan-600 hover:bg-cyan-500 cursor-pointer"
             >
               Ir al Inicio de Dreamtek
             </Button>
@@ -102,7 +97,10 @@ export default function ClientDashboardPage() {
 
   const { profile, services = [], sites = [], projects = [] } = data;
   const isAdmin = profile.role === 'ADMIN';
+  const hasEscolta =
+    sites.length > 0 || services.some((s) => s.name?.toLowerCase().includes('escolta'));
   const hasArchon = services.some((s) => s.name?.toLowerCase().includes('archon')) || isAdmin;
+  const hasProjects = projects.length > 0;
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 selection:bg-cyan-500/30 selection:text-cyan-200">
@@ -116,9 +114,7 @@ export default function ClientDashboardPage() {
             >
               DREAMTEK<span className="text-cyan-400">.</span>TECH
             </span>
-            <span className="text-xs text-slate-500 font-mono hidden sm:inline">
-              / client-portal
-            </span>
+            <span className="text-xs text-slate-500 font-mono hidden sm:inline">/ client-hub</span>
           </div>
 
           <div className="flex items-center gap-4">
@@ -126,7 +122,7 @@ export default function ClientDashboardPage() {
               <div className="flex items-center bg-slate-800/80 p-1 rounded-lg border border-slate-700">
                 <button
                   onClick={() => setViewMode('admin')}
-                  className={`px-3 py-1 text-xs font-semibold rounded-md transition-all ${
+                  className={`px-3 py-1 text-xs font-semibold rounded-md transition-all cursor-pointer ${
                     viewMode === 'admin'
                       ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40 shadow-sm'
                       : 'text-slate-400 hover:text-white'
@@ -136,7 +132,7 @@ export default function ClientDashboardPage() {
                 </button>
                 <button
                   onClick={() => setViewMode('client')}
-                  className={`px-3 py-1 text-xs font-semibold rounded-md transition-all ${
+                  className={`px-3 py-1 text-xs font-semibold rounded-md transition-all cursor-pointer ${
                     viewMode === 'client'
                       ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 shadow-sm'
                       : 'text-slate-400 hover:text-white'
@@ -159,7 +155,7 @@ export default function ClientDashboardPage() {
                 variant="outline"
                 size="sm"
                 onClick={handleLogout}
-                className="border-slate-700 text-slate-300 hover:bg-slate-800 hover:text-white"
+                className="border-slate-700 text-slate-300 hover:bg-slate-800 hover:text-white cursor-pointer"
               >
                 Cerrar Sesión
               </Button>
@@ -178,9 +174,9 @@ export default function ClientDashboardPage() {
             onViewAsClient={() => setViewMode('client')}
           />
         ) : (
-          <div className="space-y-8">
-            {/* Header de bienvenida cliente */}
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div className="space-y-10">
+            {/* Header Ejecutivo de Bienvenida & Resumen */}
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-white/5 pb-6">
               <div>
                 <h1 className="text-2xl font-black text-white tracking-tight">
                   Hola,{' '}
@@ -189,65 +185,252 @@ export default function ClientDashboardPage() {
                   </span>
                 </h1>
                 <p className="text-xs text-slate-400 mt-1">
-                  Gestiona tu infraestructura digital, sitios web aprovisionados y plataformas
-                  activas.
+                  Panel Central de Operaciones. Selecciona una tarjeta para gestionar un servicio o
+                  configurar tu cuenta.
                 </p>
               </div>
 
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 flex-wrap">
                 <span className="text-xs text-slate-400">ID de Cuenta:</span>
                 <span className="font-mono text-xs text-cyan-300 px-2 py-0.5 rounded bg-cyan-500/10 border border-cyan-500/20">
                   DTK-USR-{profile.id}
                 </span>
+                <span className="text-xs text-emerald-400 px-2 py-0.5 rounded bg-emerald-500/10 border border-emerald-500/20 font-medium">
+                  {services.length + sites.length} Activos
+                </span>
               </div>
             </div>
 
-            {/* Módulos de Productos */}
-            <div className="grid grid-cols-1 gap-6">
-              {/* Módulo B2B: Proyectos Corporativos & Workspace */}
-              <B2BProjectWorkspaceWidget
-                projects={projects}
-                onProjectUpdated={() => {
-                  fetchClientDashboard()
-                    .then((res) => setData(res))
-                    .catch(() => {});
-                }}
-              />
+            {/* SECCIÓN 1: Tus Plataformas & Servicios */}
+            <section className="space-y-4">
+              <div className="flex items-center justify-between">
+                <h2 className="text-sm font-bold text-white uppercase tracking-wider text-slate-300">
+                  Plataformas & Servicios Contratados
+                </h2>
+                <span className="text-xs text-slate-500 font-mono">Apps & Workspaces</span>
+              </div>
 
-              {/* Módulo B2B: Expediente Fiscal & Facturación (FC 046) */}
-              <ClientTaxProfileWidget
-                currency={projects[0]?.currency}
-                locale={projects[0]?.locale}
-              />
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
+                {/* 1. Escolta WEB */}
+                <ClientHubModuleCard
+                  id="escolta"
+                  title="Escolta WEB"
+                  description="Aprovisionamiento de sitios web, monitoreo de SSL, DNS y bolsa de soporte mensual."
+                  icon={
+                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9"
+                      />
+                    </svg>
+                  }
+                  href="/client/dashboard/escolta"
+                  badge={
+                    hasEscolta
+                      ? { text: 'Activo', variant: 'emerald' }
+                      : { text: 'Disponible', variant: 'slate' }
+                  }
+                  metrics={[
+                    { label: 'Sitios Online', value: sites.length },
+                    { label: 'Bolsa Soporte', value: '3 hrs / mes' },
+                  ]}
+                  isContracted={hasEscolta}
+                  ctaText={hasEscolta ? 'Administrar sitios →' : 'Ver alcance →'}
+                  actionButton={{
+                    text: 'Soporte',
+                    onClick: () => window.open('mailto:soporte@dreamtek.tech', '_blank'),
+                  }}
+                />
 
-              {/* Módulo Seguridad: Autenticación de Dos Factores (FC 047) */}
-              <ClientMfaSettingsWidget />
+                {/* 2. ARCHON Flotas */}
+                <ClientHubModuleCard
+                  id="archon"
+                  title="ARCHON Flotas"
+                  description="Plataforma de telemetría y monitoreo de flotas basada en nodos atómicos."
+                  icon={
+                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M13 10V3L4 14h7v7l9-11h-7z"
+                      />
+                    </svg>
+                  }
+                  href="/client/dashboard/archon"
+                  badge={
+                    hasArchon
+                      ? { text: 'Activo', variant: 'emerald' }
+                      : { text: 'Disponible', variant: 'slate' }
+                  }
+                  metrics={[
+                    { label: 'Arquitectura', value: 'Nodos Atómicos' },
+                    { label: 'Acceso Seguro', value: hasArchon ? 'HMAC Bridge' : 'Bespoke' },
+                  ]}
+                  isContracted={hasArchon}
+                  ctaText={hasArchon ? 'Acceder a consola →' : 'Solicitar demo →'}
+                  actionButton={
+                    !hasArchon
+                      ? {
+                          text: 'Demo',
+                          onClick: () => window.open('https://dreamtek.tech/#products', '_blank'),
+                        }
+                      : undefined
+                  }
+                />
 
-              {/* Módulo 1: Escolta WEB */}
-              <EscoltaWidget
-                sites={sites}
-                supportHoursAvailable={3}
-                onRequestSupport={() => {
-                  window.open('mailto:soporte@dreamtek.tech', '_blank');
-                }}
-              />
+                {/* 3. Ciberseguridad Ofensiva */}
+                <ClientHubModuleCard
+                  id="cyber"
+                  title="Ciberseguridad"
+                  description="Auditoría forense táctica, análisis contra OWASP Top 10 y hardening."
+                  icon={
+                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"
+                      />
+                    </svg>
+                  }
+                  href="/client/dashboard/cyber"
+                  badge={{ text: 'Disponible', variant: 'slate' }}
+                  metrics={[
+                    { label: 'Metodología', value: 'OWASP 2021' },
+                    { label: 'Modalidad', value: 'Caja Negra/Gris' },
+                  ]}
+                  isContracted={false}
+                  ctaText="Ver auditorías →"
+                  actionButton={{
+                    text: 'Cotizar',
+                    onClick: () => window.open('https://dreamtek.tech/#contact', '_blank'),
+                  }}
+                />
 
-              {/* Módulo 2: ARCHON Gestión de Flotas */}
-              <ArchonWidget
-                hasActivePlan={hasArchon}
-                onUpgrade={() => {
-                  window.open('https://dreamtek.tech/#products', '_blank');
-                }}
-              />
+                {/* 4. Proyectos B2B Workspace */}
+                <ClientHubModuleCard
+                  id="projects"
+                  title="Proyectos B2B"
+                  description="Seguimiento de hitos de desarrollo a la medida, entregables y actas de finiquito."
+                  icon={
+                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"
+                      />
+                    </svg>
+                  }
+                  href="/client/dashboard/projects"
+                  badge={
+                    hasProjects
+                      ? { text: `${projects.length} Activo(s)`, variant: 'cyan' }
+                      : { text: 'Sin Proyectos', variant: 'slate' }
+                  }
+                  metrics={[
+                    { label: 'Proyectos B2B', value: projects.length },
+                    { label: 'Hitos', value: projects[0]?.milestones?.length || 0 },
+                  ]}
+                  isContracted={hasProjects}
+                  ctaText={hasProjects ? 'Abrir workspace →' : 'Ver detalles →'}
+                />
+              </div>
+            </section>
 
-              {/* Módulo 3: Ciberseguridad Ofensiva */}
-              <CyberAuditWidget
-                hasActiveAudit={false}
-                onRequestAudit={() => {
-                  window.open('https://dreamtek.tech/#contact', '_blank');
-                }}
-              />
-            </div>
+            {/* SECCIÓN 2: Centro de Control & Administración */}
+            <section className="space-y-4">
+              <div className="flex items-center justify-between">
+                <h2 className="text-sm font-bold text-white uppercase tracking-wider text-slate-300">
+                  Centro de Control & Cuenta
+                </h2>
+                <span className="text-xs text-slate-500 font-mono">Ajustes & Finanzas</span>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+                {/* 5. Facturación & Expediente Fiscal */}
+                <ClientHubModuleCard
+                  id="billing"
+                  title="Facturación & Fiscal"
+                  description="Expediente fiscal mexicano (RFC, Régimen, CSF en PDF) y solicitud de comprobantes."
+                  icon={
+                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M9 14l6-6m-5.5.5h.01m4.99 5h.01M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16l3.5-2 3.5 2 3.5-2 3.5 2z"
+                      />
+                    </svg>
+                  }
+                  href="/client/dashboard/billing"
+                  badge={{ text: 'CFDI 4.0', variant: 'cyan' }}
+                  metrics={[
+                    { label: 'Normativa', value: 'SAT México' },
+                    { label: 'Expediente', value: 'FC 046' },
+                  ]}
+                  isContracted={true}
+                  ctaText="Gestionar datos fiscales →"
+                />
+
+                {/* 6. Seguridad & Credenciales (2FA) */}
+                <ClientHubModuleCard
+                  id="security"
+                  title="Seguridad & 2FA"
+                  description="Protección de credenciales, autenticación en dos factores (TOTP/Email) y sesiones."
+                  icon={
+                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"
+                      />
+                    </svg>
+                  }
+                  href="/client/dashboard/security"
+                  badge={{ text: 'Blindaje MFA', variant: 'emerald' }}
+                  metrics={[
+                    { label: 'Estándar', value: 'RFC 6238' },
+                    { label: 'Autenticación', value: 'TOTP / Email' },
+                  ]}
+                  isContracted={true}
+                  ctaText="Configurar seguridad →"
+                />
+
+                {/* 7. Mesa de Ayuda & Soporte */}
+                <ClientHubModuleCard
+                  id="support"
+                  title="Mesa de Ayuda"
+                  description="Emisión de tickets de ingeniería, resolución de incidencias y monitoreo de SLAs."
+                  icon={
+                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M18.364 5.636l-3.536 3.536m0 5.656l3.536 3.536M9.172 9.172L5.636 5.636m3.536 9.192l-3.536 3.536M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-5 0a4 4 0 11-8 0 4 4 0 018 0z"
+                      />
+                    </svg>
+                  }
+                  href="/client/dashboard/support"
+                  badge={{ text: 'SLA Activo', variant: 'emerald' }}
+                  metrics={[
+                    { label: 'Canal Oficial', value: 'soporte@' },
+                    { label: 'Respuesta', value: '< 2h Crítico' },
+                  ]}
+                  isContracted={true}
+                  ctaText="Abrir mesa de ayuda →"
+                  actionButton={{
+                    text: 'Ticket',
+                    onClick: () => window.open('mailto:soporte@dreamtek.tech', '_blank'),
+                  }}
+                />
+              </div>
+            </section>
           </div>
         )}
       </main>
