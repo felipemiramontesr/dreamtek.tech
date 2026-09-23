@@ -829,6 +829,20 @@ describe('Client Project Auth Helper Functions Suite (FC 044 100% Coverage)', ()
       expect(getApiBaseUrl('https://custom.api', 'localhost')).toBe('https://custom.api');
     });
 
+    it('debe usar NEXT_PUBLIC_API_BASE_URL si envUrl no se pasa pero la variable de entorno existe', () => {
+      const originalEnv = process.env.NEXT_PUBLIC_API_BASE_URL;
+      process.env.NEXT_PUBLIC_API_BASE_URL = 'https://env.dreamtek.tech/api/v1';
+      try {
+        expect(getApiBaseUrl()).toBe('https://env.dreamtek.tech/api/v1');
+      } finally {
+        if (originalEnv !== undefined) {
+          process.env.NEXT_PUBLIC_API_BASE_URL = originalEnv;
+        } else {
+          delete process.env.NEXT_PUBLIC_API_BASE_URL;
+        }
+      }
+    });
+
     it('debe retornar localhost:3001 si hostname es localhost o 127.0.0.1 sin envUrl', () => {
       expect(getApiBaseUrl(undefined, 'localhost')).toBe('http://localhost:3001/api/v1');
       expect(getApiBaseUrl('', 'localhost')).toBe('http://localhost:3001/api/v1');
@@ -839,6 +853,17 @@ describe('Client Project Auth Helper Functions Suite (FC 044 100% Coverage)', ()
       expect(getApiBaseUrl(undefined, 'dreamtek.tech')).toBe('https://apiv1.dreamtek.tech/api/v1');
       expect(getApiBaseUrl(undefined, '')).toBe('https://apiv1.dreamtek.tech/api/v1');
       expect(getApiBaseUrl()).toBeDefined();
+    });
+
+    it('debe manejar SSR cuando window es undefined', () => {
+      const originalWindow = globalThis.window;
+      // @ts-expect-error simular SSR
+      delete (globalThis as Record<string, unknown>).window;
+      try {
+        expect(getApiBaseUrl()).toBe('https://apiv1.dreamtek.tech/api/v1');
+      } finally {
+        globalThis.window = originalWindow;
+      }
     });
   });
 });
