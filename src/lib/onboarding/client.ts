@@ -3,12 +3,9 @@
  * Consumes Express API endpoints (Node.js API) with credentials: 'include'
  */
 
-const API_BASE =
-  process.env.NEXT_PUBLIC_API_BASE_URL ||
-  (typeof window !== 'undefined' &&
-  (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
-    ? 'http://localhost:3001/api/v1'
-    : 'https://apiv1.dreamtek.tech/api/v1');
+import { getApiBaseUrl } from '@/lib/auth/client';
+
+const API_BASE = getApiBaseUrl();
 
 export interface LeadPayload {
   email: string;

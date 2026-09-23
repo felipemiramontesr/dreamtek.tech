@@ -44,12 +44,18 @@ export interface MfaStatusResponse {
   remaining_recovery_codes?: number;
 }
 
-const API_BASE =
-  process.env.NEXT_PUBLIC_API_BASE_URL ||
-  (typeof window !== 'undefined' &&
-  (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
-    ? 'http://localhost:3001/api/v1'
-    : 'https://apiv1.dreamtek.tech/api/v1');
+export function getApiBaseUrl(
+  envUrl = process.env.NEXT_PUBLIC_API_BASE_URL,
+  hostname = typeof window !== 'undefined' ? window.location.hostname : '',
+): string {
+  if (envUrl) return envUrl;
+  if (hostname === 'localhost' || hostname === '127.0.0.1') {
+    return 'http://localhost:3001/api/v1';
+  }
+  return 'https://apiv1.dreamtek.tech/api/v1';
+}
+
+const API_BASE = getApiBaseUrl();
 
 export interface VerifyRegistrationOtpPayload {
   code: string;

@@ -16,33 +16,21 @@ export default function ClientDashboardPage() {
   const [viewMode, setViewMode] = useState<'client' | 'admin'>('client');
 
   useEffect(() => {
-    let isMounted = true;
-    async function loadDashboard() {
-      try {
-        const res = await fetchClientDashboard();
-        if (isMounted) {
-          setData(res);
-          if (res?.profile?.role === 'ADMIN') {
-            setViewMode('admin');
-          }
+    fetchClientDashboard()
+      .then((res) => {
+        setData(res);
+        if (res?.profile?.role === 'ADMIN') {
+          setViewMode('admin');
         }
-      } catch (err: unknown) {
-        if (isMounted) {
-          const message =
-            err instanceof Error ? err.message : 'No se pudo cargar el panel de control.';
-          setError(message);
-        }
-      } finally {
-        if (isMounted) {
-          setLoading(false);
-        }
-      }
-    }
-
-    loadDashboard();
-    return () => {
-      isMounted = false;
-    };
+      })
+      .catch((err: unknown) => {
+        const message =
+          err instanceof Error ? err.message : 'No se pudo cargar el panel de control.';
+        setError(message);
+      })
+      .finally(() => {
+        setLoading(false);
+      });
   }, []);
 
   const handleLogout = async () => {

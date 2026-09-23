@@ -5,6 +5,13 @@ import { es } from '@/i18n/dictionaries/es';
 import { en } from '@/i18n/dictionaries/en';
 import * as authClient from '@/lib/auth/client';
 
+const mockPush = vi.fn();
+vi.mock('next/navigation', () => ({
+  useRouter: () => ({
+    push: mockPush,
+  }),
+}));
+
 vi.mock('@/lib/auth/client', () => ({
   loginUser: vi.fn(),
   registerUser: vi.fn(),
@@ -760,6 +767,130 @@ describe('AuthModal Component (100% Coverage Suite)', () => {
 
     await waitFor(() => {
       expect(screen.getByText('Error al reenviar el código.')).toBeInTheDocument();
+    });
+  });
+
+  it('debe alternar la visibilidad de las contraseñas al hacer clic en los botones de ojo', () => {
+    render(<AuthModal isOpen={true} onClose={vi.fn()} dict={es} initialMode="register" />);
+
+    const toggleBtns = screen.getAllByRole('button', { name: 'Ver contraseña' });
+    expect(toggleBtns.length).toBe(2);
+
+    // Toggle password
+    fireEvent.click(toggleBtns[0]);
+    expect(screen.getByRole('button', { name: 'Ocultar contraseña' })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Ocultar contraseña' }));
+
+    // Toggle confirm password
+    const toggleBtnsAgain = screen.getAllByRole('button', { name: 'Ver contraseña' });
+    fireEvent.click(toggleBtnsAgain[1]);
+    expect(screen.getByRole('button', { name: 'Ocultar contraseña' })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Ocultar contraseña' }));
+  });
+
+  it('debe redirigir al dashboard con router.push cuando onLoginSuccess no está definido en login estándar', async () => {
+    vi.mocked(authClient.loginUser).mockResolvedValueOnce({
+      token: 'jwt.123',
+      user: { id: 1, email: 'no-cb@test.com', role: 'CLIENT', full_name: 'No Callback' },
+    });
+
+    render(<AuthModal isOpen={true} onClose={vi.fn()} dict={es} />);
+
+    fireEvent.change(screen.getByPlaceholderText('carlos@empresa.com'), {
+      target: { value: 'no-cb@test.com' },
+    });
+    fireEvent.change(screen.getByPlaceholderText('••••••••'), {
+      target: { value: 'password123' },
+    });
+
+    const submitBtns = screen.getAllByRole('button', { name: 'Iniciar Sesión' });
+    fireEvent.click(submitBtns[submitBtns.length - 1]);
+
+    await waitFor(() => {
+      expect(mockPush).toHaveBeenCalledWith('/client/dashboard/');
+    });
+  });
+
+  it('debe redirigir al dashboard con router.push en MFA cuando onLoginSuccess no está definido', async () => {
+    vi.mocked(authClient.loginUser).mockResolvedValueOnce({
+      status: '2fa_required',
+      token: 'temp.jwt',
+    });
+    vi.mocked(authClient.verifyMfa).mockResolvedValueOnce({
+      status: 'success',
+      token: 'final.jwt',
+      user: { id: 1, email: 'mfa@test.com', role: 'CLIENT', full_name: 'MFA' },
+    });
+
+    render(<AuthModal isOpen={true} onClose={vi.fn()} dict={es} />);
+
+    fireEvent.change(screen.getByPlaceholderText('carlos@empresa.com'), {
+      target: { value: 'mfa@test.com' },
+    });
+    fireEvent.change(screen.getByPlaceholderText('••••••••'), {
+      target: { value: 'password123' },
+    });
+
+    const submitBtns = screen.getAllByRole('button', { name: 'Iniciar Sesión' });
+    fireEvent.click(submitBtns[submitBtns.length - 1]);
+
+    await waitFor(() => {
+      expect(screen.getByPlaceholderText('Código de 6 dígitos')).toBeInTheDocument();
+    });
+
+    fireEvent.change(screen.getByPlaceholderText('Código de 6 dígitos'), {
+      target: { value: '123456' },
+    });
+
+    const verifyBtn = screen.getByRole('button', { name: 'Verificar y Acceder' });
+    fireEvent.click(verifyBtn);
+
+    await waitFor(() => {
+      expect(mockPush).toHaveBeenCalledWith('/client/dashboard/');
+    });
+  });
+
+  it('debe redirigir al dashboard con router.push tras verifyRegistrationOtp si onLoginSuccess no está definido', async () => {
+    vi.mocked(authClient.registerUser).mockResolvedValueOnce({
+      status: 'verification_required',
+      message: 'OTP enviado',
+    });
+    vi.mocked(authClient.verifyRegistrationOtp).mockResolvedValueOnce({
+      token: 'jwt.reg.123',
+      user: { id: 88, email: 'reg@test.com', role: 'CLIENT', full_name: 'Reg User' },
+    });
+
+    render(<AuthModal isOpen={true} onClose={vi.fn()} dict={es} initialMode="register" />);
+
+    fireEvent.change(screen.getByPlaceholderText('ej. Carlos Mendoza'), {
+      target: { value: 'Reg User' },
+    });
+    fireEvent.change(screen.getByPlaceholderText('carlos@empresa.com'), {
+      target: { value: 'reg@test.com' },
+    });
+    fireEvent.change(screen.getByPlaceholderText('+52 55 1234 5678'), {
+      target: { value: '5512345678' },
+    });
+    const pwInputs = screen.getAllByPlaceholderText('••••••••');
+    fireEvent.change(pwInputs[0], { target: { value: 'pass123' } });
+    fireEvent.change(pwInputs[1], { target: { value: 'pass123' } });
+
+    const submitBtns = screen.getAllByRole('button', { name: 'Crear Cuenta' });
+    fireEvent.click(submitBtns[submitBtns.length - 1]);
+
+    await waitFor(() => {
+      expect(screen.getByPlaceholderText('123456')).toBeInTheDocument();
+    });
+
+    fireEvent.change(screen.getByPlaceholderText('123456'), {
+      target: { value: '654321' },
+    });
+
+    const verifyBtn = screen.getByRole('button', { name: 'Activar Cuenta y Acceder' });
+    fireEvent.click(verifyBtn);
+
+    await waitFor(() => {
+      expect(mockPush).toHaveBeenCalledWith('/client/dashboard/');
     });
   });
 });

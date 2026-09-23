@@ -201,6 +201,12 @@ describe('ClientMfaSettingsWidget Component Suite', () => {
     const pwInput = screen.getByLabelText(/Contraseña actual/i, { selector: 'input' });
     const codeInput = screen.getByPlaceholderText('000000 o XXXXX-XXXXX');
 
+    // Toggle disable password visibility
+    const toggleDisableBtn = screen.getByRole('button', { name: 'Ver contraseña' });
+    fireEvent.click(toggleDisableBtn);
+    expect(screen.getByRole('button', { name: 'Ocultar contraseña' })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Ocultar contraseña' }));
+
     fireEvent.change(pwInput, { target: { value: 'WrongPass' } });
     fireEvent.change(codeInput, { target: { value: '123456' } });
 

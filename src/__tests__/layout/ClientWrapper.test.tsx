@@ -2,11 +2,32 @@ import { render, screen, fireEvent, act } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { ClientWrapper } from '@/components/layout/ClientWrapper';
 
+const mockPush = vi.fn();
 let mockPathname = '/';
 
 vi.mock('next/navigation', () => ({
-  useRouter: () => ({ push: vi.fn() }),
+  useRouter: () => ({ push: mockPush }),
   usePathname: () => mockPathname,
+}));
+
+vi.mock('@/components/auth/AuthModal', () => ({
+  AuthModal: ({
+    isOpen,
+    onClose,
+    onLoginSuccess,
+  }: {
+    isOpen: boolean;
+    onClose: () => void;
+    onLoginSuccess?: (user: unknown) => void;
+  }) =>
+    isOpen ? (
+      <div role="dialog">
+        <button aria-label="Cerrar modal" onClick={onClose}>
+          Cerrar modal
+        </button>
+        <button onClick={() => onLoginSuccess?.({})}>Trigger Login</button>
+      </div>
+    ) : null,
 }));
 
 describe('ClientWrapper Component (100% Coverage Suite)', () => {
@@ -83,5 +104,9 @@ describe('ClientWrapper Component (100% Coverage Suite)', () => {
     expect(navAuthButtons.length).toBeGreaterThan(0);
     fireEvent.click(navAuthButtons[0]);
     expect(screen.getByRole('dialog')).toBeInTheDocument();
+
+    const triggerLoginBtn = screen.getByRole('button', { name: 'Trigger Login' });
+    fireEvent.click(triggerLoginBtn);
+    expect(mockPush).toHaveBeenCalledWith('/client/dashboard/');
   });
 });

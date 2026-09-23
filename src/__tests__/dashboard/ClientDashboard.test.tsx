@@ -330,29 +330,46 @@ describe('ClientDashboardPage (Modular Hub Launchpad - FC 051)', () => {
     });
   });
 
-  it('debe abortar actualización de estado si el componente se desmonta antes de resolver', async () => {
-    let resolvePromise: (val: unknown) => void = () => {};
-    vi.mocked(authClient.fetchClientDashboard).mockReturnValueOnce(
-      new Promise((resolve) => {
-        resolvePromise = resolve;
-      }),
-    );
+  it('debe calcular badges y estados cuando el cliente tiene servicio ARCHON y Escolta por servicio activo', async () => {
+    const archonData: authClient.ClientDashboardData = {
+      status: 'success',
+      profile: {
+        id: 77,
+        full_name: 'Cliente Flotas',
+        email: 'flotas@dreamtek.tech',
+        role: 'CLIENT',
+        created_at: '2026-09-01',
+      },
+      services: [
+        {
+          id: 'arc-1',
+          name: 'ARCHON Telemetry Node',
+          status: 'active',
+          billing_cycle: 'monthly',
+          amount: 9900,
+          renews_at: '2026-10-01',
+        },
+        {
+          id: 'esc-1',
+          name: 'Escolta Pro Protection',
+          status: 'active',
+          billing_cycle: 'monthly',
+          amount: 2900,
+          renews_at: '2026-10-01',
+        },
+      ],
+      sites: [],
+      projects: [],
+    };
 
-    const { unmount } = render(<ClientDashboardPage />);
-    unmount();
-    resolvePromise(null);
-  });
+    vi.mocked(authClient.fetchClientDashboard).mockResolvedValueOnce(archonData);
 
-  it('debe abortar en catch y finally si el componente se desmonta antes de rechazar', async () => {
-    let rejectPromise: (val: unknown) => void = () => {};
-    vi.mocked(authClient.fetchClientDashboard).mockReturnValueOnce(
-      new Promise((_, reject) => {
-        rejectPromise = reject;
-      }),
-    );
+    render(<ClientDashboardPage />);
 
-    const { unmount } = render(<ClientDashboardPage />);
-    unmount();
-    rejectPromise(new Error('Abort'));
+    await waitFor(() => {
+      expect(screen.getAllByText('Cliente Flotas').length).toBeGreaterThan(0);
+      expect(screen.getByText('Acceder a consola →')).toBeInTheDocument();
+      expect(screen.getByText('Administrar sitios →')).toBeInTheDocument();
+    });
   });
 });

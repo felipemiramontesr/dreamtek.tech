@@ -22,6 +22,7 @@ import {
   registerUser,
   verifyRegistrationOtp,
   resendRegistrationOtp,
+  getApiBaseUrl,
 } from '@/lib/auth/client';
 
 describe('Client Project Auth Helper Functions Suite (FC 044 100% Coverage)', () => {
@@ -820,6 +821,24 @@ describe('Client Project Auth Helper Functions Suite (FC 044 100% Coverage)', ()
         });
         await expect(resendRegistrationOtp()).rejects.toThrow('Error al reenviar el código.');
       });
+    });
+  });
+
+  describe('getApiBaseUrl', () => {
+    it('debe priorizar envUrl si está definido', () => {
+      expect(getApiBaseUrl('https://custom.api', 'localhost')).toBe('https://custom.api');
+    });
+
+    it('debe retornar localhost:3001 si hostname es localhost o 127.0.0.1 sin envUrl', () => {
+      expect(getApiBaseUrl(undefined, 'localhost')).toBe('http://localhost:3001/api/v1');
+      expect(getApiBaseUrl('', 'localhost')).toBe('http://localhost:3001/api/v1');
+      expect(getApiBaseUrl(undefined, '127.0.0.1')).toBe('http://localhost:3001/api/v1');
+    });
+
+    it('debe retornar apiv1.dreamtek.tech en producción o fallback', () => {
+      expect(getApiBaseUrl(undefined, 'dreamtek.tech')).toBe('https://apiv1.dreamtek.tech/api/v1');
+      expect(getApiBaseUrl(undefined, '')).toBe('https://apiv1.dreamtek.tech/api/v1');
+      expect(getApiBaseUrl()).toBeDefined();
     });
   });
 });

@@ -206,46 +206,6 @@ describe('Modular Hub Subpages & Components Suite (FC 051 100% Coverage)', () =>
       );
       expect(screen.getByText('Ver alcance →')).toBeInTheDocument();
     });
-
-    it('debe manejar desmontaje de subpáginas antes de resolución de fetch sin actualizar estado', () => {
-      let resolveFetch!: (val: authClient.ClientDashboardData) => void;
-      let rejectFetch!: (err: Error) => void;
-      vi.mocked(authClient.fetchClientDashboard).mockImplementation(
-        () =>
-          new Promise((res, rej) => {
-            resolveFetch = res;
-            rejectFetch = rej;
-          }),
-      );
-
-      const { unmount: u1 } = render(<EscoltaSubpage />);
-      u1();
-      resolveFetch(baseMockData);
-
-      const { unmount: u2 } = render(<ArchonSubpage />);
-      u2();
-      rejectFetch(new Error('fail'));
-
-      const { unmount: u3 } = render(<CyberSubpage />);
-      u3();
-      resolveFetch(baseMockData);
-
-      const { unmount: u4 } = render(<BillingSubpage />);
-      u4();
-      resolveFetch(baseMockData);
-
-      const { unmount: u5 } = render(<SecuritySubpage />);
-      u5();
-      resolveFetch(baseMockData);
-
-      const { unmount: u6 } = render(<SupportSubpage />);
-      u6();
-      resolveFetch(baseMockData);
-
-      const { unmount: u7 } = render(<ProjectsSubpage />);
-      u7();
-      resolveFetch(baseMockData);
-    });
   });
 
   describe('Subpáginas Dedicadas', () => {

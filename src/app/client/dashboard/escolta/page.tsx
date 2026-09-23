@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { fetchClientDashboard, type ClientDashboardData } from '@/lib/auth/client';
 import {
@@ -14,25 +14,20 @@ export default function EscoltaSubpage() {
   const [data, setData] = useState<ClientDashboardData | null>(null);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    let isMounted = true;
+  const loadData = useCallback(() => {
     fetchClientDashboard()
       .then((res) => {
-        if (isMounted) {
-          setData(res);
-          setLoading(false);
-        }
+        setData(res);
+        setLoading(false);
       })
       .catch(() => {
-        if (isMounted) {
-          router.push('/');
-        }
+        router.push('/');
       });
-
-    return () => {
-      isMounted = false;
-    };
   }, [router]);
+
+  useEffect(() => {
+    loadData();
+  }, [loadData]);
 
   if (loading || !data) {
     return (
