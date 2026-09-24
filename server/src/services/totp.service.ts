@@ -114,7 +114,7 @@ export function computeTotpCode(
 export function verifyTotpCode(
   secretBase32: string,
   candidateCode: string,
-  lastUsedStep?: bigint | number | null,
+  lastUsedStep?: bigint | number | string | null,
   nowSeconds?: number,
 ): VerifyTotpResult {
   const normalized = String(candidateCode || '').trim();
