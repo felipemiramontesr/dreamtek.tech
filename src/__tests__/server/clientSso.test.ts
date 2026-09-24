@@ -47,23 +47,23 @@ describe('Client SSO & Dual Auth Integration Suite (FC 038 100% Coverage)', () =
       vi.mocked(db.query).mockResolvedValueOnce([
         {
           id: 1,
-          username: 'GrayMan',
-          email: 'admin@dreamtek.tech',
+          username: 'GrayManClient',
+          email: 'client@dreamtek.tech',
           password_hash: hashed,
-          role: 'ADMIN',
-          full_name: 'GrayMan Omnipotent',
+          role: 'CLIENT',
+          full_name: 'GrayMan Client',
         },
       ]);
 
       const res = await supertest(app).post('/api/v1/auth/login').send({
-        email: 'GrayMan', // Identificador enviado en campo email
+        email: 'GrayManClient', // Identificador enviado en campo email
         password: 'Omnipotent2026!',
       });
 
       expect(res.status).toBe(200);
       expect(res.body.status).toBe('success');
-      expect(res.body.user.username).toBe('GrayMan');
-      expect(res.body.user.role).toBe('ADMIN');
+      expect(res.body.user.username).toBe('GrayManClient');
+      expect(res.body.user.role).toBe('CLIENT');
       expect(res.headers['set-cookie']).toBeDefined();
     });
 

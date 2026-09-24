@@ -570,6 +570,7 @@ describe('Server Express Routes 100% Comprehensive Suite', () => {
       .get('/admin/metrics')
       .set('Authorization', `Bearer ${adminToken}`);
     expect(resAdminMetrics.status).toBe(500);
+    vi.mocked(db.query).mockReset();
   });
 
   it('admin.ts audit-logs debe manejar fallo en la consulta de total count o arreglo vacío', async () => {
@@ -610,15 +611,18 @@ describe('Server Express Routes 100% Comprehensive Suite', () => {
     process.env.NODE_ENV = 'production';
     process.env.JWT_SECRET = 'prod_secret_key_12345';
 
-    vi.mocked(db.query).mockResolvedValueOnce([
-      {
-        id: 1,
-        email: 'admin@dreamtek.tech',
-        password_hash: await bcrypt.hash('SuperPassword123!', 1),
-        role: null,
-        full_name: 'Admin Prod',
-      },
-    ]);
+    vi.mocked(db.query).mockReset();
+    vi.mocked(db.query)
+      .mockResolvedValueOnce([
+        {
+          id: 1,
+          email: 'admin@dreamtek.tech',
+          password_hash: await bcrypt.hash('SuperPassword123!', 1),
+          role: null,
+          full_name: 'Admin Prod',
+        },
+      ])
+      .mockResolvedValueOnce([]); // findMfaCredential query -> no MFA enrolled
 
     const resProdLogin = await supertest(rawAuthApp).post('/raw-auth/login').send({
       email: 'admin@dreamtek.tech',

@@ -37,7 +37,7 @@ export const mfaVerifySchema = z.object({
 
 export const mfaEnableSchema = z.object({
   code: z.string().min(6, 'El código debe tener 6 dígitos.').max(6, 'El código debe tener 6 dígitos.'),
-  secretBase32: z.string().min(16, 'El secreto TOTP es inválido.'),
+  secretBase32: z.string().min(16, 'El secreto TOTP es inválido.').optional(),
   recoveryCodes: z.array(z.string()).optional(),
 });
 

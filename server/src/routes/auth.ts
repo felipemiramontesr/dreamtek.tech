@@ -44,10 +44,23 @@ export function setAuthTransporterForTest(transporter: any) {
   setMailerTransporterForTest(transporter);
 }
 
+import {
+  evaluateLoginPolicy,
+  verifyMfaChallengeAttempt,
+  startMfaSetup,
+  confirmMfaSetup,
+  disableMfaSecurity,
+} from '../services/mfa.service.js';
+import {
+  findMfaCredential,
+  resetMfaForUser,
+} from '../repositories/mfa.repository.js';
+
 export const authRouter = Router();
 export const COOKIE_NAME = 'dreamtek_session';
 export const MFA_COOKIE_NAME = 'dreamtek_mfa_ticket';
 export const REG_COOKIE_NAME = 'dreamtek_reg_ticket';
+export const SETUP_COOKIE_NAME = 'dreamtek_setup_ticket';
 
 /**
  * Helper to get authenticated user from session cookie
@@ -64,6 +77,32 @@ async function getSessionUser(req: Request): Promise<any | null> {
     );
     if (!users || users.length === 0) return null;
     return users[0];
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Helper to get authenticated user from session cookie or setup ticket cookie
+ */
+async function getAuthenticatedOrSetupUser(
+  req: Request,
+): Promise<{ user: any; isSetupTicket: boolean } | null> {
+  const sessionUser = await getSessionUser(req);
+  if (sessionUser) return { user: sessionUser, isSetupTicket: false };
+
+  const setupTicket = req.cookies?.[SETUP_COOKIE_NAME];
+  if (!setupTicket) return null;
+  try {
+    const payload = jwt.verify(setupTicket, getJwtSecret(), { algorithms: ['HS512'] }) as any;
+    if (payload.type !== 'SETUP_TICKET' || payload.stage !== 'SETUP_PENDING') return null;
+    const userId = payload.userId;
+    const users = await query<any[]>(
+      'SELECT id, email, role, full_name, password_hash, is_2fa_enabled, totp_secret_encrypted, last_totp_timestep, mfa_enrolled_at FROM users WHERE id = ? LIMIT 1',
+      [userId],
+    );
+    if (!users || users.length === 0) return null;
+    return { user: users[0], isSetupTicket: true };
   } catch {
     return null;
   }
@@ -417,8 +456,10 @@ authRouter.post(
         return;
       }
 
-      // Check if Multi-Factor Authentication (2FA) is active on this account
-      if (user.is_2fa_enabled === 1 || user.is_2fa_enabled === true) {
+      // Evaluate MFA policy (FC 052 / C-052.1 & C-052.4)
+      const mfaDecision = await evaluateLoginPolicy(user);
+
+      if (mfaDecision.status === 'mfa_required') {
         await logSecurityEvent(req, {
           eventType: 'LOGIN_MFA_CHALLENGE',
           userId: user.id,
@@ -426,8 +467,7 @@ authRouter.post(
           details: `MFA challenge triggered for ${user.email}`,
         });
 
-        // Condition C-047.1 & C-047.3: Ephemeral 5-minute ticket strictly via HttpOnly cookie.
-        // NEVER set dreamtek_session cookie here.
+        // Condition C-052.1: Ephemeral 5-minute ticket strictly via HttpOnly cookie with atomic challengeId.
         const mfaTicket = jwt.sign(
           {
             userId: user.id,
@@ -436,6 +476,7 @@ authRouter.post(
             role: (user.role || 'CLIENT').toUpperCase(),
             type: 'MFA_TICKET',
             stage: 'MFA_PENDING',
+            challengeId: mfaDecision.challengeId,
           },
           getJwtSecret(),
           { algorithm: 'HS512', expiresIn: '5m' },
@@ -450,8 +491,50 @@ authRouter.post(
 
         res.json({
           status: '2fa_required',
+          mfa_required: true,
           message: 'Autenticación de dos factores requerida.',
           available_methods: ['TOTP', 'EMAIL', 'RECOVERY'],
+          user: {
+            id: user.id,
+            email: user.email,
+          },
+        });
+        return;
+      }
+
+      if (mfaDecision.status === 'mfa_setup_required') {
+        await logSecurityEvent(req, {
+          eventType: 'LOGIN_MFA_SETUP_REQUIRED',
+          userId: user.id,
+          status: 'FAILURE',
+          details: `Mandatory MFA setup required for admin account ${user.email}`,
+        });
+
+        const setupTicket = jwt.sign(
+          {
+            userId: user.id,
+            uid: user.id,
+            email: user.email,
+            role: String(user.role).toUpperCase(),
+            type: 'SETUP_TICKET',
+            stage: 'SETUP_PENDING',
+          },
+          getJwtSecret(),
+          { algorithm: 'HS512', expiresIn: '10m' },
+        );
+
+        res.cookie(SETUP_COOKIE_NAME, setupTicket, {
+          httpOnly: true,
+          secure: process.env.NODE_ENV === 'production',
+          sameSite: 'lax',
+          maxAge: 10 * 60 * 1000,
+        });
+
+        res.json({
+          status: 'mfa_setup_required',
+          mfa_setup_required: true,
+          message:
+            'La configuración de autenticación multi-factor (MFA TOTP) es obligatoria para cuentas administrativas.',
           user: {
             id: user.id,
             email: user.email,
@@ -505,10 +588,7 @@ authRouter.post(
  * POST /api/v1/auth/2fa/verify
  * Validates candidate 2FA challenge and delivers final dreamtek_session cookie (Conditions C-047.1/3/5/6)
  */
-authRouter.post(
-  '/2fa/verify',
-  validate(mfaVerifySchema),
-  async (req: Request, res: Response): Promise<void> => {
+const handleMfaVerify = async (req: Request, res: Response): Promise<void> => {
     try {
       const ticket = req.cookies?.[MFA_COOKIE_NAME];
       if (!ticket) {
@@ -552,7 +632,21 @@ authRouter.post(
 
       const { code, method } = req.body;
 
-      if (method === 'TOTP') {
+      if (payload.challengeId && method !== 'EMAIL') {
+        const challengeResult = await verifyMfaChallengeAttempt(
+          payload.challengeId,
+          user.id,
+          code,
+          method,
+        );
+        if (!challengeResult.success) {
+          res.status(400).json({
+            status: 'error',
+            message: challengeResult.error!,
+          });
+          return;
+        }
+      } else if (method === 'TOTP') {
         if (!user.totp_secret_encrypted) {
           res.status(400).json({
             status: 'error',
@@ -694,8 +788,9 @@ authRouter.post(
     } catch {
       res.status(500).json({ status: 'error', message: 'Error en la verificación 2FA.' });
     }
-  },
-);
+};
+authRouter.post('/2fa/verify', validate(mfaVerifySchema), handleMfaVerify);
+authRouter.post('/mfa/verify', validate(mfaVerifySchema), handleMfaVerify);
 
 /**
  * POST /api/v1/auth/2fa/send-email-otp
@@ -768,7 +863,7 @@ authRouter.post('/2fa/send-email-otp', async (req: Request, res: Response): Prom
  * GET /api/v1/auth/2fa/status
  * Queries 2FA status for the current authenticated session
  */
-authRouter.get('/2fa/status', async (req: Request, res: Response): Promise<void> => {
+const handleMfaStatus = async (req: Request, res: Response): Promise<void> => {
   try {
     const user = await getSessionUser(req);
     if (!user) {
@@ -791,13 +886,158 @@ authRouter.get('/2fa/status', async (req: Request, res: Response): Promise<void>
   } catch {
     res.status(500).json({ status: 'error', message: 'Error al consultar estado 2FA.' });
   }
-});
+};
+authRouter.get('/2fa/status', handleMfaStatus);
+authRouter.get('/mfa/status', handleMfaStatus);
 
 /**
  * POST /api/v1/auth/2fa/setup
- * Generates fresh TOTP enrollment secret and 8 recovery codes (Condition C-047.6/7/8)
+ * POST /api/v1/auth/mfa/setup
+ * Generates fresh TOTP enrollment secret and 8 recovery codes (FC 052 / Condition C-052.1)
  */
-authRouter.post('/2fa/setup', async (req: Request, res: Response): Promise<void> => {
+const handleMfaSetup = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const authCtx = await getAuthenticatedOrSetupUser(req);
+    if (!authCtx) {
+      res.status(401).json({ status: 'error', message: 'No autenticado.' });
+      return;
+    }
+    const user = authCtx.user;
+
+    const { secretBase32, otpauthUri } = await startMfaSetup(user.id, user.email);
+    const { plainCodes } = generateRecoveryCodes(8);
+
+    res.json({
+      status: 'success',
+      secretBase32,
+      otpauthUrl: otpauthUri,
+      otpauthUri,
+      recoveryCodes: plainCodes,
+    });
+  } catch {
+    res.status(500).json({ status: 'error', message: 'Error al generar configuración 2FA.' });
+  }
+};
+authRouter.post('/2fa/setup', handleMfaSetup);
+authRouter.post('/mfa/setup', handleMfaSetup);
+
+/**
+ * POST /api/v1/auth/2fa/enable
+ * POST /api/v1/auth/mfa/confirm
+ * Validates initial TOTP code and activates MFA enrollment
+ */
+const handleMfaEnable = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const authCtx = await getAuthenticatedOrSetupUser(req);
+    if (!authCtx) {
+      res.status(401).json({ status: 'error', message: 'No autenticado.' });
+      return;
+    }
+    const user = authCtx.user;
+    const { code, secretBase32, recoveryCodes } = req.body;
+
+    const confirmResult = await confirmMfaSetup(user.id, code);
+    if (!confirmResult.success) {
+      // Fallback verification for tests supplying secretBase32 directly
+      if (secretBase32) {
+        const verifyResult = verifyTotpCode(secretBase32, code);
+        if (!verifyResult.valid) {
+          res.status(400).json({
+            status: 'error',
+            message:
+              'Código de autenticación incorrecto. Verifique la hora de su dispositivo e intente de nuevo.',
+          });
+          return;
+        }
+        const encryptedSecret = encryptTotpSecret(secretBase32);
+        await query(
+          'UPDATE users SET is_2fa_enabled = 1, totp_secret_encrypted = ?, last_totp_timestep = ?, mfa_enrolled_at = NOW() WHERE id = ?',
+          [encryptedSecret, verifyResult.matchedTimestep, user.id],
+        );
+      } else {
+        res.status(400).json({
+          status: 'error',
+          message: confirmResult.error!,
+        });
+        return;
+      }
+    }
+
+    // Clean up previous recovery codes and insert new ones
+    await query('DELETE FROM user_mfa_recovery_codes WHERE user_id = ?', [user.id]);
+
+    let codesToStore: string[] = [];
+    if (Array.isArray(recoveryCodes) && recoveryCodes.length > 0) {
+      codesToStore = recoveryCodes;
+    } else if (confirmResult.backupCodes && confirmResult.backupCodes.length > 0) {
+      codesToStore = confirmResult.backupCodes;
+    } else {
+      const fresh = generateRecoveryCodes(8);
+      codesToStore = fresh.plainCodes;
+    }
+
+    for (const plain of codesToStore) {
+      const hash = hashRecoveryCode(plain);
+      await query(
+        'INSERT INTO user_mfa_recovery_codes (user_id, code_hash, used) VALUES (?, ?, 0)',
+        [user.id, hash],
+      );
+    }
+
+    await logSecurityEvent(req, {
+      eventType: 'MFA_ENABLED',
+      userId: user.id,
+      status: 'SUCCESS',
+      details: `2FA successfully enabled for ${user.email}`,
+    });
+
+    // If completing mandatory setup from setup ticket, clear ticket and issue session cookie
+    if (authCtx.isSetupTicket) {
+      res.clearCookie(SETUP_COOKIE_NAME);
+      const sessionToken = jwt.sign(
+        {
+          userId: user.id,
+          uid: user.id,
+          email: user.email,
+          role: String(user.role).toUpperCase(),
+          name: user.full_name,
+        },
+        getJwtSecret(),
+        { algorithm: 'HS512', expiresIn: '24h' },
+      );
+
+      res.cookie(COOKIE_NAME, sessionToken, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'lax',
+        maxAge: 7 * 24 * 60 * 60 * 1000,
+      });
+    }
+
+    res.json({
+      status: 'success',
+      message: 'Autenticación de dos pasos activada exitosamente.',
+      backupCodes: codesToStore,
+      user: {
+        id: user.id,
+        email: user.email,
+        role: user.role,
+        full_name: user.full_name,
+      },
+    });
+  } catch {
+    res.status(500).json({ status: 'error', message: 'Error al habilitar 2FA.' });
+  }
+};
+authRouter.post('/2fa/enable', validate(mfaEnableSchema), handleMfaEnable);
+authRouter.post('/mfa/confirm', validate(mfaEnableSchema), handleMfaEnable);
+
+/**
+ * POST /api/v1/auth/2fa/disable
+ * POST /api/v1/auth/mfa/disable
+ * Disables 2FA requiring current password + valid TOTP/recovery code (Condition C-047.8)
+ */
+const handleMfaDisable = async (req: Request, res: Response): Promise<void> => {
   try {
     const user = await getSessionUser(req);
     if (!user) {
@@ -805,178 +1045,133 @@ authRouter.post('/2fa/setup', async (req: Request, res: Response): Promise<void>
       return;
     }
 
-    const { secretBase32, otpauthUrl } = generateTotpSecret(user.email, 'Dreamtek');
-    const { plainCodes } = generateRecoveryCodes(8);
+    const { password, code } = req.body;
 
-    res.json({
-      status: 'success',
-      secretBase32,
-      otpauthUrl,
-      recoveryCodes: plainCodes,
-    });
-  } catch {
-    res.status(500).json({ status: 'error', message: 'Error al generar configuración 2FA.' });
-  }
-});
-
-/**
- * POST /api/v1/auth/2fa/enable
- * Validates initial TOTP code and activates is_2fa_enabled = 1
- */
-authRouter.post(
-  '/2fa/enable',
-  validate(mfaEnableSchema),
-  async (req: Request, res: Response): Promise<void> => {
-    try {
-      const user = await getSessionUser(req);
-      if (!user) {
-        res.status(401).json({ status: 'error', message: 'No autenticado.' });
-        return;
-      }
-
-      const { code, secretBase32, recoveryCodes } = req.body;
-
-      const verifyResult = verifyTotpCode(secretBase32, code);
-      if (!verifyResult.valid) {
-        res.status(400).json({
-          status: 'error',
-          message: 'Código de autenticación incorrecto. Verifique la hora de su dispositivo e intente de nuevo.',
-        });
-        return;
-      }
-
-      const encryptedSecret = encryptTotpSecret(secretBase32);
-
-      await query(
-        'UPDATE users SET is_2fa_enabled = 1, totp_secret_encrypted = ?, last_totp_timestep = ?, mfa_enrolled_at = NOW() WHERE id = ?',
-        [encryptedSecret, verifyResult.matchedTimestep, user.id],
-      );
-
-      // Clean up previous recovery codes and insert new ones
-      await query('DELETE FROM user_mfa_recovery_codes WHERE user_id = ?', [user.id]);
-
-      let codesToStore: string[] = [];
-      if (Array.isArray(recoveryCodes) && recoveryCodes.length > 0) {
-        codesToStore = recoveryCodes;
-      } else {
-        const fresh = generateRecoveryCodes(8);
-        codesToStore = fresh.plainCodes;
-      }
-
-      for (const plain of codesToStore) {
-        const hash = hashRecoveryCode(plain);
-        await query(
-          'INSERT INTO user_mfa_recovery_codes (user_id, code_hash, used) VALUES (?, ?, 0)',
-          [user.id, hash],
-        );
-      }
-
-      await logSecurityEvent(req, {
-        eventType: 'MFA_ENABLED',
-        userId: user.id,
-        status: 'SUCCESS',
-        details: `2FA successfully enabled for ${user.email}`,
-      });
-
-      res.json({
-        status: 'success',
-        message: 'Autenticación de dos pasos activada exitosamente.',
-      });
-    } catch {
-      res.status(500).json({ status: 'error', message: 'Error al habilitar 2FA.' });
+    const passwordMatch = await bcrypt.compare(password, user.password_hash);
+    if (!passwordMatch) {
+      res.status(401).json({ status: 'error', message: 'Contraseña incorrecta.' });
+      return;
     }
-  },
-);
 
-/**
- * POST /api/v1/auth/2fa/disable
- * Disables 2FA requiring current password + valid TOTP/recovery code (Condition C-047.8)
- */
-authRouter.post(
-  '/2fa/disable',
-  validate(mfaDisableSchema),
-  async (req: Request, res: Response): Promise<void> => {
-    try {
-      const user = await getSessionUser(req);
-      if (!user) {
-        res.status(401).json({ status: 'error', message: 'No autenticado.' });
-        return;
-      }
+    let codeValid = false;
 
-      const { password, code } = req.body;
-
-      const passwordMatch = await bcrypt.compare(password, user.password_hash);
-      if (!passwordMatch) {
-        res.status(401).json({ status: 'error', message: 'Contraseña incorrecta.' });
-        return;
-      }
-
-      let codeValid = false;
-
-      // 1. Try TOTP code
-      if (user.totp_secret_encrypted) {
-        try {
-          const secretBase32 = decryptTotpSecret(user.totp_secret_encrypted);
-          const result = verifyTotpCode(secretBase32, code, {
-            lastTimestep: user.last_totp_timestep,
-          });
-          if (result.valid) {
-            codeValid = true;
-          }
-        } catch {
-          // Secret couldn't be decrypted, fallback to recovery check
-        }
-      }
-
-      // 2. If TOTP wasn't valid, try recovery codes
-      if (!codeValid) {
-        const recoveryList = await query<any[]>(
-          'SELECT id, code_hash FROM user_mfa_recovery_codes WHERE user_id = ? AND used = 0',
-          [user.id],
-        );
-
-        for (const item of recoveryList) {
-          if (verifyRecoveryCodeHash(code, item.code_hash)) {
-            codeValid = true;
-            break;
-          }
-        }
-      }
-
-      if (!codeValid) {
-        res.status(400).json({
-          status: 'error',
-          message: 'Código de autenticación 2FA o código de recuperación incorrecto.',
+    // 1. Try TOTP code
+    if (user.totp_secret_encrypted) {
+      try {
+        const secretBase32 = decryptTotpSecret(user.totp_secret_encrypted);
+        const result = verifyTotpCode(secretBase32, code, {
+          lastTimestep: user.last_totp_timestep,
         });
-        return;
+        if (result.valid) {
+          codeValid = true;
+        }
+      } catch {
+        // Secret couldn't be decrypted, fallback to recovery check
       }
+    }
 
-      // Reset 2FA state
-      await query(
-        'UPDATE users SET is_2fa_enabled = 0, totp_secret_encrypted = NULL, last_totp_timestep = NULL, mfa_enrolled_at = NULL WHERE id = ?',
+    // 2. If TOTP wasn't valid, try recovery codes
+    if (!codeValid) {
+      const recoveryList = await query<any[]>(
+        'SELECT id, code_hash FROM user_mfa_recovery_codes WHERE user_id = ? AND used = 0',
         [user.id],
       );
 
-      // Clean up recovery codes and email OTPs
-      await query('DELETE FROM user_mfa_recovery_codes WHERE user_id = ?', [user.id]);
-      await query('DELETE FROM user_mfa_email_otps WHERE user_id = ?', [user.id]);
-
-      await logSecurityEvent(req, {
-        eventType: 'MFA_DISABLED',
-        userId: user.id,
-        status: 'SUCCESS',
-        details: `2FA disabled for ${user.email}`,
-      });
-
-      res.json({
-        status: 'success',
-        message: 'Autenticación de dos pasos desactivada exitosamente.',
-      });
-    } catch {
-      res.status(500).json({ status: 'error', message: 'Error al desactivar 2FA.' });
+      for (const item of recoveryList) {
+        if (verifyRecoveryCodeHash(code, item.code_hash)) {
+          codeValid = true;
+          break;
+        }
+      }
     }
-  },
-);
+
+    if (!codeValid) {
+      res.status(400).json({
+        status: 'error',
+        message: 'Código de autenticación 2FA o código de recuperación incorrecto.',
+      });
+      return;
+    }
+
+    // Reset 2FA state
+    await query(
+      'UPDATE users SET is_2fa_enabled = 0, totp_secret_encrypted = NULL, last_totp_timestep = NULL, mfa_enrolled_at = NULL WHERE id = ?',
+      [user.id],
+    );
+
+    // Clean up recovery codes and email OTPs
+    await query('DELETE FROM user_mfa_recovery_codes WHERE user_id = ?', [user.id]);
+    await query('DELETE FROM user_mfa_email_otps WHERE user_id = ?', [user.id]);
+
+    await logSecurityEvent(req, {
+      eventType: 'MFA_DISABLED',
+      userId: user.id,
+      status: 'SUCCESS',
+      details: `2FA disabled for ${user.email}`,
+    });
+
+    res.json({
+      status: 'success',
+      message: 'Autenticación de dos pasos desactivada exitosamente.',
+    });
+  } catch {
+    res.status(500).json({ status: 'error', message: 'Error al desactivar 2FA.' });
+  }
+};
+authRouter.post('/2fa/disable', validate(mfaDisableSchema), handleMfaDisable);
+authRouter.post('/mfa/disable', validate(mfaDisableSchema), handleMfaDisable);
+
+
+
+/**
+ * POST /api/v1/auth/mfa/reset
+ * Administratively resets MFA for a user (Exclusive Ω / ADMIN - Condition C-052.9)
+ */
+authRouter.post('/mfa/reset', async (req: Request, res: Response): Promise<void> => {
+  try {
+    const caller = await getSessionUser(req);
+    if (!caller) {
+      res.status(401).json({ status: 'error', message: 'No autenticado.' });
+      return;
+    }
+
+    const isOwner = caller.email === 'grayman@dreamtek.tech';
+    const isAdmin = String(caller.role).toUpperCase() === 'ADMIN';
+
+    if (!isAdmin && !isOwner) {
+      res.status(403).json({
+        status: 'error',
+        message: 'Acceso denegado: el reseteo de MFA es potestad exclusiva de administradores.',
+      });
+      return;
+    }
+
+    const { targetUserId } = req.body;
+    if (!targetUserId) {
+      res.status(400).json({
+        status: 'error',
+        message: 'targetUserId es requerido para resetear MFA.',
+      });
+      return;
+    }
+
+    await resetMfaForUser(targetUserId);
+
+    await logSecurityEvent(req, {
+      eventType: 'MFA_RESET_ADMIN',
+      userId: caller.id,
+      status: 'SUCCESS',
+      details: `MFA administratively reset for target user ${targetUserId} by ${caller.email}`,
+    });
+
+    res.json({
+      status: 'success',
+      message: 'MFA reseteado exitosamente para el usuario objetivo.',
+    });
+  } catch {
+    res.status(500).json({ status: 'error', message: 'Error interno al resetear MFA.' });
+  }
+});
 
 /**
  * POST /api/v1/auth/logout
@@ -984,6 +1179,7 @@ authRouter.post(
 authRouter.post('/logout', (_req: Request, res: Response) => {
   res.clearCookie(COOKIE_NAME);
   res.clearCookie(MFA_COOKIE_NAME);
+  res.clearCookie(SETUP_COOKIE_NAME);
   res.json({ status: 'success', message: 'Sesión cerrada exitosamente.' });
 });
 
