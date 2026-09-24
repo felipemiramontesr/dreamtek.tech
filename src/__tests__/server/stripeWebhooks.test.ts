@@ -6,6 +6,7 @@ import {
   setStripeForTest,
   checkoutRouter,
   extractPaymentIntentId,
+  getCheckoutBaseUrl,
 } from '../../../server/src/routes/checkout';
 import * as db from '../../../server/src/db';
 
@@ -1181,13 +1182,36 @@ describe('Stripe Webhooks & Subscription Engine (Comprehensive Suite)', () => {
       expect(resNoLead.body.status).toBe('success');
     });
 
-    it('extractPaymentIntentId debe resolver cadenas, objetos con id, o null/undefined correctamente', () => {
+    it('extractPaymentIntentId debe resolver cadenas, objetos con id string, o null/undefined/no-string correctamente', () => {
       expect(extractPaymentIntentId('pi_123')).toBe('pi_123');
       expect(extractPaymentIntentId({ id: 'pi_obj_456' })).toBe('pi_obj_456');
+      expect(extractPaymentIntentId({ id: 12345 })).toBeNull();
       expect(extractPaymentIntentId(null)).toBeNull();
       expect(extractPaymentIntentId(undefined)).toBeNull();
       expect(extractPaymentIntentId({})).toBeNull();
-      expect(extractPaymentIntentId(12345 as unknown as string)).toBeNull();
+      expect(extractPaymentIntentId(12345)).toBeNull();
+    });
+
+    it('getCheckoutBaseUrl debe resolver CORS_ORIGIN, FRONTEND_URL o fallback https://dreamtek.tech', () => {
+      const origCors = process.env.CORS_ORIGIN;
+      const origFrontend = process.env.FRONTEND_URL;
+
+      try {
+        process.env.CORS_ORIGIN = 'https://cors.dreamtek.tech';
+        expect(getCheckoutBaseUrl()).toBe('https://cors.dreamtek.tech');
+
+        delete process.env.CORS_ORIGIN;
+        process.env.FRONTEND_URL = 'https://app.dreamtek.tech';
+        expect(getCheckoutBaseUrl()).toBe('https://app.dreamtek.tech');
+
+        delete process.env.FRONTEND_URL;
+        expect(getCheckoutBaseUrl()).toBe('https://dreamtek.tech');
+      } finally {
+        if (origCors !== undefined) process.env.CORS_ORIGIN = origCors;
+        else delete process.env.CORS_ORIGIN;
+        if (origFrontend !== undefined) process.env.FRONTEND_URL = origFrontend;
+        else delete process.env.FRONTEND_URL;
+      }
     });
   });
 });

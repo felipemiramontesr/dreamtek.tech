@@ -22,12 +22,17 @@ export function getStripe(key: string) {
   return new Stripe(key);
 }
 
-export function extractPaymentIntentId(paymentIntent: any): string | null {
+export function extractPaymentIntentId(paymentIntent: unknown): string | null {
   if (typeof paymentIntent === 'string') return paymentIntent;
   if (paymentIntent && typeof paymentIntent === 'object' && 'id' in paymentIntent) {
-    return String(paymentIntent.id || '');
+    const id = (paymentIntent as { id: unknown }).id;
+    if (typeof id === 'string') return id;
   }
   return null;
+}
+
+export function getCheckoutBaseUrl(): string {
+  return process.env.CORS_ORIGIN || process.env.FRONTEND_URL || 'https://dreamtek.tech';
 }
 
 /**
@@ -379,8 +384,7 @@ checkoutRouter.post('/webhook', async (req: Request, res: Response): Promise<voi
 
         // Enviar constancia de finiquito bilingüe (Fail-open)
         try {
-          const baseUrl =
-            process.env.CORS_ORIGIN || process.env.FRONTEND_URL || 'https://dreamtek.tech';
+          const baseUrl = getCheckoutBaseUrl();
           const receiptEmail = renderFinalSettlementReceiptEmail({
             fullName: project.full_name,
             email: project.email,
