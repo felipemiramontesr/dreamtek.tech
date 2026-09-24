@@ -43,7 +43,10 @@ import { getCache, setCache } from './utils/cache.js';
 dotenv.config({ path: path.join(__dirname, '../.env') });
 
 const app = express();
-const PORT = process.env.PORT || 3001;
+export function getPort(): number {
+  return process.env.PORT ? parseInt(process.env.PORT, 10) : 3001;
+}
+const PORT = getPort();
 
 // Register Telemetry Middleware first
 app.use(metricsMiddleware);

@@ -2,7 +2,11 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import request from 'supertest';
 import express from 'express';
 import app from '../../../server/src/index';
-import { setStripeForTest, checkoutRouter } from '../../../server/src/routes/checkout';
+import {
+  setStripeForTest,
+  checkoutRouter,
+  extractPaymentIntentId,
+} from '../../../server/src/routes/checkout';
 import * as db from '../../../server/src/db';
 
 vi.mock('../../../server/src/db', () => {
@@ -1175,6 +1179,15 @@ describe('Stripe Webhooks & Subscription Engine (Comprehensive Suite)', () => {
 
       expect(resNoLead.status).toBe(200);
       expect(resNoLead.body.status).toBe('success');
+    });
+
+    it('extractPaymentIntentId debe resolver cadenas, objetos con id, o null/undefined correctamente', () => {
+      expect(extractPaymentIntentId('pi_123')).toBe('pi_123');
+      expect(extractPaymentIntentId({ id: 'pi_obj_456' })).toBe('pi_obj_456');
+      expect(extractPaymentIntentId(null)).toBeNull();
+      expect(extractPaymentIntentId(undefined)).toBeNull();
+      expect(extractPaymentIntentId({})).toBeNull();
+      expect(extractPaymentIntentId(12345 as unknown as string)).toBeNull();
     });
   });
 });

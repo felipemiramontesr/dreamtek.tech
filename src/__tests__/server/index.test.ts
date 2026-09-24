@@ -101,11 +101,19 @@ describe('Server Index Core (100% Coverage Suite)', () => {
     corsOriginHandler('https://attacker.org', cb);
     expect(cb).toHaveBeenCalledWith(expect.any(Error));
 
-    // Test getCorsOrigins with CORS_ORIGIN set
+    // Test getCorsOrigins with and without CORS_ORIGIN set
     const origEnv = process.env.CORS_ORIGIN;
+    delete process.env.CORS_ORIGIN;
+    expect(getCorsOrigins()).toEqual([
+      'http://localhost:3000',
+      'https://dreamtek.tech',
+      'https://www.dreamtek.tech',
+    ]);
+
     process.env.CORS_ORIGIN = 'https://custom-origin.com';
     expect(getCorsOrigins()).toContain('https://custom-origin.com');
-    process.env.CORS_ORIGIN = origEnv;
+    if (origEnv !== undefined) process.env.CORS_ORIGIN = origEnv;
+    else delete process.env.CORS_ORIGIN;
   });
 
   it('createServerInstance debe devolver null en modo test e instanciar en prod', () => {
@@ -229,5 +237,30 @@ describe('Server Index Core (100% Coverage Suite)', () => {
       .mockImplementation((() => {}) as unknown as typeof process.exit);
     gracefulShutdown('SIGTERM', null, null);
     expect(exitSpy).toHaveBeenCalledWith(0);
+  });
+
+  it('gracefulShutdown debe soportar invocación con argumentos por defecto (customServer y customPool)', () => {
+    const exitSpy = vi
+      .spyOn(process, 'exit')
+      .mockImplementation((() => {}) as unknown as typeof process.exit);
+    gracefulShutdown('SIGTERM');
+    expect(exitSpy).toHaveBeenCalledWith(0);
+  });
+
+  it('debe resolver getPort correctamente con y sin PORT en variables de entorno', async () => {
+    const { getPort } = await import('../../../server/src/index');
+    const origPort = process.env.PORT;
+
+    delete process.env.PORT;
+    expect(getPort()).toBe(3001);
+
+    process.env.PORT = '4000';
+    expect(getPort()).toBe(4000);
+
+    if (origPort !== undefined) {
+      process.env.PORT = origPort;
+    } else {
+      delete process.env.PORT;
+    }
   });
 });

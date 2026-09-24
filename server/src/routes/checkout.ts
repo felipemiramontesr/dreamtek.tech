@@ -22,6 +22,14 @@ export function getStripe(key: string) {
   return new Stripe(key);
 }
 
+export function extractPaymentIntentId(paymentIntent: any): string | null {
+  if (typeof paymentIntent === 'string') return paymentIntent;
+  if (paymentIntent && typeof paymentIntent === 'object' && 'id' in paymentIntent) {
+    return String(paymentIntent.id || '');
+  }
+  return null;
+}
+
 /**
  * POST /api/v1/checkout/session
  */
@@ -211,10 +219,7 @@ checkoutRouter.post('/webhook', async (req: Request, res: Response): Promise<voi
         }
 
         // Transacción atómica: actualizar lead_payments, leads y registrar lead_activities
-        const paymentIntentId =
-          typeof session.payment_intent === 'string'
-            ? session.payment_intent
-            : (session.payment_intent as any)?.id || null;
+        const paymentIntentId = extractPaymentIntentId(session.payment_intent);
 
         const formattedAmount = (leadPayment.amount_cents / 100).toLocaleString();
         const activityDetails = `Monto anticipo liquidado: $${formattedAmount} ${leadPayment.currency}. Tipo: ${leadPayment.payment_type}. Stripe Session: ${session.id}. Payment Intent: ${paymentIntentId || 'N/A'}. Transición automática a WON.`;
@@ -316,10 +321,7 @@ checkoutRouter.post('/webhook', async (req: Request, res: Response): Promise<voi
           return;
         }
 
-        const paymentIntentId =
-          typeof session.payment_intent === 'string'
-            ? session.payment_intent
-            : (session.payment_intent as any)?.id || null;
+        const paymentIntentId = extractPaymentIntentId(session.payment_intent);
 
         const projectRows = await query<any[]>(
           `SELECT p.*, u.full_name, u.email, l.locale

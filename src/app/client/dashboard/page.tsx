@@ -87,7 +87,7 @@ export default function ClientDashboardPage() {
   const isAdmin = profile.role === 'ADMIN';
   const hasEscolta =
     sites.length > 0 || services.some((s) => s.name?.toLowerCase().includes('escolta'));
-  const hasArchon = services.some((s) => s.name?.toLowerCase().includes('archon')) || isAdmin;
+  const hasArchon = services.some((s) => s.name?.toLowerCase().includes('archon'));
   const hasProjects = projects.length > 0;
 
   return (
@@ -222,7 +222,7 @@ export default function ClientDashboardPage() {
                   }
                   metrics={[
                     { label: 'Sitios Online', value: sites.length },
-                    { label: 'Bolsa Soporte', value: '3 hrs / mes' },
+                    { label: 'SLA Soporte', value: hasEscolta ? 'Activo' : 'Bespoke' },
                   ]}
                   isContracted={hasEscolta}
                   ctaText={hasEscolta ? 'Administrar sitios →' : 'Ver alcance →'}
@@ -232,11 +232,11 @@ export default function ClientDashboardPage() {
                   }}
                 />
 
-                {/* 2. ARCHON Flotas */}
+                {/* 2. ARCHON Node Bridge */}
                 <ClientHubModuleCard
                   id="archon"
-                  title="ARCHON Flotas"
-                  description="Plataforma de telemetría y monitoreo de flotas basada en nodos atómicos."
+                  title="ARCHON Node Bridge"
+                  description="Enlace y autenticación criptográfica con nodos ARCHON mediante firmas HMAC."
                   icon={
                     <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path
@@ -355,7 +355,7 @@ export default function ClientDashboardPage() {
                     </svg>
                   }
                   href="/client/dashboard/billing"
-                  badge={{ text: 'CFDI 4.0', variant: 'cyan' }}
+                  badge={{ text: 'Solicitud Fiscal', variant: 'cyan' }}
                   metrics={[
                     { label: 'Normativa', value: 'SAT México' },
                     { label: 'Expediente', value: 'FC 046' },

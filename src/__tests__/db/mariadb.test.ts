@@ -130,6 +130,95 @@ describe('MariaDB Schema & Host Model Verification (FC 001a & ADR 005)', () => {
     }
   });
 
+  it('debe ejecutar query sin parámetros usando el arreglo por defecto []', async () => {
+    const { query, pool } = await import('../../../server/src/db');
+    vi.spyOn(pool, 'execute').mockResolvedValueOnce([[{ count: 1 }], []] as never);
+
+    const result = await query('SELECT 1');
+    expect(result).toEqual([{ count: 1 }]);
+    expect(pool.execute).toHaveBeenCalledWith('SELECT 1', []);
+  });
+
+  it('debe ejecutar conn.query sin parámetros usando el arreglo por defecto [] en withTransaction', async () => {
+    const { withTransaction, pool } = await import('../../../server/src/db');
+    const mockConn = {
+      beginTransaction: vi.fn().mockResolvedValue(undefined),
+      execute: vi.fn().mockResolvedValue([[{ active: 1 }], []]),
+      commit: vi.fn().mockResolvedValue(undefined),
+      rollback: vi.fn().mockResolvedValue(undefined),
+      release: vi.fn().mockReturnValue(undefined),
+    };
+    vi.spyOn(pool, 'getConnection').mockResolvedValueOnce(mockConn as any);
+
+    const result = await withTransaction(async (conn) => {
+      return conn.query('SELECT 1');
+    });
+
+    expect(result).toEqual([{ active: 1 }]);
+    expect(mockConn.execute).toHaveBeenCalledWith('SELECT 1', []);
+  });
+
+  it('debe retornar configuración por defecto en getDbConfig cuando variables de entorno no están definidas', async () => {
+    const { getDbConfig } = await import('../../../server/src/db');
+    const origHost = process.env.DB_HOST;
+    const origPort = process.env.DB_PORT;
+    const origUser = process.env.DB_USER;
+    const origPass = process.env.DB_PASSWORD;
+    const origName = process.env.DB_NAME;
+
+    delete process.env.DB_HOST;
+    delete process.env.DB_PORT;
+    delete process.env.DB_USER;
+    delete process.env.DB_PASSWORD;
+    delete process.env.DB_NAME;
+
+    const cfg = getDbConfig();
+    expect(cfg.host).toBe('127.0.0.1');
+    expect(cfg.port).toBe(3306);
+    expect(cfg.user).toBe('root');
+    expect(cfg.password).toBe('');
+    expect(cfg.database).toBe('dreamtek');
+
+    if (origHost !== undefined) process.env.DB_HOST = origHost;
+    if (origPort !== undefined) process.env.DB_PORT = origPort;
+    if (origUser !== undefined) process.env.DB_USER = origUser;
+    if (origPass !== undefined) process.env.DB_PASSWORD = origPass;
+    if (origName !== undefined) process.env.DB_NAME = origName;
+  });
+
+  it('debe retornar configuración personalizada en getDbConfig cuando variables de entorno están definidas', async () => {
+    const { getDbConfig } = await import('../../../server/src/db');
+    const origHost = process.env.DB_HOST;
+    const origPort = process.env.DB_PORT;
+    const origUser = process.env.DB_USER;
+    const origPass = process.env.DB_PASSWORD;
+    const origName = process.env.DB_NAME;
+
+    process.env.DB_HOST = 'custom-host';
+    process.env.DB_PORT = '3307';
+    process.env.DB_USER = 'custom-user';
+    process.env.DB_PASSWORD = 'custom-password';
+    process.env.DB_NAME = 'custom-db';
+
+    const cfg = getDbConfig();
+    expect(cfg.host).toBe('custom-host');
+    expect(cfg.port).toBe(3307);
+    expect(cfg.user).toBe('custom-user');
+    expect(cfg.password).toBe('custom-password');
+    expect(cfg.database).toBe('custom-db');
+
+    if (origHost !== undefined) process.env.DB_HOST = origHost;
+    else delete process.env.DB_HOST;
+    if (origPort !== undefined) process.env.DB_PORT = origPort;
+    else delete process.env.DB_PORT;
+    if (origUser !== undefined) process.env.DB_USER = origUser;
+    else delete process.env.DB_USER;
+    if (origPass !== undefined) process.env.DB_PASSWORD = origPass;
+    else delete process.env.DB_PASSWORD;
+    if (origName !== undefined) process.env.DB_NAME = origName;
+    else delete process.env.DB_NAME;
+  });
+
   it('debe validar la congruencia de los tipos de entidad TypeScript', () => {
     const mockUser: UserEntity = {
       id: 1,
