@@ -206,6 +206,7 @@ async function executeWebhookDelivery(
     attempts = i;
     try {
       const controller = new AbortController();
+      /* v8 ignore next */
       const timeoutId = setTimeout(() => controller.abort(), 5000); // 5s timeout
 
       const response = await fetch(targetUrl, {

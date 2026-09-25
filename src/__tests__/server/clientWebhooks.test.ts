@@ -162,6 +162,7 @@ describe('FC 053 — Client Webhooks & Outbound Security Engine Suite', () => {
         'https://webhook.site/abc-123',
         'https://api.miempresa.com/integrations/dreamtek',
         'https://hooks.slack.com/services/T00/B00/X00',
+        'https://8.8.8.8/hook',
       ];
 
       for (const url of validUrls) {
@@ -313,6 +314,16 @@ describe('FC 053 — Client Webhooks & Outbound Security Engine Suite', () => {
           created_at: '2026-09-25 12:00:00',
           updated_at: '2026-09-25 12:00:00',
         },
+        {
+          id: 102,
+          tenant_id: 10,
+          name: 'Array Events Webhook',
+          target_url: 'https://api.miempresa.com/hook2',
+          events: ['billing.deposit_paid'],
+          is_active: 1,
+          created_at: '2026-09-25 12:01:00',
+          updated_at: '2026-09-25 12:01:00',
+        },
       ]);
 
       const res = await supertest(app)
@@ -321,9 +332,10 @@ describe('FC 053 — Client Webhooks & Outbound Security Engine Suite', () => {
 
       expect(res.status).toBe(200);
       expect(res.body.status).toBe('success');
-      expect(res.body.data).toHaveLength(1);
+      expect(res.body.data).toHaveLength(2);
       expect(res.body.data[0].name).toBe('Producción Webhook');
       expect(res.body.data[0].events).toEqual(['auth.login', 'project.milestone_updated']);
+      expect(res.body.data[1].events).toEqual(['billing.deposit_paid']);
       // A02/C-053.3: NUNCA retornar el secreto en el listado
       expect(res.body.data[0].secret).toBeUndefined();
       expect(res.body.data[0].secret_encrypted).toBeUndefined();
@@ -499,6 +511,194 @@ describe('FC 053 — Client Webhooks & Outbound Security Engine Suite', () => {
         .set('Cookie', [`dreamtek_session=${token}`]);
 
       expect(res.status).toBe(500);
+    });
+
+    it('debe cubrir branches adicionales de Anti-SSRF (URL malformada e IPv6 privada)', async () => {
+      // 1. URL malformada
+      const malformed = await validateClientWebhookUrl('http://[invalid-ipv6');
+      expect(malformed.valid).toBe(false);
+      expect(malformed.error).toBe('Formato de URL inválido.');
+
+      // 2. Dominio que resuelve a IPv6 privada/local (fe80::1)
+      const lookupSpy = vi.spyOn(dns.promises, 'lookup').mockResolvedValueOnce({
+        address: 'fe80::1',
+        family: 6,
+      });
+
+      const ipv6Private = await validateClientWebhookUrl('https://internal-ipv6.corp/hook');
+      expect(ipv6Private.valid).toBe(false);
+      expect(ipv6Private.error).toContain('dirección IPv6 privada o local');
+
+      lookupSpy.mockRestore();
+    });
+
+    it('dispatchClientWebhook debe tolerar JSON inválido en eventos y fallos en consulta DB (fail-open)', async () => {
+      // Subscripción con campo events corrupto
+      (db.query as any).mockResolvedValueOnce([
+        {
+          id: 55,
+          target_url: 'https://example.com/hook',
+          secret_encrypted: encryptField('test_sec'),
+          events: '{invalid_json',
+        },
+      ]);
+
+      await dispatchClientWebhook(10, 'SECURITY_ALERT', { test: true });
+      await new Promise((r) => setImmediate(r));
+
+      // Fallo de base de datos en setImmediate
+      (db.query as any).mockRejectedValueOnce(new Error('Fatal Query Error'));
+      await dispatchClientWebhook(10, 'SECURITY_ALERT', { test: true });
+      await new Promise((r) => setImmediate(r));
+    });
+
+    it('debe cubrir auto-resolución de tenantId y errores 500 en todas las rutas de webhooks', async () => {
+      const tokenNoTenant = getClientToken(42, undefined);
+
+      // 1. GET / con token sin tenantId y luego con fallo 500
+      (db.query as any)
+        .mockResolvedValueOnce([{ tenant_id: 10 }]) // resolveTenantForUser
+        .mockResolvedValueOnce([]); // get subscriptions
+
+      const getRes = await supertest(app)
+        .get('/api/v1/client/webhooks')
+        .set('Cookie', [`dreamtek_session=${tokenNoTenant}`]);
+      expect(getRes.status).toBe(200);
+
+      (db.query as any).mockRejectedValueOnce(new Error('DB Failure'));
+      const getErrRes = await supertest(app)
+        .get('/api/v1/client/webhooks')
+        .set('Cookie', [`dreamtek_session=${tokenNoTenant}`]);
+      expect(getErrRes.status).toBe(500);
+
+      // 2. POST / con fallo 500 en inserción
+      (db.query as any)
+        .mockResolvedValueOnce([{ tenant_id: 10 }]) // resolveTenantForUser
+        .mockRejectedValueOnce(new Error('Insert Crash'));
+
+      const postErrRes = await supertest(app)
+        .post('/api/v1/client/webhooks')
+        .set('Cookie', [`dreamtek_session=${tokenNoTenant}`])
+        .send({
+          name: 'My Webhook',
+          target_url: 'https://webhook.site/hook',
+          events: ['auth.login'],
+        });
+      expect(postErrRes.status).toBe(500);
+
+      // 3. DELETE /:id con token sin tenantId y luego con fallo 500
+      (db.query as any)
+        .mockResolvedValueOnce([{ tenant_id: 10 }]) // resolveTenantForUser
+        .mockResolvedValueOnce({ affectedRows: 1 });
+
+      const delRes = await supertest(app)
+        .delete('/api/v1/client/webhooks/77')
+        .set('Cookie', [`dreamtek_session=${tokenNoTenant}`]);
+      expect(delRes.status).toBe(200);
+
+      (db.query as any).mockRejectedValueOnce(new Error('Delete Crash'));
+      const delErrRes = await supertest(app)
+        .delete('/api/v1/client/webhooks/77')
+        .set('Cookie', [`dreamtek_session=${tokenNoTenant}`]);
+      expect(delErrRes.status).toBe(500);
+
+      // 4. POST /:id/test con token sin tenantId y respuesta delivery.success = false
+      (db.query as any)
+        .mockResolvedValueOnce([{ tenant_id: 10 }]) // resolveTenantForUser
+        .mockResolvedValueOnce([
+          {
+            target_url: 'https://webhook.site/test-ping',
+            secret_encrypted: encryptField('test_secret'),
+          },
+        ])
+        .mockResolvedValueOnce({ insertId: 802 }); // audit log
+
+      const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce({
+        ok: false,
+        status: 503,
+        text: async () => 'Service Unavailable',
+      } as any);
+
+      const testRes = await supertest(app)
+        .post('/api/v1/client/webhooks/77/test')
+        .set('Cookie', [`dreamtek_session=${tokenNoTenant}`]);
+
+      expect(testRes.status).toBe(200);
+      expect(testRes.body.data.success).toBe(false);
+      expect(testRes.body.message).toContain('respondió con error');
+
+      fetchSpy.mockRestore();
+    });
+
+    it('debe cubrir branches adicionales de resolución DNS privada y pública IPv6', async () => {
+      const privateIps = ['10.0.0.1', '172.16.0.1', '192.168.1.1', '169.254.1.1', '0.0.0.0'];
+      for (const ip of privateIps) {
+        const spy = vi.spyOn(dns.promises, 'lookup').mockResolvedValueOnce({
+          address: ip,
+          family: 4,
+        });
+        const res = await validateClientWebhookUrl(`https://dynamic-host-${ip}.org/hook`);
+        expect(res.valid).toBe(false);
+        expect(res.error).toContain('red privada');
+        spy.mockRestore();
+      }
+
+      // IPv6 pública legítima
+      const ipv6Spy = vi.spyOn(dns.promises, 'lookup').mockResolvedValueOnce({
+        address: '2606:4700:4700::1111',
+        family: 6,
+      });
+      const validIpv6 = await validateClientWebhookUrl('https://cloudflare-ipv6.org/hook');
+      expect(validIpv6.valid).toBe(true);
+      ipv6Spy.mockRestore();
+    });
+
+    it('dispatchClientWebhook debe soportar array directo en sub.events y comodín *', async () => {
+      (db.query as any).mockResolvedValueOnce([
+        {
+          id: 56,
+          target_url: 'https://example.com/hook1',
+          secret_encrypted: encryptField('test_sec'),
+          events: ['auth.login'], // array en lugar de JSON string
+        },
+        {
+          id: 57,
+          target_url: 'https://example.com/hook2',
+          secret_encrypted: encryptField('test_sec'),
+          events: JSON.stringify(['*']), // comodín *
+        },
+      ]);
+
+      const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue({
+        ok: true,
+        status: 200,
+        text: async () => 'OK',
+      } as any);
+
+      await dispatchClientWebhook(10, 'auth.login', { ok: true });
+      await new Promise((r) => setImmediate(r));
+      expect(fetchSpy).toHaveBeenCalled();
+      fetchSpy.mockRestore();
+    });
+
+    it('executeWebhookDelivery debe manejar errores sin propiedad message y fallo en audit insert', async () => {
+      (db.query as any)
+        .mockResolvedValueOnce([
+          {
+            target_url: 'https://webhook.site/test-ping',
+            secret_encrypted: encryptField('test_secret'),
+          },
+        ])
+        .mockRejectedValueOnce(new Error('Audit DB Down')); // fallo al guardar bitácora
+
+      // fetch lanza objeto sin mensaje en todos los reintentos
+      const fetchSpy = vi.spyOn(globalThis, 'fetch').mockRejectedValue({});
+
+      const res = await dispatchTestWebhook(77, 10);
+      expect(res.success).toBe(false);
+      expect(res.statusCode).toBeUndefined();
+
+      fetchSpy.mockRestore();
     });
   });
 });

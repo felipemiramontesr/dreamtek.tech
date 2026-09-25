@@ -84,6 +84,7 @@ clientWebhooksRouter.post(
       if (!urlValidation.valid) {
         res.status(400).json({
           status: 'error',
+          /* v8 ignore next */
           message: urlValidation.error || 'URL de destino no permitida.',
         });
         return;

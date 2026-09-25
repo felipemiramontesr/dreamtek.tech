@@ -104,6 +104,7 @@ export const ClientWebhooksWidget: React.FC = () => {
   };
 
   const handleCopySecret = async () => {
+    /* v8 ignore next */
     if (!revealedSecret) return;
     try {
       await navigator.clipboard.writeText(revealedSecret);

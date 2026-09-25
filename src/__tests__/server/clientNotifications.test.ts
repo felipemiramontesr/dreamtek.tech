@@ -255,6 +255,47 @@ describe('FC 053 — Client Portal Notification Center Suite', () => {
       expect(res.total).toBe(10);
       expect(res.unreadCount).toBe(3);
       expect(res.notifications).toHaveLength(1);
+
+      // Clamping de limit y offset (undefined, negativo, mayor a 100) y rows vacíos
+      (db.query as any)
+        .mockResolvedValueOnce([]) // countRows vacío
+        .mockResolvedValueOnce([]) // unreadRows vacío
+        .mockResolvedValueOnce([]); // rows vacío
+
+      const resClamp = await getClientNotifications({
+        tenantId: 10,
+        userId: 42,
+        limit: 500, // Clamps to 100
+        offset: -10, // Clamps to 0
+      });
+
+      expect(resClamp.total).toBe(0);
+      expect(resClamp.unreadCount).toBe(0);
+
+      // limit negativo que clampea a 1 y offset undefined
+      (db.query as any)
+        .mockResolvedValueOnce([{ total: 0 }])
+        .mockResolvedValueOnce([{ unread_count: 0 }])
+        .mockResolvedValueOnce([]);
+
+      const resClampMin = await getClientNotifications({
+        tenantId: 10,
+        userId: 42,
+        limit: -5, // Clamps to 1
+      });
+      expect(resClampMin.total).toBe(0);
+
+      // limit y offset omitidos / undefined (cubre ramas de default || 20 y || 0)
+      (db.query as any)
+        .mockResolvedValueOnce([{ total: 0 }])
+        .mockResolvedValueOnce([{ unread_count: 0 }])
+        .mockResolvedValueOnce([]);
+
+      const resDefault = await getClientNotifications({
+        tenantId: 10,
+        userId: 42,
+      });
+      expect(resDefault.total).toBe(0);
     });
 
     it('markNotificationAsRead debe retornar true si actualizó la fila y false si no', async () => {
@@ -405,6 +446,75 @@ describe('FC 053 — Client Portal Notification Center Suite', () => {
 
       expect(res.status).toBe(500);
       expect(res.body.status).toBe('error');
+    });
+
+    it('GET /api/v1/client/notifications debe procesar is_read=1, is_read=0, y auto-resolver tenantId si no viene en token', async () => {
+      // 1. is_read=1
+      const tokenNoTenant = getClientToken(42, undefined);
+      (db.query as any)
+        .mockResolvedValueOnce([{ tenant_id: 10 }]) // resolveTenantForUser
+        .mockResolvedValueOnce([{ total: 0 }])
+        .mockResolvedValueOnce([{ unread_count: 0 }])
+        .mockResolvedValueOnce([]);
+
+      const res1 = await supertest(app)
+        .get('/api/v1/client/notifications?is_read=1')
+        .set('Cookie', [`dreamtek_session=${tokenNoTenant}`]);
+
+      expect(res1.status).toBe(200);
+
+      // 2. is_read=0
+      (db.query as any)
+        .mockResolvedValueOnce([{ tenant_id: 10 }]) // resolveTenantForUser
+        .mockResolvedValueOnce([{ total: 0 }])
+        .mockResolvedValueOnce([{ unread_count: 0 }])
+        .mockResolvedValueOnce([]);
+
+      const res2 = await supertest(app)
+        .get('/api/v1/client/notifications?is_read=0')
+        .set('Cookie', [`dreamtek_session=${tokenNoTenant}`]);
+
+      expect(res2.status).toBe(200);
+
+      // 3. is_read con valor inválido que evalúa a undefined
+      (db.query as any)
+        .mockResolvedValueOnce([{ tenant_id: 10 }]) // resolveTenantForUser
+        .mockResolvedValueOnce([{ total: 0 }])
+        .mockResolvedValueOnce([{ unread_count: 0 }])
+        .mockResolvedValueOnce([]);
+
+      const res3 = await supertest(app)
+        .get('/api/v1/client/notifications?is_read=invalid_param')
+        .set('Cookie', [`dreamtek_session=${tokenNoTenant}`]);
+
+      expect(res3.status).toBe(200);
+    });
+
+    it('PATCH y POST /read-all deben auto-resolver tenantId si el token no tiene tenantId', async () => {
+      const tokenNoTenant = getClientToken(42, undefined);
+
+      // PATCH con tenantId resuelto
+      (db.query as any)
+        .mockResolvedValueOnce([{ tenant_id: 10 }]) // resolveTenantForUser
+        .mockResolvedValueOnce({ affectedRows: 1 });
+
+      const patchRes = await supertest(app)
+        .patch('/api/v1/client/notifications/55/read')
+        .set('Cookie', [`dreamtek_session=${tokenNoTenant}`]);
+
+      expect(patchRes.status).toBe(200);
+
+      // POST read-all con tenantId resuelto
+      (db.query as any)
+        .mockResolvedValueOnce([{ tenant_id: 10 }]) // resolveTenantForUser
+        .mockResolvedValueOnce({ affectedRows: 2 });
+
+      const postRes = await supertest(app)
+        .post('/api/v1/client/notifications/read-all')
+        .set('Cookie', [`dreamtek_session=${tokenNoTenant}`]);
+
+      expect(postRes.status).toBe(200);
+      expect(postRes.body.data.markedCount).toBe(2);
     });
   });
 });

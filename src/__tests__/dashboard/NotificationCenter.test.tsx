@@ -1207,6 +1207,12 @@ describe('FC 053: Frontend Client Notification Center & Security Webhooks Suite'
         });
 
         expect(screen.getByText('¡Copiado!')).toBeInTheDocument();
+
+        await act(async () => {
+          vi.advanceTimersByTime(3500);
+          await Promise.resolve();
+        });
+        expect(screen.getByText('Copiar')).toBeInTheDocument();
       } finally {
         (navigator as any).clipboard = origClipboard;
       }
@@ -1238,6 +1244,319 @@ describe('FC 053: Frontend Client Notification Center & Security Webhooks Suite'
       const closeBtn = screen.getByRole('dialog').querySelector('button[type="button"]')!;
       fireEvent.click(closeBtn);
       expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    });
+
+    it('debe cubrir branches de statusCode nulo, error nulo y fallbacks en ping y delete', async () => {
+      vi.spyOn(clientAuth, 'fetchClientWebhooks').mockResolvedValue({
+        status: 'success',
+        subscriptions: mockWebhooks,
+      });
+
+      // 1. Ping exitoso sin statusCode (cubre ?? 200)
+      vi.spyOn(clientAuth, 'testClientWebhook').mockResolvedValueOnce({
+        status: 'success',
+        message: 'Ping OK',
+        ping: {
+          success: true,
+          durationMs: 40,
+        },
+      });
+
+      render(<ClientWebhooksWidget />);
+
+      await act(async () => {
+        await Promise.resolve();
+      });
+
+      const pingBtn = screen.getByText('Test Ping');
+      await act(async () => {
+        fireEvent.click(pingBtn);
+        await Promise.resolve();
+      });
+
+      expect(screen.getByText(/Ping exitoso \(200\) en 40ms/)).toBeInTheDocument();
+
+      // 2. Ping fallido sin error (cubre 'Código ' + statusCode)
+      vi.spyOn(clientAuth, 'testClientWebhook').mockResolvedValueOnce({
+        status: 'success',
+        message: 'Fallo sin texto',
+        ping: {
+          success: false,
+          statusCode: 502,
+          durationMs: 1500,
+        },
+      });
+
+      await act(async () => {
+        fireEvent.click(pingBtn);
+        await Promise.resolve();
+      });
+
+      expect(screen.getByText(/Fallo: Código 502/)).toBeInTheDocument();
+
+      // 3. Ping arrojando error sin propiedad message
+      vi.spyOn(clientAuth, 'testClientWebhook').mockRejectedValueOnce('Network drop');
+
+      await act(async () => {
+        fireEvent.click(pingBtn);
+        await Promise.resolve();
+      });
+
+      expect(screen.getByText(/Error de red en ping test\./)).toBeInTheDocument();
+
+      // 4. Delete arrojando error sin propiedad message
+      vi.spyOn(window, 'confirm').mockReturnValue(true);
+      vi.spyOn(clientAuth, 'deleteClientWebhook').mockRejectedValueOnce('Delete crash');
+
+      const delBtn = screen.getByText('Eliminar');
+      await act(async () => {
+        fireEvent.click(delBtn);
+        await Promise.resolve();
+      });
+
+      expect(screen.getByText('Error al eliminar el webhook.')).toBeInTheDocument();
+    });
+
+    it('debe cubrir invocación sin callback onNotificationsChanged en drawer', async () => {
+      vi.spyOn(clientAuth, 'fetchClientNotifications').mockResolvedValue({
+        status: 'success',
+        notifications: [
+          {
+            id: 77,
+            tenant_id: 10,
+            event_type: 'SECURITY_ALERT',
+            severity: 'INFO',
+            title: 'Test Sin Callback',
+            message: 'Probando rama sin onNotificationsChanged',
+            is_read: false,
+            created_at: '2026-09-25T10:00:00Z',
+          },
+          {
+            id: 78,
+            tenant_id: 10,
+            event_type: 'SECURITY_ALERT',
+            severity: 'INFO',
+            title: 'Test Sin Callback 2',
+            message: 'Probando rama sin onNotificationsChanged 2',
+            is_read: false,
+            created_at: '2026-09-25T10:01:00Z',
+          },
+        ],
+        total: 2,
+        unread_count: 2,
+        page: 1,
+        total_pages: 1,
+      });
+      vi.spyOn(clientAuth, 'markNotificationsAsRead').mockResolvedValue({
+        status: 'success',
+        marked_count: 1,
+      });
+
+      // Renderizar Drawer SIN onNotificationsChanged
+      render(<NotificationDrawer isOpen={true} onClose={vi.fn()} />);
+
+      await act(async () => {
+        await Promise.resolve();
+      });
+
+      // 1. Click individual sin callback
+      const item = screen.getByText('Test Sin Callback');
+      await act(async () => {
+        fireEvent.click(item);
+        await Promise.resolve();
+      });
+
+      // 2. Click marcar todas sin callback
+      const markAllBtn = screen.getByText('Marcar todas como leídas');
+      await act(async () => {
+        fireEvent.click(markAllBtn);
+        await Promise.resolve();
+      });
+
+      expect(screen.getByText('Test Sin Callback')).toBeInTheDocument();
+    });
+
+    it('debe cubrir error y fallback en fetchUnreadCount de NotificationBell', async () => {
+      // 1. Callback ejecutado en intervalo arrojando error
+      vi.spyOn(clientAuth, 'fetchClientNotifications')
+        .mockResolvedValueOnce({
+          status: 'success',
+          notifications: [],
+          total: 0,
+          unread_count: 0,
+          page: 1,
+          total_pages: 1,
+        })
+        .mockRejectedValueOnce(new Error('Interval crash'));
+
+      render(<NotificationBell pollIntervalMs={100} />);
+
+      await act(async () => {
+        await Promise.resolve();
+      });
+
+      await act(async () => {
+        vi.advanceTimersByTime(100);
+        await Promise.resolve();
+      });
+
+      // 2. Callback ejecutado con unread_count undefined (cubre || 0)
+      vi.spyOn(clientAuth, 'fetchClientNotifications').mockResolvedValueOnce({
+        status: 'success',
+        notifications: [],
+        total: 0,
+        page: 1,
+        total_pages: 1,
+      } as any);
+
+      await act(async () => {
+        vi.advanceTimersByTime(100);
+        await Promise.resolve();
+      });
+
+      expect(screen.queryByTestId('notification-badge')).not.toBeInTheDocument();
+    });
+
+    it('debe cubrir branches adicionales de ClientWebhooksWidget (toggle, clipboard fallback, ping status fallbacks, empty errors)', async () => {
+      // 1. fetchClientWebhooks sin subscriptions y error sin mensaje
+      vi.spyOn(clientAuth, 'fetchClientWebhooks')
+        .mockResolvedValueOnce({
+          subscriptions: undefined as any,
+        } as any)
+        .mockRejectedValueOnce({ message: '' });
+
+      const view1 = render(<ClientWebhooksWidget />);
+      await act(async () => {
+        await Promise.resolve();
+      });
+      view1.unmount();
+
+      // 2. Clipboard error fallback al copiar secreto
+      vi.spyOn(clientAuth, 'fetchClientWebhooks').mockResolvedValue({
+        subscriptions: [],
+      });
+      vi.spyOn(clientAuth, 'createClientWebhook').mockResolvedValue({
+        status: 'success',
+        subscription: {
+          id: 99,
+          target_url: 'https://example.com/wh',
+          events: ['SECURITY_ALERT'],
+          is_active: true,
+          created_at: '2026-09-25T10:00:00Z',
+        },
+        secret: 'whsec_test_secret_123',
+      });
+
+      const writeTextMock = vi.fn().mockRejectedValue(new Error('Clipboard blocked'));
+      Object.assign(navigator, {
+        clipboard: {
+          writeText: writeTextMock,
+        },
+      });
+
+      const view2 = render(<ClientWebhooksWidget />);
+      await act(async () => {
+        await Promise.resolve();
+      });
+
+      // Abrir modal
+      fireEvent.click(screen.getByText('+ Registrar Webhook'));
+
+      // Toggle event desmarcar y volver a marcar (cubre ambas ramas de handleToggleEvent)
+      const secAlertCheckbox = screen.getByLabelText(/Alertas de Seguridad/);
+      fireEvent.click(secAlertCheckbox); // uncheck
+      fireEvent.click(secAlertCheckbox); // re-check
+
+      // Ingresar URL y registrar
+      const urlInput = screen.getByPlaceholderText('https://api.tuempresa.com/webhooks/dreamtek');
+      fireEvent.change(urlInput, { target: { value: 'https://example.com/wh' } });
+      fireEvent.click(screen.getByText('Crear Suscripción'));
+
+      await act(async () => {
+        await Promise.resolve();
+      });
+
+      // Copiar secreto con portapapeles fallando
+      const copyBtn = screen.getByText('Copiar');
+      await act(async () => {
+        fireEvent.click(copyBtn);
+        await Promise.resolve();
+      });
+      expect(screen.getByText('¡Copiado!')).toBeInTheDocument();
+
+      await act(async () => {
+        vi.advanceTimersByTime(3500);
+        await Promise.resolve();
+      });
+      expect(screen.getByText('Copiar')).toBeInTheDocument();
+
+      // Cerrar modal
+      fireEvent.click(screen.getByText('Entendido, he guardado el secreto'));
+
+      // 3. createClientWebhook con error sin mensaje
+      fireEvent.click(screen.getByText('+ Registrar Webhook'));
+      fireEvent.change(screen.getByPlaceholderText('https://api.tuempresa.com/webhooks/dreamtek'), {
+        target: { value: 'https://example.com/wh2' },
+      });
+      vi.spyOn(clientAuth, 'createClientWebhook').mockRejectedValueOnce({ message: '' });
+      fireEvent.click(screen.getByText('Crear Suscripción'));
+      await act(async () => {
+        await Promise.resolve();
+      });
+      expect(screen.getByText('Error al registrar el webhook.')).toBeInTheDocument();
+
+      // Cerrar modal con botón cancelar
+      fireEvent.click(screen.getByText('Cancelar'));
+      view2.unmount();
+
+      // 4. testClientWebhook fallbacks: success sin statusCode, y failure sin error
+      vi.spyOn(clientAuth, 'fetchClientWebhooks').mockResolvedValue({
+        subscriptions: [
+          {
+            id: 101,
+            target_url: 'https://example.com/wh-test',
+            events: ['SECURITY_ALERT'],
+            is_active: true,
+            created_at: '2026-09-25T10:00:00Z',
+          },
+        ],
+      });
+      vi.spyOn(clientAuth, 'testClientWebhook')
+        .mockResolvedValueOnce({
+          status: 'success',
+          ping: {
+            success: true,
+            statusCode: undefined as any,
+            durationMs: 42,
+          },
+        })
+        .mockResolvedValueOnce({
+          status: 'success',
+          ping: {
+            success: false,
+            statusCode: 500,
+            durationMs: 50,
+            error: undefined as any,
+          },
+        });
+
+      render(<ClientWebhooksWidget />);
+      await act(async () => {
+        await Promise.resolve();
+      });
+
+      const testBtn = screen.getByText('Test Ping');
+      await act(async () => {
+        fireEvent.click(testBtn);
+        await Promise.resolve();
+      });
+      expect(screen.getByText(/Ping exitoso \(200\) en 42ms/)).toBeInTheDocument();
+
+      await act(async () => {
+        fireEvent.click(testBtn);
+        await Promise.resolve();
+      });
+      expect(screen.getByText(/Fallo: Código 500/)).toBeInTheDocument();
     });
   });
 });
