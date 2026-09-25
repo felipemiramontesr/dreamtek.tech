@@ -26,10 +26,13 @@ describe('FC 048 Sovereign Database Migrations Discipline & Workflow Suite', () 
     expect(workflowContent).toContain('^[0-9]{3}_[a-z0-9_]+\\.sql$');
     expect(workflowContent).toContain('git ls-files');
 
-    // Condición C-5: Formal Gate T1.B (AES-256-CBC backup pre-vuelo >= 256 bytes)
+    // Condición C-5: Formal Gate T1.B (AES-256-CBC backup pre-vuelo >= 1024 bytes)
     expect(workflowContent).toContain('DB_BACKUP_ENCRYPTION_KEY');
     expect(workflowContent).toContain('openssl enc -aes-256-cbc');
-    expect(workflowContent).toContain('-lt 256');
+    expect(workflowContent).toContain('-lt 1024');
+
+    // Condición C-7: Túnel SSH con StrictHostKeyChecking=accept-new (TOFU)
+    expect(workflowContent).toContain('StrictHostKeyChecking=accept-new');
 
     // Condición C-6: Concurrency sin matar runs
     expect(workflowContent).toContain('group: db-migrations-prod');

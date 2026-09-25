@@ -4,6 +4,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.app = exports.initialize = exports.setupSignalHandlers = exports.gracefulShutdown = exports.server = exports.createServerInstance = exports.startServer = exports.corsOriginHandler = exports.getCorsOrigins = void 0;
+exports.getPort = getPort;
 const express_1 = __importDefault(require("express"));
 const cors_1 = __importDefault(require("cors"));
 const helmet_1 = __importDefault(require("helmet"));
@@ -38,7 +39,10 @@ const cache_js_1 = require("./utils/cache.js");
 dotenv_1.default.config({ path: path_1.default.join(__dirname, '../.env') });
 const app = (0, express_1.default)();
 exports.app = app;
-const PORT = process.env.PORT || 3001;
+function getPort() {
+    return process.env.PORT ? parseInt(process.env.PORT, 10) : 3001;
+}
+const PORT = getPort();
 // Register Telemetry Middleware first
 app.use(metrics_js_1.metricsMiddleware);
 // Condition C-H3: Configure trust proxy for Hostinger/Cloudflare reverse proxies

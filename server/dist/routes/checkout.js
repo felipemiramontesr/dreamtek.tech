@@ -6,6 +6,8 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.checkoutRouter = void 0;
 exports.setStripeForTest = setStripeForTest;
 exports.getStripe = getStripe;
+exports.extractPaymentIntentId = extractPaymentIntentId;
+exports.getCheckoutBaseUrl = getCheckoutBaseUrl;
 const express_1 = require("express");
 const stripe_1 = __importDefault(require("stripe"));
 const jsonwebtoken_1 = __importDefault(require("jsonwebtoken"));
@@ -25,6 +27,19 @@ function getStripe(key) {
     if (testStripe)
         return testStripe;
     return new stripe_1.default(key);
+}
+function extractPaymentIntentId(paymentIntent) {
+    if (typeof paymentIntent === 'string')
+        return paymentIntent;
+    if (paymentIntent && typeof paymentIntent === 'object' && 'id' in paymentIntent) {
+        const id = paymentIntent.id;
+        if (typeof id === 'string')
+            return id;
+    }
+    return null;
+}
+function getCheckoutBaseUrl() {
+    return process.env.CORS_ORIGIN || process.env.FRONTEND_URL || 'https://dreamtek.tech';
 }
 /**
  * POST /api/v1/checkout/session
@@ -186,9 +201,7 @@ exports.checkoutRouter.post('/webhook', async (req, res) => {
                     return;
                 }
                 // Transacción atómica: actualizar lead_payments, leads y registrar lead_activities
-                const paymentIntentId = typeof session.payment_intent === 'string'
-                    ? session.payment_intent
-                    : session.payment_intent?.id || null;
+                const paymentIntentId = extractPaymentIntentId(session.payment_intent);
                 const formattedAmount = (leadPayment.amount_cents / 100).toLocaleString();
                 const activityDetails = `Monto anticipo liquidado: $${formattedAmount} ${leadPayment.currency}. Tipo: ${leadPayment.payment_type}. Stripe Session: ${session.id}. Payment Intent: ${paymentIntentId || 'N/A'}. Transición automática a WON.`;
                 await (0, db_js_1.withTransaction)(async (conn) => {
@@ -259,9 +272,7 @@ exports.checkoutRouter.post('/webhook', async (req, res) => {
                     });
                     return;
                 }
-                const paymentIntentId = typeof session.payment_intent === 'string'
-                    ? session.payment_intent
-                    : session.payment_intent?.id || null;
+                const paymentIntentId = extractPaymentIntentId(session.payment_intent);
                 const projectRows = await (0, db_js_1.query)(`SELECT p.*, u.full_name, u.email, l.locale
            FROM client_projects p
            JOIN users u ON u.id = p.user_id
@@ -296,7 +307,7 @@ exports.checkoutRouter.post('/webhook', async (req, res) => {
                 });
                 // Enviar constancia de finiquito bilingüe (Fail-open)
                 try {
-                    const baseUrl = process.env.CORS_ORIGIN || process.env.FRONTEND_URL || 'https://dreamtek.tech';
+                    const baseUrl = getCheckoutBaseUrl();
                     const receiptEmail = (0, crm_js_1.renderFinalSettlementReceiptEmail)({
                         fullName: project.full_name,
                         email: project.email,

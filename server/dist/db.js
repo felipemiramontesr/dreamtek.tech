@@ -4,6 +4,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.pool = void 0;
+exports.getDbConfig = getDbConfig;
 exports.query = query;
 exports.withTransaction = withTransaction;
 const promise_1 = __importDefault(require("mysql2/promise"));
@@ -11,17 +12,22 @@ const dotenv_1 = __importDefault(require("dotenv"));
 const path_1 = __importDefault(require("path"));
 // Cargar variables de entorno desde .env local o producción
 dotenv_1.default.config({ path: path_1.default.join(__dirname, '../.env') });
-const dbHost = process.env.DB_HOST || '127.0.0.1';
-const dbPort = parseInt(process.env.DB_PORT || '3306', 10);
-const dbUser = process.env.DB_USER || 'root';
-const dbPassword = process.env.DB_PASSWORD || '';
-const dbName = process.env.DB_NAME || 'dreamtek';
+function getDbConfig() {
+    return {
+        host: process.env.DB_HOST || '127.0.0.1',
+        port: parseInt(process.env.DB_PORT || '3306', 10),
+        user: process.env.DB_USER || 'root',
+        password: process.env.DB_PASSWORD || '',
+        database: process.env.DB_NAME || 'dreamtek',
+    };
+}
+const config = getDbConfig();
 exports.pool = promise_1.default.createPool({
-    host: dbHost,
-    port: dbPort,
-    user: dbUser,
-    password: dbPassword,
-    database: dbName,
+    host: config.host,
+    port: config.port,
+    user: config.user,
+    password: config.password,
+    database: config.database,
     waitForConnections: true,
     connectionLimit: 10,
     queueLimit: 0,

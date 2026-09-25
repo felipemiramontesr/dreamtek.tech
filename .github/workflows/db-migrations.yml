@@ -65,7 +65,8 @@ jobs:
             mkdir -p ~/.ssh
             echo "$SSH_KEY" > ~/.ssh/id_rsa_db
             chmod 600 ~/.ssh/id_rsa_db
-            ssh -o StrictHostKeyChecking=no -N -L 3307:127.0.0.1:3306 -p "$SSH_PORT" -i ~/.ssh/id_rsa_db "$SSH_USER@$SSH_HOST" &
+            # Túnel SSH con política de confianza en primer uso (TOFU: accept-new)
+            ssh -o StrictHostKeyChecking=accept-new -N -L 3307:127.0.0.1:3306 -p "$SSH_PORT" -i ~/.ssh/id_rsa_db "$SSH_USER@$SSH_HOST" &
             SSH_PID=$!
             echo "SSH_PID=$SSH_PID" >> $GITHUB_ENV
             echo "TARGET_HOST=127.0.0.1" >> $GITHUB_ENV
@@ -103,8 +104,8 @@ jobs:
           BACKUP_SIZE=$(wc -c < "backups/$BACKUP_FILE" | tr -d ' ')
           echo "Tamaño de respaldo cifrado: $BACKUP_SIZE bytes"
 
-          if [ "$BACKUP_SIZE" -lt 256 ]; then
-            echo "❌ ERROR: Violación de T1.B. Respaldo cifrado menor a 256 bytes ($BACKUP_SIZE bytes)."
+          if [ "$BACKUP_SIZE" -lt 1024 ]; then
+            echo "❌ ERROR: Violación de T1.B. Respaldo cifrado menor a 1024 bytes (1 KB) ($BACKUP_SIZE bytes)."
             echo "Operación abortada: 0 cambios aplicados a la base de datos."
             exit 1
           fi
