@@ -23,6 +23,12 @@ import {
   verifyRegistrationOtp,
   resendRegistrationOtp,
   getApiBaseUrl,
+  fetchClientNotifications,
+  markNotificationsAsRead,
+  fetchClientWebhooks,
+  createClientWebhook,
+  deleteClientWebhook,
+  testClientWebhook,
 } from '@/lib/auth/client';
 
 describe('Client Project Auth Helper Functions Suite (FC 044 100% Coverage)', () => {
@@ -864,6 +870,248 @@ describe('Client Project Auth Helper Functions Suite (FC 044 100% Coverage)', ()
       } finally {
         globalThis.window = originalWindow;
       }
+    });
+  });
+
+  describe('FC 053: Notifications & Webhooks Client Helpers', () => {
+    describe('fetchClientNotifications', () => {
+      it('debe consultar notificaciones sin parámetros', async () => {
+        const mockData = {
+          status: 'success',
+          notifications: [],
+          total: 0,
+          unread_count: 0,
+          page: 1,
+          total_pages: 1,
+        };
+        globalThis.fetch = vi.fn().mockResolvedValue({
+          ok: true,
+          json: vi.fn().mockResolvedValue(mockData),
+        });
+
+        const res = await fetchClientNotifications();
+        expect(res).toEqual(mockData);
+        expect(globalThis.fetch).toHaveBeenCalledWith(
+          expect.stringContaining('/client/notifications'),
+          expect.objectContaining({ method: 'GET', credentials: 'include' }),
+        );
+      });
+
+      it('debe incluir query params cuando se proporcionan', async () => {
+        const mockData = {
+          status: 'success',
+          notifications: [],
+          total: 0,
+          unread_count: 0,
+          page: 2,
+          total_pages: 5,
+        };
+        globalThis.fetch = vi.fn().mockResolvedValue({
+          ok: true,
+          json: vi.fn().mockResolvedValue(mockData),
+        });
+
+        const res = await fetchClientNotifications({
+          page: 2,
+          limit: 10,
+          unreadOnly: true,
+          eventType: 'SECURITY_ALERT',
+        });
+        expect(res).toEqual(mockData);
+        expect(globalThis.fetch).toHaveBeenCalledWith(
+          expect.stringContaining('page=2&limit=10&unreadOnly=true&eventType=SECURITY_ALERT'),
+          expect.anything(),
+        );
+      });
+
+      it('debe lanzar error cuando response no es ok', async () => {
+        globalThis.fetch = vi.fn().mockResolvedValue({
+          ok: false,
+          json: vi.fn().mockResolvedValue({ message: 'Error de servidor' }),
+        });
+
+        await expect(fetchClientNotifications()).rejects.toThrow('Error de servidor');
+      });
+
+      it('debe lanzar error con mensaje fallback cuando json no contiene mensaje', async () => {
+        globalThis.fetch = vi.fn().mockResolvedValue({
+          ok: false,
+          json: vi.fn().mockResolvedValue({}),
+        });
+
+        await expect(fetchClientNotifications()).rejects.toThrow(
+          'Error al obtener las notificaciones.',
+        );
+      });
+    });
+
+    describe('markNotificationsAsRead', () => {
+      it('debe marcar notificaciones como leídas con éxito', async () => {
+        const mockData = { status: 'success', marked_count: 3 };
+        globalThis.fetch = vi.fn().mockResolvedValue({
+          ok: true,
+          json: vi.fn().mockResolvedValue(mockData),
+        });
+
+        const res = await markNotificationsAsRead({ notificationIds: [1, 2, 3] });
+        expect(res).toEqual(mockData);
+      });
+
+      it('debe lanzar error si response no es ok', async () => {
+        globalThis.fetch = vi.fn().mockResolvedValue({
+          ok: false,
+          json: vi.fn().mockResolvedValue({ message: 'Error al marcar' }),
+        });
+
+        await expect(markNotificationsAsRead({ all: true })).rejects.toThrow('Error al marcar');
+      });
+
+      it('debe lanzar fallback si no viene mensaje de error', async () => {
+        globalThis.fetch = vi.fn().mockResolvedValue({
+          ok: false,
+          json: vi.fn().mockResolvedValue({}),
+        });
+
+        await expect(markNotificationsAsRead({ all: true })).rejects.toThrow(
+          'Error al actualizar el estado de las notificaciones.',
+        );
+      });
+    });
+
+    describe('fetchClientWebhooks', () => {
+      it('debe listar webhooks con éxito', async () => {
+        const mockData = { status: 'success', subscriptions: [] };
+        globalThis.fetch = vi.fn().mockResolvedValue({
+          ok: true,
+          json: vi.fn().mockResolvedValue(mockData),
+        });
+
+        const res = await fetchClientWebhooks();
+        expect(res).toEqual(mockData);
+      });
+
+      it('debe manejar error de red o no ok', async () => {
+        globalThis.fetch = vi.fn().mockResolvedValue({
+          ok: false,
+          json: vi.fn().mockResolvedValue({ message: 'Fallo al listar' }),
+        });
+
+        await expect(fetchClientWebhooks()).rejects.toThrow('Fallo al listar');
+      });
+
+      it('debe usar fallback si no hay mensaje', async () => {
+        globalThis.fetch = vi.fn().mockResolvedValue({
+          ok: false,
+          json: vi.fn().mockResolvedValue({}),
+        });
+
+        await expect(fetchClientWebhooks()).rejects.toThrow('Error al listar los webhooks.');
+      });
+    });
+
+    describe('createClientWebhook', () => {
+      it('debe registrar webhook exitosamente', async () => {
+        const mockData = {
+          status: 'success',
+          message: 'Creado',
+          subscription: { id: 1, target_url: 'https://example.com' },
+          secret: '32_bytes_hex',
+        };
+        globalThis.fetch = vi.fn().mockResolvedValue({
+          ok: true,
+          json: vi.fn().mockResolvedValue(mockData),
+        });
+
+        const res = await createClientWebhook({
+          target_url: 'https://example.com',
+          events: ['SECURITY_ALERT'],
+        });
+        expect(res).toEqual(mockData);
+      });
+
+      it('debe propagar error del servidor o fallback', async () => {
+        globalThis.fetch = vi.fn().mockResolvedValue({
+          ok: false,
+          json: vi.fn().mockResolvedValue({ error: 'URL inválida anti-SSRF' }),
+        });
+
+        await expect(
+          createClientWebhook({ target_url: 'http://127.0.0.1', events: [] }),
+        ).rejects.toThrow('URL inválida anti-SSRF');
+
+        globalThis.fetch = vi.fn().mockResolvedValue({
+          ok: false,
+          json: vi.fn().mockResolvedValue({}),
+        });
+
+        await expect(
+          createClientWebhook({ target_url: 'http://127.0.0.1', events: [] }),
+        ).rejects.toThrow('Error al registrar el webhook.');
+      });
+    });
+
+    describe('deleteClientWebhook', () => {
+      it('debe eliminar webhook exitosamente', async () => {
+        const mockData = { status: 'success', message: 'Eliminado' };
+        globalThis.fetch = vi.fn().mockResolvedValue({
+          ok: true,
+          json: vi.fn().mockResolvedValue(mockData),
+        });
+
+        const res = await deleteClientWebhook(10);
+        expect(res).toEqual(mockData);
+      });
+
+      it('debe manejar error al eliminar', async () => {
+        globalThis.fetch = vi.fn().mockResolvedValue({
+          ok: false,
+          json: vi.fn().mockResolvedValue({ message: 'No encontrado' }),
+        });
+
+        await expect(deleteClientWebhook(99)).rejects.toThrow('No encontrado');
+
+        globalThis.fetch = vi.fn().mockResolvedValue({
+          ok: false,
+          json: vi.fn().mockResolvedValue({}),
+        });
+
+        await expect(deleteClientWebhook(99)).rejects.toThrow('Error al eliminar el webhook.');
+      });
+    });
+
+    describe('testClientWebhook', () => {
+      it('debe ejecutar ping test exitosamente', async () => {
+        const mockData = {
+          status: 'success',
+          message: 'Ping test exitoso',
+          ping: { success: true, statusCode: 200, durationMs: 120 },
+        };
+        globalThis.fetch = vi.fn().mockResolvedValue({
+          ok: true,
+          json: vi.fn().mockResolvedValue(mockData),
+        });
+
+        const res = await testClientWebhook(10);
+        expect(res).toEqual(mockData);
+      });
+
+      it('debe manejar error en ping test', async () => {
+        globalThis.fetch = vi.fn().mockResolvedValue({
+          ok: false,
+          json: vi.fn().mockResolvedValue({ message: 'Fallo al conectar' }),
+        });
+
+        await expect(testClientWebhook(10)).rejects.toThrow('Fallo al conectar');
+
+        globalThis.fetch = vi.fn().mockResolvedValue({
+          ok: false,
+          json: vi.fn().mockResolvedValue({}),
+        });
+
+        await expect(testClientWebhook(10)).rejects.toThrow(
+          'Error al ejecutar el ping test del webhook.',
+        );
+      });
     });
   });
 });

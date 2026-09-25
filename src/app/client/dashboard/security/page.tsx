@@ -8,6 +8,7 @@ import {
   getUserDisplayName,
 } from '@/components/dashboard/client/DashboardSubpageHeader';
 import { ClientMfaSettingsWidget } from '@/components/dashboard/client/ClientMfaSettingsWidget';
+import { ClientWebhooksWidget } from '@/components/dashboard/client/ClientWebhooksWidget';
 
 export default function SecuritySubpage() {
   const router = useRouter();
@@ -46,8 +47,9 @@ export default function SecuritySubpage() {
         userName={getUserDisplayName(profile)}
         userEmail={profile.email}
       />
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
         <ClientMfaSettingsWidget />
+        <ClientWebhooksWidget />
       </main>
     </div>
   );

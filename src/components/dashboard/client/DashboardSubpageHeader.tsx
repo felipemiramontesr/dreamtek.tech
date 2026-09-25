@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/Button';
 import { logoutUser } from '@/lib/auth/client';
+import { NotificationBell } from './NotificationBell';
 import type { ModuleCardId } from './ClientHubModuleCard';
 
 export const MODULE_ALLOWLIST: Record<
@@ -132,8 +133,10 @@ export function DashboardSubpageHeader({
           })}
         </nav>
 
-        {/* Lado derecho: Usuario y Logout */}
+        {/* Lado derecho: Usuario, Notificaciones y Logout */}
         <div className="flex items-center gap-3 self-end md:self-auto">
+          <NotificationBell />
+
           <div className="text-right hidden sm:block">
             <p className="text-xs font-semibold text-white">{userName}</p>
             {userEmail && <p className="text-[10px] text-slate-400">{userEmail}</p>}
@@ -143,7 +146,7 @@ export function DashboardSubpageHeader({
             variant="outline"
             size="sm"
             onClick={handleLogout}
-            className="border-slate-700 text-slate-300 hover:bg-slate-800 hover:text-white text-xs py-1"
+            className="border-slate-700 text-slate-300 hover:bg-slate-800 hover:text-white text-xs py-1 cursor-pointer"
           >
             Cerrar Sesión
           </Button>

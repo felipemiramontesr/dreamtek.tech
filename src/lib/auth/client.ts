@@ -914,3 +914,169 @@ export async function requestPaymentInvoice(
 
   return resData;
 }
+
+// ==========================================
+// FC 053: NOTIFICATIONS & WEBHOOKS CLIENT APIS
+// ==========================================
+
+export interface ClientNotification {
+  id: number;
+  tenant_id: number;
+  event_type: 'SECURITY_ALERT' | 'PROJECT_UPDATE' | 'BILLING_INVOICE' | 'SYSTEM_ANNOUNCEMENT';
+  severity: 'INFO' | 'WARNING' | 'CRITICAL';
+  title: string;
+  message: string;
+  metadata?: Record<string, unknown> | null;
+  action_url?: string | null;
+  is_read: boolean;
+  created_at: string;
+}
+
+export interface ClientWebhookSubscription {
+  id: number;
+  tenant_id: number;
+  target_url: string;
+  events: ('SECURITY_ALERT' | 'PROJECT_UPDATE' | 'BILLING_INVOICE')[];
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export async function fetchClientNotifications(params?: {
+  page?: number;
+  limit?: number;
+  unreadOnly?: boolean;
+  eventType?: string;
+}): Promise<{
+  status: string;
+  notifications: ClientNotification[];
+  total: number;
+  unread_count: number;
+  page: number;
+  total_pages: number;
+}> {
+  const queryParams = new URLSearchParams();
+  if (params?.page) queryParams.set('page', params.page.toString());
+  if (params?.limit) queryParams.set('limit', params.limit.toString());
+  if (params?.unreadOnly) queryParams.set('unreadOnly', 'true');
+  if (params?.eventType) queryParams.set('eventType', params.eventType);
+
+  const qs = queryParams.toString();
+  const url = `${API_BASE}/client/notifications${qs ? `?${qs}` : ''}`;
+
+  const response = await fetch(url, {
+    method: 'GET',
+    credentials: 'include',
+  });
+
+  const resData = await response.json();
+  if (!response.ok) {
+    throw new Error(resData.message || 'Error al obtener las notificaciones.');
+  }
+
+  return resData;
+}
+
+export async function markNotificationsAsRead(payload: {
+  notificationIds?: number[];
+  all?: boolean;
+}): Promise<{
+  status: string;
+  marked_count: number;
+}> {
+  const response = await fetch(`${API_BASE}/client/notifications/mark-read`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    credentials: 'include',
+    body: JSON.stringify(payload),
+  });
+
+  const resData = await response.json();
+  if (!response.ok) {
+    throw new Error(resData.message || 'Error al actualizar el estado de las notificaciones.');
+  }
+
+  return resData;
+}
+
+export async function fetchClientWebhooks(): Promise<{
+  status: string;
+  subscriptions: ClientWebhookSubscription[];
+}> {
+  const response = await fetch(`${API_BASE}/client/webhooks`, {
+    method: 'GET',
+    credentials: 'include',
+  });
+
+  const resData = await response.json();
+  if (!response.ok) {
+    throw new Error(resData.message || 'Error al listar los webhooks.');
+  }
+
+  return resData;
+}
+
+export async function createClientWebhook(data: { target_url: string; events: string[] }): Promise<{
+  status: string;
+  message: string;
+  subscription: ClientWebhookSubscription;
+  secret: string;
+}> {
+  const response = await fetch(`${API_BASE}/client/webhooks`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    credentials: 'include',
+    body: JSON.stringify(data),
+  });
+
+  const resData = await response.json();
+  if (!response.ok) {
+    throw new Error(resData.message || resData.error || 'Error al registrar el webhook.');
+  }
+
+  return resData;
+}
+
+export async function deleteClientWebhook(id: number | string): Promise<{
+  status: string;
+  message: string;
+}> {
+  const response = await fetch(`${API_BASE}/client/webhooks/${id}`, {
+    method: 'DELETE',
+    credentials: 'include',
+  });
+
+  const resData = await response.json();
+  if (!response.ok) {
+    throw new Error(resData.message || 'Error al eliminar el webhook.');
+  }
+
+  return resData;
+}
+
+export async function testClientWebhook(id: number | string): Promise<{
+  status: string;
+  message: string;
+  ping: {
+    statusCode?: number;
+    error?: string;
+    durationMs: number;
+    success: boolean;
+  };
+}> {
+  const response = await fetch(`${API_BASE}/client/webhooks/${id}/test`, {
+    method: 'POST',
+    credentials: 'include',
+  });
+
+  const resData = await response.json();
+  if (!response.ok) {
+    throw new Error(resData.message || 'Error al ejecutar el ping test del webhook.');
+  }
+
+  return resData;
+}

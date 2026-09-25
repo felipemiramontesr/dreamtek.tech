@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/Button';
 import { fetchClientDashboard, logoutUser, type ClientDashboardData } from '@/lib/auth/client';
 import { OmnipotentAdminPanel } from '@/components/dashboard/admin/OmnipotentAdminPanel';
 import { ClientHubModuleCard } from '@/components/dashboard/client/ClientHubModuleCard';
+import { NotificationBell } from '@/components/dashboard/client/NotificationBell';
 
 export default function ClientDashboardPage() {
   const router = useRouter();
@@ -132,6 +133,8 @@ export default function ClientDashboardPage() {
             )}
 
             <div className="flex items-center gap-3">
+              <NotificationBell />
+
               <div className="text-right hidden sm:block">
                 <p className="text-xs font-semibold text-white">
                   {profile.full_name || profile.username || 'Usuario Dreamtek'}
