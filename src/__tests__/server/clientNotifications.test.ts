@@ -153,24 +153,16 @@ describe('FC 053 — Client Portal Notification Center Suite', () => {
       expect(tenantId).toBe(30);
     });
 
-    it('resolveTenantForUser debe retornar el primer tenant o fallback 1 si el usuario no tiene registros previos', async () => {
+    it('resolveTenantForUser debe lanzar error 400 si el usuario no tiene registros previos ni tenant asignado (C-053.1)', async () => {
       (db.query as any)
-        .mockResolvedValueOnce([])
-        .mockResolvedValueOnce([])
-        .mockResolvedValueOnce([])
-        .mockResolvedValueOnce([{ id: 5 }]);
-
-      const tenantId = await resolveTenantForUser(99);
-      expect(tenantId).toBe(5);
-
-      (db.query as any)
-        .mockResolvedValueOnce([])
         .mockResolvedValueOnce([])
         .mockResolvedValueOnce([])
         .mockResolvedValueOnce([]);
 
-      const fallbackTenantId = await resolveTenantForUser(100);
-      expect(fallbackTenantId).toBe(1);
+      await expect(resolveTenantForUser(99)).rejects.toMatchObject({
+        message: 'Cuenta de usuario sin tenant asignado.',
+        statusCode: 400,
+      });
     });
 
     it('createClientNotification debe persistir una notificación e invocar query correctamente', async () => {
@@ -515,6 +507,43 @@ describe('FC 053 — Client Portal Notification Center Suite', () => {
 
       expect(postRes.status).toBe(200);
       expect(postRes.body.data.markedCount).toBe(2);
+    });
+
+    it('debe retornar HTTP 400 en todas las rutas si el usuario no tiene tenant asignado (C-053.1)', async () => {
+      const tokenNoTenant = getClientToken(99, undefined);
+
+      // GET /
+      (db.query as any)
+        .mockResolvedValueOnce([])
+        .mockResolvedValueOnce([])
+        .mockResolvedValueOnce([]);
+      const getRes = await supertest(app)
+        .get('/api/v1/client/notifications')
+        .set('Cookie', [`dreamtek_session=${tokenNoTenant}`]);
+      expect(getRes.status).toBe(400);
+      expect(getRes.body.message).toContain('sin tenant asignado');
+
+      // PATCH /:id/read
+      (db.query as any)
+        .mockResolvedValueOnce([])
+        .mockResolvedValueOnce([])
+        .mockResolvedValueOnce([]);
+      const patchRes = await supertest(app)
+        .patch('/api/v1/client/notifications/10/read')
+        .set('Cookie', [`dreamtek_session=${tokenNoTenant}`]);
+      expect(patchRes.status).toBe(400);
+      expect(patchRes.body.message).toContain('sin tenant asignado');
+
+      // POST /read-all
+      (db.query as any)
+        .mockResolvedValueOnce([])
+        .mockResolvedValueOnce([])
+        .mockResolvedValueOnce([]);
+      const postRes = await supertest(app)
+        .post('/api/v1/client/notifications/read-all')
+        .set('Cookie', [`dreamtek_session=${tokenNoTenant}`]);
+      expect(postRes.status).toBe(400);
+      expect(postRes.body.message).toContain('sin tenant asignado');
     });
   });
 });

@@ -44,7 +44,14 @@ clientNotificationsRouter.get('/', async (req: AuthenticatedRequest, res: Respon
       status: 'success',
       data: result,
     });
-  } catch (_err) {
+  } catch (err: any) {
+    if (err.statusCode === 400) {
+      res.status(400).json({
+        status: 'error',
+        message: err.message,
+      });
+      return;
+    }
     res.status(500).json({
       status: 'error',
       message: 'Error interno al consultar las notificaciones.',
@@ -76,7 +83,14 @@ clientNotificationsRouter.patch('/:id/read', async (req: AuthenticatedRequest, r
       status: 'success',
       message: 'Notificación marcada como leída.',
     });
-  } catch (_err) {
+  } catch (err: any) {
+    if (err.statusCode === 400) {
+      res.status(400).json({
+        status: 'error',
+        message: err.message,
+      });
+      return;
+    }
     res.status(500).json({
       status: 'error',
       message: 'Error al actualizar el estado de la notificación.',
@@ -100,7 +114,14 @@ clientNotificationsRouter.post('/read-all', async (req: AuthenticatedRequest, re
       message: 'Todas las notificaciones han sido marcadas como leídas.',
       data: { markedCount: affected },
     });
-  } catch (_err) {
+  } catch (err: any) {
+    if (err.statusCode === 400) {
+      res.status(400).json({
+        status: 'error',
+        message: err.message,
+      });
+      return;
+    }
     res.status(500).json({
       status: 'error',
       message: 'Error al marcar todas las notificaciones como leídas.',

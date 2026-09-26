@@ -46,13 +46,10 @@ export async function resolveTenantForUser(userId: number | string): Promise<num
     return Number(tenantRows[0].id);
   }
 
-  // Fallback seguro: tenant 1 si existe o primer tenant registrado
-  const fallbackRows = await query<any[]>('SELECT id FROM tenants ORDER BY id ASC LIMIT 1');
-  if (fallbackRows.length > 0 && fallbackRows[0].id) {
-    return Number(fallbackRows[0].id);
-  }
-
-  return 1;
+  // Sin fallback global a tenant ajeno: fail-closed anti-cross-tenant (C-053.1)
+  const err: any = new Error('Cuenta de usuario sin tenant asignado.');
+  err.statusCode = 400;
+  throw err;
 }
 
 /**

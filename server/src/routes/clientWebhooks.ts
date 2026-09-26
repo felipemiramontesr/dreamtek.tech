@@ -58,7 +58,14 @@ clientWebhooksRouter.get('/', async (req: AuthenticatedRequest, res: Response) =
       status: 'success',
       data: formatted,
     });
-  } catch (_err) {
+  } catch (err: any) {
+    if (err.statusCode === 400) {
+      res.status(400).json({
+        status: 'error',
+        message: err.message,
+      });
+      return;
+    }
     res.status(500).json({
       status: 'error',
       message: 'Error al consultar las suscripciones de webhooks.',
@@ -84,8 +91,7 @@ clientWebhooksRouter.post(
       if (!urlValidation.valid) {
         res.status(400).json({
           status: 'error',
-          /* v8 ignore next */
-          message: urlValidation.error || 'URL de destino no permitida.',
+          message: urlValidation.error,
         });
         return;
       }
@@ -116,7 +122,14 @@ clientWebhooksRouter.post(
           secret: plainSecret,
         },
       });
-    } catch (_err) {
+    } catch (err: any) {
+      if (err.statusCode === 400) {
+        res.status(400).json({
+          status: 'error',
+          message: err.message,
+        });
+        return;
+      }
       res.status(500).json({
         status: 'error',
         message: 'Error al registrar la suscripción de webhook.',
@@ -152,7 +165,14 @@ clientWebhooksRouter.delete('/:id', async (req: AuthenticatedRequest, res: Respo
       status: 'success',
       message: 'Suscripción de webhook eliminada exitosamente.',
     });
-  } catch (_err) {
+  } catch (err: any) {
+    if (err.statusCode === 400) {
+      res.status(400).json({
+        status: 'error',
+        message: err.message,
+      });
+      return;
+    }
     res.status(500).json({
       status: 'error',
       message: 'Error al eliminar el webhook.',
@@ -180,6 +200,13 @@ clientWebhooksRouter.post('/:id/test', async (req: AuthenticatedRequest, res: Re
       data: delivery,
     });
   } catch (err: any) {
+    if (err.statusCode === 400) {
+      res.status(400).json({
+        status: 'error',
+        message: err.message,
+      });
+      return;
+    }
     if (err.message && err.message.includes('no encontrada')) {
       res.status(404).json({
         status: 'error',

@@ -42,6 +42,10 @@ app.use('/api/v1/client/webhooks', clientWebhooksRouter);
 describe('FC 053 — Client Webhooks & Outbound Security Engine Suite', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.spyOn(dns.promises, 'lookup').mockResolvedValue({
+      address: '93.184.216.34',
+      family: 4,
+    } as any);
   });
 
   describe('1. Anti-SSRF URL Validation (C-053.2)', () => {
@@ -150,14 +154,9 @@ describe('FC 053 — Client Webhooks & Outbound Security Engine Suite', () => {
       );
       expect(resNotFound.valid).toBe(false);
       expect(resNotFound.error).toContain('No se pudo resolver');
-
-      lookupSpy.mockRestore();
     });
 
     it('debe aceptar URLs HTTPS públicas legítimas', async () => {
-      const lookupSpy = vi
-        .spyOn(dns.promises, 'lookup')
-        .mockResolvedValue({ address: '93.184.216.34', family: 4 } as any);
       const validUrls = [
         'https://webhook.site/abc-123',
         'https://api.miempresa.com/integrations/dreamtek',
@@ -169,7 +168,6 @@ describe('FC 053 — Client Webhooks & Outbound Security Engine Suite', () => {
         const res = await validateClientWebhookUrl(url);
         expect(res.valid).toBe(true);
       }
-      lookupSpy.mockRestore();
     });
   });
 
@@ -238,6 +236,33 @@ describe('FC 053 — Client Webhooks & Outbound Security Engine Suite', () => {
       await expect(dispatchTestWebhook(999, 10)).rejects.toThrow(
         'Suscripción de webhook no encontrada para este tenant.',
       );
+    });
+
+    it('executeWebhookDelivery debe abortar el despacho si la re-validación DNS previa detecta IP privada (TOCTOU C-053.2)', async () => {
+      const encryptedSecret = encryptField('test_toctou_secret');
+      vi.spyOn(dns.promises, 'lookup').mockResolvedValueOnce({
+        address: '10.0.0.1',
+        family: 4,
+      } as any);
+      const fetchSpy = vi.spyOn(globalThis, 'fetch');
+      (db.query as any)
+        .mockResolvedValueOnce([
+          {
+            target_url: 'https://attacker-rebind.com/hook',
+            secret_encrypted: encryptedSecret,
+          },
+        ])
+        .mockResolvedValueOnce({ insertId: 901 });
+
+      const result = await dispatchTestWebhook(1, 10);
+
+      expect(result.success).toBe(false);
+      expect(fetchSpy).not.toHaveBeenCalled();
+      expect(db.query).toHaveBeenCalledWith(
+        expect.stringContaining('INSERT INTO client_webhook_deliveries'),
+        expect.arrayContaining([expect.stringContaining('red privada o reservada')]),
+      );
+      fetchSpy.mockRestore();
     });
 
     it('dispatchTestWebhook debe ejecutar ping exitoso y persistir bitácora de entrega', async () => {
@@ -644,13 +669,12 @@ describe('FC 053 — Client Webhooks & Outbound Security Engine Suite', () => {
       }
 
       // IPv6 pública legítima
-      const ipv6Spy = vi.spyOn(dns.promises, 'lookup').mockResolvedValueOnce({
+      vi.spyOn(dns.promises, 'lookup').mockResolvedValueOnce({
         address: '2606:4700:4700::1111',
         family: 6,
       });
       const validIpv6 = await validateClientWebhookUrl('https://cloudflare-ipv6.org/hook');
       expect(validIpv6.valid).toBe(true);
-      ipv6Spy.mockRestore();
     });
 
     it('dispatchClientWebhook debe soportar array directo en sub.events y comodín *', async () => {
@@ -676,7 +700,7 @@ describe('FC 053 — Client Webhooks & Outbound Security Engine Suite', () => {
       } as any);
 
       await dispatchClientWebhook(10, 'auth.login', { ok: true });
-      await new Promise((r) => setImmediate(r));
+      await new Promise((r) => setTimeout(r, 50));
       expect(fetchSpy).toHaveBeenCalled();
       fetchSpy.mockRestore();
     });
@@ -699,6 +723,59 @@ describe('FC 053 — Client Webhooks & Outbound Security Engine Suite', () => {
       expect(res.statusCode).toBeUndefined();
 
       fetchSpy.mockRestore();
+    });
+
+    it('debe retornar HTTP 400 en todas las rutas si el usuario no tiene tenant asignado (C-053.1)', async () => {
+      const tokenNoTenant = getClientToken(99, undefined);
+
+      // 1. GET /
+      (db.query as any)
+        .mockResolvedValueOnce([])
+        .mockResolvedValueOnce([])
+        .mockResolvedValueOnce([]);
+      const getRes = await supertest(app)
+        .get('/api/v1/client/webhooks')
+        .set('Cookie', [`dreamtek_session=${tokenNoTenant}`]);
+      expect(getRes.status).toBe(400);
+      expect(getRes.body.message).toContain('sin tenant asignado');
+
+      // 2. POST /
+      (db.query as any)
+        .mockResolvedValueOnce([])
+        .mockResolvedValueOnce([])
+        .mockResolvedValueOnce([]);
+      const postRes = await supertest(app)
+        .post('/api/v1/client/webhooks')
+        .set('Cookie', [`dreamtek_session=${tokenNoTenant}`])
+        .send({
+          name: 'Mi Webhook',
+          target_url: 'https://example.com/hook',
+          events: ['auth.login'],
+        });
+      expect(postRes.status).toBe(400);
+      expect(postRes.body.message).toContain('sin tenant asignado');
+
+      // 3. DELETE /:id
+      (db.query as any)
+        .mockResolvedValueOnce([])
+        .mockResolvedValueOnce([])
+        .mockResolvedValueOnce([]);
+      const delRes = await supertest(app)
+        .delete('/api/v1/client/webhooks/77')
+        .set('Cookie', [`dreamtek_session=${tokenNoTenant}`]);
+      expect(delRes.status).toBe(400);
+      expect(delRes.body.message).toContain('sin tenant asignado');
+
+      // 4. POST /:id/test
+      (db.query as any)
+        .mockResolvedValueOnce([])
+        .mockResolvedValueOnce([])
+        .mockResolvedValueOnce([]);
+      const testRes = await supertest(app)
+        .post('/api/v1/client/webhooks/77/test')
+        .set('Cookie', [`dreamtek_session=${tokenNoTenant}`]);
+      expect(testRes.status).toBe(400);
+      expect(testRes.body.message).toContain('sin tenant asignado');
     });
   });
 });

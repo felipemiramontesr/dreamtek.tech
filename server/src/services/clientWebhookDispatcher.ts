@@ -4,10 +4,9 @@ import dns from 'dns';
 import { query } from '../db.js';
 import { decryptField } from '../utils/crypto.js';
 
-export interface WebhookValidationResult {
-  valid: boolean;
-  error?: string;
-}
+export type WebhookValidationResult =
+  | { valid: true }
+  | { valid: false; error: string };
 
 /**
  * Valida una URL de webhook de cliente contra ataques SSRF y acceso a redes privadas (OWASP A05 / C-053.2).
@@ -204,19 +203,22 @@ async function executeWebhookDelivery(
 
   for (let i = 1; i <= maxAttempts; i++) {
     attempts = i;
-    try {
-      const controller = new AbortController();
-      /* v8 ignore next */
-      const timeoutId = setTimeout(() => controller.abort(), 5000); // 5s timeout
 
+    // Re-validación perimetral estricta anti-SSRF y mitigación TOCTOU DNS rebinding (C-053.2)
+    const urlCheck = await validateClientWebhookUrl(targetUrl);
+    if (!urlCheck.valid) {
+      responseBody = urlCheck.error;
+      break;
+    }
+
+    try {
       const response = await fetch(targetUrl, {
         method: 'POST',
         headers,
         body: payloadString,
-        signal: controller.signal,
+        signal: AbortSignal.timeout(5000),
       });
 
-      clearTimeout(timeoutId);
       statusCode = response.status;
       responseBody = (await response.text()).slice(0, 1024);
 
