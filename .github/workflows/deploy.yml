@@ -123,6 +123,16 @@ jobs:
       - name: '📥 Checkout Code'
         uses: actions/checkout@v5
 
+      - name: '⚙️ Setup Node.js 24'
+        uses: actions/setup-node@v5
+        with:
+          node-version: '24.x'
+
+      - name: '🔒 Verify Canonical Migration Naming & Locks (FC 054)'
+        run: |
+          echo "Verificando candados canónicos de migraciones (FC 054 / verifyMigrations.mjs)..."
+          node scripts/verifyMigrations.mjs
+
       - name: '🔍 Verify DDL Migration & Seed Scripts'
         run: |
           echo "Verificando scripts de migración SQL en database/migrations/ y database/seeds/..."
@@ -131,7 +141,7 @@ jobs:
           test -f database/migrations/003_leads_and_templates.sql
           test -f database/seeds/001_admin_bootstrap.sql
           test -f database/seeds/002_templates_seed.sql
-          echo "✓ Todos los 5 archivos SQL DDL/Seed verificados exitosamente."
+          echo "✓ Todos los archivos SQL DDL/Seed verificados exitosamente."
 
   secret-scan:
     name: '🔍 Secret Scan (TruffleHog / GitLeaks)'

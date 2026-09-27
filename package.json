@@ -19,8 +19,9 @@
     "test:watch": "vitest --pool=threads",
     "test:coverage": "vitest run --coverage --fileParallelism=false --maxWorkers=1",
     "test:e2e": "playwright test",
-    "test:scripts": "vitest run src/__tests__/scripts/",
+    "test:scripts": "vitest run src/__tests__/scripts/ --pool=threads",
     "test:all": "npm run test:coverage && npm run test:scripts",
+    "migrations:verify": "node scripts/verifyMigrations.mjs",
     "h:post": "node scripts/hPost.mjs",
     "h:check": "node scripts/hCheck.mjs",
     "l:verify": "node scripts/verifyL.mjs",
@@ -30,6 +31,9 @@
     "!(server)/**/*.{js,jsx,ts,tsx}": [
       "eslint --fix --no-warn-ignored",
       "prettier --write"
+    ],
+    "database/migrations/*.sql": [
+      "node scripts/verifyMigrations.mjs"
     ],
     "*.{json,css,md}": [
       "prettier --write"

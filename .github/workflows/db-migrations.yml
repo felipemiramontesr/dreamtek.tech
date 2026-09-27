@@ -1,10 +1,11 @@
 name: '🏛️ Production Database Migrations (Sovereign Dispatch)'
+run-name: 🏛️ ${{ inputs.migration_file }} · @${{ github.actor }}
 
 on:
   workflow_dispatch:
     inputs:
       migration_file:
-        description: 'Nombre exacto del archivo en database/migrations/ (ej: 045_auth_mfa_2fa.sql)'
+        description: 'Nombre canónico del archivo en database/migrations/ (ej: 049_V0.1.104_FC054-F3_20260926_test.sql)'
         type: string
         required: true
 
@@ -24,33 +25,27 @@ jobs:
       - name: '📥 Checkout Code'
         uses: actions/checkout@v5
 
-      - name: '🔒 Verify Formal Gate T1.A (File Integrity & Charset Allowlist)'
+      - name: '🔒 Verify Formal Gate T1.A (File Integrity, Canonical Naming & Locks)'
         shell: bash
         run: |
           FILE="${{ inputs.migration_file }}"
           echo "Verificando archivo: $FILE"
           
-          # Validación regex estricta: NNN_snake_case.sql
-          if ! [[ "$FILE" =~ ^[0-9]{3}_[a-z0-9_]+\.sql$ ]]; then
-            echo "❌ ERROR: Violación de T1.A. Nombre de archivo inválido."
-            echo "Debe cumplir formato monótono: ^[0-9]{3}_[a-z0-9_]+\.sql$"
+          # 1. Verificación canónica con verifyMigrations.mjs (formato, fecha gregoriana, cabecera y allowlist)
+          node scripts/verifyMigrations.mjs --file "$FILE"
+          if [ $? -ne 0 ]; then
+            echo "❌ ERROR: Violación de T1.A. El archivo $FILE no cumple las reglas canónicas de migración (FC 054)."
             exit 1
           fi
           
-          # Verificar existencia física
-          if [ ! -f "database/migrations/$FILE" ]; then
-            echo "❌ ERROR: Violación de T1.A. Archivo no encontrado en database/migrations/$FILE"
-            exit 1
-          fi
-          
-          # Verificar que esté rastreado en Git (inmutable y comiteado)
+          # 2. Verificar que esté rastreado en Git (inmutable y comiteado)
           TRACKED=$(git ls-files "database/migrations/$FILE")
           if [ -z "$TRACKED" ]; then
             echo "❌ ERROR: Violación de T1.A. El archivo existe localmente pero NO está rastreado por git."
             exit 1
           fi
           
-          echo "✅ T1.A PASSED: $FILE está validado por charset y rastreado en git."
+          echo "✅ T1.A PASSED: $FILE está validado por verifyMigrations.mjs y rastreado en git."
 
       - name: '🔒 Establish Ephemeral SSH Tunnel (Conditional)'
         shell: bash

@@ -5,6 +5,9 @@ import mariadb from 'mariadb';
 import dotenv from 'dotenv';
 
 dotenv.config();
+if (!process.env.DB_NAME && fs.existsSync(path.join(process.cwd(), 'server', '.env'))) {
+  dotenv.config({ path: path.join(process.cwd(), 'server', '.env') });
+}
 
 const isDryRun = process.argv.includes('--dry-run');
 const isProd =
@@ -16,7 +19,7 @@ const dbHost = isProd ? '127.0.0.1' : process.env.DB_HOST || '127.0.0.1';
 const dbPort = isProd ? 3307 : parseInt(process.env.DB_PORT || '3306', 10);
 const dbUser = process.env.DB_USER || 'root';
 const dbPassword = process.env.DB_PASSWORD || '';
-const dbName = process.env.DB_NAME || 'dreamtek_db';
+const dbName = process.env.DB_NAME || 'dreamtek';
 
 /**
  * Compute SHA-256 checksum of file content (Condition C-K3 / OWASP A02)
@@ -102,8 +105,6 @@ async function runMigrations() {
 
     if (pending.length === 0) {
       console.log(`✅ Database schema is up-to-date. 0 pending migrations.`);
-      if (conn) conn.release();
-      await pool.end();
       return;
     }
 
@@ -116,8 +117,6 @@ async function runMigrations() {
       console.log(
         `🔍 [DRY-RUN MODE] Migration execution skipped. No database changes were applied.`,
       );
-      if (conn) conn.release();
-      await pool.end();
       return;
     }
 
