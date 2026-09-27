@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import fs from 'fs';
 import path from 'path';
+import { CANONICAL_MIGRATION_REGEX } from '../../../scripts/verifyMigrations.mjs';
 
 describe('FC 048 Sovereign Database Migrations Discipline & Workflow Suite', () => {
   const migrationsDir = path.join(process.cwd(), 'database', 'migrations');
@@ -22,8 +23,8 @@ describe('FC 048 Sovereign Database Migrations Discipline & Workflow Suite', () 
     // Condición C-3: Environment production-db
     expect(workflowContent).toContain('environment: production-db');
 
-    // Condición C-4: Formal Gate T1.A (Charset allowlist)
-    expect(workflowContent).toContain('^[0-9]{3}_[a-z0-9_]+\\.sql$');
+    // Condición C-4: Formal Gate T1.A (Canonical verification & git tracking)
+    expect(workflowContent).toContain('scripts/verifyMigrations.mjs');
     expect(workflowContent).toContain('git ls-files');
 
     // Condición C-5: Formal Gate T1.B (AES-256-CBC backup pre-vuelo >= 1024 bytes)
@@ -39,15 +40,20 @@ describe('FC 048 Sovereign Database Migrations Discipline & Workflow Suite', () 
     expect(workflowContent).toContain('cancel-in-progress: false');
   });
 
-  it('todos los archivos en database/migrations/ deben cumplir el formato soberano NNN_snake_case.sql', () => {
+  it('todos los archivos en database/migrations/ deben cumplir el formato soberano NNN_snake_case.sql o canónico (FC 054)', () => {
     expect(fs.existsSync(migrationsDir)).toBe(true);
 
     const files = fs.readdirSync(migrationsDir).filter((f) => f.endsWith('.sql'));
     expect(files.length).toBeGreaterThanOrEqual(45);
 
-    const regex = /^[0-9]{3}_[a-z0-9_]+\.sql$/;
+    const legacyRegex = /^[0-9]{3}_[a-z0-9_]+\.sql$/;
     for (const file of files) {
-      expect(file).toMatch(regex);
+      const num = parseInt(file.slice(0, 3), 10);
+      if (num < 49) {
+        expect(file).toMatch(legacyRegex);
+      } else {
+        expect(file).toMatch(CANONICAL_MIGRATION_REGEX);
+      }
     }
   });
 
