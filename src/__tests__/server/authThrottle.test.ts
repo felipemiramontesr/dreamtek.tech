@@ -165,4 +165,65 @@ describe('FC 055 — Fase 2: Auth Throttle & Mailer Quota Services (100% Coverag
       expect(quota).toEqual({ allowed: true, remaining: 5 });
     });
   });
+
+  describe('Route Integration: /api/v1/auth/login and /register/resend-otp', () => {
+    let app: any;
+    let jwt: any;
+    let supertest: any;
+
+    beforeEach(async () => {
+      const express = (await import('express')).default;
+      const cookieParser = (await import('cookie-parser')).default;
+      const auth = await import('../../../server/src/routes/auth');
+      jwt = (await import('jsonwebtoken')).default;
+      supertest = (await import('supertest')).default;
+
+      app = express();
+      app.use(express.json());
+      app.use(cookieParser());
+      app.use('/api/v1/auth', auth.authRouter);
+    });
+
+    it('POST /login debe responder 429 LOGIN_THROTTLED con cabecera Retry-After cuando el throttle está activo', async () => {
+      const now = new Date().toISOString();
+      // First query in POST /login is checkLoginThrottle (auth_throttle_counters)
+      vi.mocked(db.query).mockResolvedValueOnce([
+        { counter: 6, window_start: now, last_attempt_at: now },
+      ]);
+
+      const res = await supertest(app)
+        .post('/api/v1/auth/login')
+        .send({ email: 'target@dreamtek.tech', password: 'AnyPassword123!' });
+
+      expect(res.status).toBe(429);
+      expect(res.headers['retry-after']).toBeDefined();
+      expect(res.body.code).toBe('LOGIN_THROTTLED');
+      expect(res.body.retry_after).toBeGreaterThanOrEqual(1);
+    });
+
+    it('POST /register/resend-otp debe responder 429 MAILER_QUOTA_EXCEEDED cuando se supera la cuota diaria', async () => {
+      const ticket = jwt.sign(
+        {
+          userId: 99,
+          email: 'quota@dreamtek.tech',
+          fullName: 'Quota User',
+          type: 'REG_TICKET',
+          stage: 'REGISTRATION_OTP_PENDING',
+        },
+        'dreamtek_dev_jwt_secret_key_2026',
+        { algorithm: 'HS512', expiresIn: '15m' },
+      );
+
+      // checkUserEmailVerificationQuota returns count: 5
+      vi.mocked(db.query).mockResolvedValueOnce([{ count: 5 }]);
+
+      const res = await supertest(app)
+        .post('/api/v1/auth/register/resend-otp')
+        .set('Cookie', ['dreamtek_reg_ticket=' + ticket]);
+
+      expect(res.status).toBe(429);
+      expect(res.body.code).toBe('MAILER_QUOTA_EXCEEDED');
+      expect(res.body.message).toContain('superado el límite diario');
+    });
+  });
 });

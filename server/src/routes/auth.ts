@@ -52,6 +52,12 @@ import {
   disableMfaSecurity,
 } from '../services/mfa.service.js';
 import { findMfaCredential, resetMfaForUser } from '../repositories/mfa.repository.js';
+import {
+  checkLoginThrottle,
+  recordFailedLoginAttempt,
+  clearLoginThrottle,
+} from '../services/authThrottleService.js';
+import { checkUserEmailVerificationQuota } from '../services/mailerQuotaService.js';
 
 export const authRouter = Router();
 export const COOKIE_NAME = 'dreamtek_session';
@@ -359,6 +365,18 @@ authRouter.post('/register/resend-otp', async (req: Request, res: Response): Pro
 
     const userId = payload.userId;
 
+    // Daily quota limit: maximum 5 emails per recipient per 24 hours (FC 055 / C-055)
+    const quota = await checkUserEmailVerificationQuota(userId);
+    if (!quota.allowed) {
+      res.status(429).json({
+        status: 'error',
+        code: 'MAILER_QUOTA_EXCEEDED',
+        message:
+          'Ha superado el límite diario de correos de verificación. Intente nuevamente en 24 horas.',
+      });
+      return;
+    }
+
     // Rate limit: maximum 3 resend attempts per 15 minutes window (Condition C-049.5)
     const recentRequests = await query<any[]>(
       'SELECT COUNT(*) as count FROM user_email_verifications WHERE user_id = ? AND created_at >= DATE_SUB(NOW(), INTERVAL 15 MINUTE)',
@@ -421,6 +439,19 @@ authRouter.post(
         return;
       }
 
+      // Progressive throttle check before bcrypt computation (FC 055 / Condition C-055.5)
+      const clientIp = req.ip || '127.0.0.1';
+      const throttleDecision = await checkLoginThrottle(identifier, clientIp);
+      if (throttleDecision.throttled) {
+        res.status(429).set('Retry-After', String(throttleDecision.retryAfterSeconds)).json({
+          status: 'error',
+          code: 'LOGIN_THROTTLED',
+          message: 'Demasiados intentos fallidos. Por favor espera antes de intentar nuevamente.',
+          retry_after: throttleDecision.retryAfterSeconds,
+        });
+        return;
+      }
+
       const users = await query<any[]>(
         'SELECT id, username, email, password_hash, role, full_name, is_2fa_enabled, totp_secret_encrypted, is_email_verified FROM users WHERE (email = ? OR username = ?) LIMIT 1',
         [identifier, identifier],
@@ -428,6 +459,7 @@ authRouter.post(
       const user = users[0];
 
       if (!user || !(await bcrypt.compare(password, user.password_hash))) {
+        await recordFailedLoginAttempt(identifier, clientIp);
         await logSecurityEvent(req, {
           eventType: 'LOGIN_FAILURE',
           status: 'FAILURE',
@@ -545,6 +577,9 @@ authRouter.post(
         userId: user.id,
         status: 'SUCCESS',
       });
+
+      // Clear throttle counters for this specific user|IP pair on success (Condition C-055.5)
+      await clearLoginThrottle(identifier, clientIp);
 
       const token = jwt.sign(
         {
@@ -748,6 +783,7 @@ const handleMfaVerify = async (req: Request, res: Response): Promise<void> => {
 
     // Successful verification: destroy ephemeral ticket cookie and issue session cookie
     res.clearCookie(MFA_COOKIE_NAME);
+    await clearLoginThrottle(user.email, req.ip || '127.0.0.1');
 
     const sessionToken = jwt.sign(
       {

@@ -14,6 +14,16 @@ import {
   setAuthTransporterForTest,
 } from '../../../server/src/routes/auth';
 
+vi.mock('../../../server/src/services/authThrottleService', () => ({
+  checkLoginThrottle: vi.fn().mockResolvedValue({ throttled: false, retryAfterSeconds: 0 }),
+  recordFailedLoginAttempt: vi.fn().mockResolvedValue(undefined),
+  clearLoginThrottle: vi.fn().mockResolvedValue(undefined),
+}));
+
+vi.mock('../../../server/src/services/mailerQuotaService', () => ({
+  checkUserEmailVerificationQuota: vi.fn().mockResolvedValue({ allowed: true, remaining: 5 }),
+}));
+
 vi.mock('../../../server/src/db', () => {
   const mockQuery = vi.fn();
   return {

@@ -22,6 +22,12 @@ import {
   generateEmailOtp,
 } from '../../../server/src/utils/totp';
 
+vi.mock('../../../server/src/services/authThrottleService', () => ({
+  checkLoginThrottle: vi.fn().mockResolvedValue({ throttled: false, retryAfterSeconds: 0 }),
+  recordFailedLoginAttempt: vi.fn().mockResolvedValue(undefined),
+  clearLoginThrottle: vi.fn().mockResolvedValue(undefined),
+}));
+
 vi.mock('../../../server/src/db', () => {
   const mockQuery = vi.fn();
   return {
