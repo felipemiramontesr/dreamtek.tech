@@ -85,7 +85,9 @@ exports.authRouter.post('/register', (0, validate_js_1.validate)(auth_schema_js_
         const { email, password, full_name, phone } = req.body;
         const cleanEmail = String(email).trim().toLowerCase();
         const cleanName = String(full_name).trim();
-        const existingUsers = await (0, db_js_1.query)('SELECT id FROM users WHERE email = ? LIMIT 1', [cleanEmail]);
+        const existingUsers = await (0, db_js_1.query)('SELECT id FROM users WHERE email = ? LIMIT 1', [
+            cleanEmail,
+        ]);
         if (existingUsers && existingUsers.length > 0) {
             res.status(409).json({
                 status: 'error',
@@ -248,7 +250,9 @@ exports.authRouter.post('/register/verify-otp', async (req, res) => {
         });
     }
     catch {
-        res.status(500).json({ status: 'error', message: 'Error interno en la verificación de código.' });
+        res
+            .status(500)
+            .json({ status: 'error', message: 'Error interno en la verificación de código.' });
     }
 });
 /**
@@ -288,7 +292,9 @@ exports.authRouter.post('/register/resend-otp', async (req, res) => {
             return;
         }
         // Invalidate previous OTPs
-        await (0, db_js_1.query)('UPDATE user_email_verifications SET used = 1 WHERE user_id = ? AND used = 0', [userId]);
+        await (0, db_js_1.query)('UPDATE user_email_verifications SET used = 1 WHERE user_id = ? AND used = 0', [
+            userId,
+        ]);
         const code = String(node_crypto_1.default.randomInt(100000, 1000000));
         const codeHash = node_crypto_1.default.createHash('sha256').update(code).digest('hex');
         await (0, db_js_1.query)('INSERT INTO user_email_verifications (user_id, code_hash, expires_at) VALUES (?, ?, DATE_ADD(NOW(), INTERVAL 15 MINUTE))', [userId, codeHash]);
@@ -1079,4 +1085,32 @@ exports.authRouter.post('/activate', async (req, res) => {
     catch (err) {
         res.status(500).json({ status: 'error', message: err.message || 'Error al activar cuenta.' });
     }
+});
+/**
+ * GET /api/v1/auth/proxy-debug
+ * Ephemeral diagnostic endpoint for proxy trust calibration (FC 055 / Condition C-055.1)
+ * Disabled by default. Enabled strictly when ANTI_BOT_PROXY_DEBUG=1.
+ * Never reflects authorization headers, cookies, or secrets.
+ * Must be removed or disabled before closing FC 055 EN_FIRME.
+ */
+exports.authRouter.get('/proxy-debug', (req, res) => {
+    if (process.env.ANTI_BOT_PROXY_DEBUG !== '1') {
+        res.status(404).json({ status: 'error', message: 'Not found' });
+        return;
+    }
+    res.json({
+        status: 'success',
+        ip: req.ip,
+        ips: req.ips,
+        headers: {
+            'x-forwarded-for': req.headers['x-forwarded-for'] || null,
+            'x-real-ip': req.headers['x-real-ip'] || null,
+            'cf-connecting-ip': req.headers['cf-connecting-ip'] || null,
+            'true-client-ip': req.headers['true-client-ip'] || null,
+            'x-forwarded-proto': req.headers['x-forwarded-proto'] || null,
+            'x-forwarded-host': req.headers['x-forwarded-host'] || null,
+            host: req.headers['host'] || null,
+        },
+        socket_remote_address: req.socket?.remoteAddress || null,
+    });
 });

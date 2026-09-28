@@ -51,10 +51,7 @@ import {
   confirmMfaSetup,
   disableMfaSecurity,
 } from '../services/mfa.service.js';
-import {
-  findMfaCredential,
-  resetMfaForUser,
-} from '../repositories/mfa.repository.js';
+import { findMfaCredential, resetMfaForUser } from '../repositories/mfa.repository.js';
 
 export const authRouter = Router();
 export const COOKIE_NAME = 'dreamtek_session';
@@ -121,10 +118,9 @@ authRouter.post(
       const cleanEmail = String(email).trim().toLowerCase();
       const cleanName = String(full_name).trim();
 
-      const existingUsers = await query<any[]>(
-        'SELECT id FROM users WHERE email = ? LIMIT 1',
-        [cleanEmail],
-      );
+      const existingUsers = await query<any[]>('SELECT id FROM users WHERE email = ? LIMIT 1', [
+        cleanEmail,
+      ]);
 
       if (existingUsers && existingUsers.length > 0) {
         res.status(409).json({
@@ -329,7 +325,9 @@ authRouter.post('/register/verify-otp', async (req: Request, res: Response): Pro
       },
     });
   } catch {
-    res.status(500).json({ status: 'error', message: 'Error interno en la verificación de código.' });
+    res
+      .status(500)
+      .json({ status: 'error', message: 'Error interno en la verificación de código.' });
   }
 });
 
@@ -376,10 +374,9 @@ authRouter.post('/register/resend-otp', async (req: Request, res: Response): Pro
     }
 
     // Invalidate previous OTPs
-    await query(
-      'UPDATE user_email_verifications SET used = 1 WHERE user_id = ? AND used = 0',
-      [userId],
-    );
+    await query('UPDATE user_email_verifications SET used = 1 WHERE user_id = ? AND used = 0', [
+      userId,
+    ]);
 
     const code = String(crypto.randomInt(100000, 1000000));
     const codeHash = crypto.createHash('sha256').update(code).digest('hex');
@@ -589,205 +586,208 @@ authRouter.post(
  * Validates candidate 2FA challenge and delivers final dreamtek_session cookie (Conditions C-047.1/3/5/6)
  */
 const handleMfaVerify = async (req: Request, res: Response): Promise<void> => {
-    try {
-      const ticket = req.cookies?.[MFA_COOKIE_NAME];
-      if (!ticket) {
-        res.status(401).json({
-          status: 'error',
-          message: 'Ticket de verificación 2FA no encontrado o expirado. Por favor inicie sesión nuevamente.',
-        });
-        return;
-      }
-
-      let payload: any;
-      try {
-        payload = jwt.verify(ticket, getJwtSecret(), { algorithms: ['HS512'] });
-      } catch {
-        res.status(401).json({
-          status: 'error',
-          message: 'Ticket de verificación 2FA expirado o inválido. Por favor inicie sesión nuevamente.',
-        });
-        return;
-      }
-
-      if (payload.type !== 'MFA_TICKET' || payload.stage !== 'MFA_PENDING') {
-        res.status(401).json({
-          status: 'error',
-          message: 'Ticket de autorización inválido para verificación 2FA.',
-        });
-        return;
-      }
-
-      const userId = payload.userId ?? payload.uid;
-      const users = await query<any[]>(
-        'SELECT id, email, role, full_name, is_2fa_enabled, totp_secret_encrypted, last_totp_timestep FROM users WHERE id = ? LIMIT 1',
-        [userId],
-      );
-      const user = users[0];
-
-      if (!user || !user.is_2fa_enabled) {
-        res.status(400).json({ status: 'error', message: 'Usuario no válido o 2FA no habilitado.' });
-        return;
-      }
-
-      const { code, method } = req.body;
-
-      if (payload.challengeId && method !== 'EMAIL') {
-        const challengeResult = await verifyMfaChallengeAttempt(
-          payload.challengeId,
-          user.id,
-          code,
-          method,
-        );
-        if (!challengeResult.success) {
-          res.status(400).json({
-            status: 'error',
-            message: challengeResult.error!,
-          });
-          return;
-        }
-      } else if (method === 'TOTP') {
-        if (!user.totp_secret_encrypted) {
-          res.status(400).json({
-            status: 'error',
-            message: 'Método TOTP no configurado en este usuario.',
-          });
-          return;
-        }
-
-        const secretBase32 = decryptTotpSecret(user.totp_secret_encrypted);
-        const verifyResult = verifyTotpCode(secretBase32, code, {
-          lastTimestep: user.last_totp_timestep,
-        });
-
-        if (!verifyResult.valid) {
-          if (verifyResult.error === 'CODE_REPLAYED') {
-            res.status(400).json({
-              status: 'error',
-              message: 'Código ya utilizado. Espere al siguiente ciclo en su aplicación autenticadora.',
-            });
-            return;
-          }
-          res.status(400).json({
-            status: 'error',
-            message: 'Código de autenticación inválido o expirado.',
-          });
-          return;
-        }
-
-        // Persist last used timestep for anti-replay (C-047.5)
-        await query('UPDATE users SET last_totp_timestep = ? WHERE id = ?', [
-          verifyResult.matchedTimestep,
-          user.id,
-        ]);
-      } else if (method === 'EMAIL') {
-        const otps = await query<any[]>(
-          'SELECT id, code_hash, attempts, max_attempts, expires_at FROM user_mfa_email_otps WHERE user_id = ? AND used = 0 AND expires_at > NOW() ORDER BY id DESC LIMIT 1',
-          [user.id],
-        );
-        const otp = otps[0];
-
-        if (!otp) {
-          res.status(400).json({
-            status: 'error',
-            message: 'No hay código de verificación activo por correo o ha expirado.',
-          });
-          return;
-        }
-
-        if (otp.attempts >= otp.max_attempts) {
-          res.status(400).json({
-            status: 'error',
-            message: 'Número máximo de intentos excedido para este código. Solicite un nuevo código.',
-          });
-          return;
-        }
-
-        const isValid = verifyEmailOtpHash(code, otp.code_hash);
-        if (!isValid) {
-          await query('UPDATE user_mfa_email_otps SET attempts = attempts + 1 WHERE id = ?', [
-            otp.id,
-          ]);
-          res.status(400).json({
-            status: 'error',
-            message: 'Código de verificación por correo incorrecto.',
-          });
-          return;
-        }
-
-        // Mark OTP as used atomically
-        await query('UPDATE user_mfa_email_otps SET used = 1 WHERE id = ?', [otp.id]);
-      } else {
-        const recoveryCodes = await query<any[]>(
-          'SELECT id, code_hash FROM user_mfa_recovery_codes WHERE user_id = ? AND used = 0',
-          [user.id],
-        );
-
-        let matchedRecoveryId: number | null = null;
-        for (const item of recoveryCodes) {
-          if (verifyRecoveryCodeHash(code, item.code_hash)) {
-            matchedRecoveryId = item.id;
-            break;
-          }
-        }
-
-        if (!matchedRecoveryId) {
-          res.status(400).json({
-            status: 'error',
-            message: 'Código de recuperación inválido o ya utilizado.',
-          });
-          return;
-        }
-
-        // Consume one-time recovery code atomically (C-047.6)
-        await query(
-          'UPDATE user_mfa_recovery_codes SET used = 1, used_at = NOW() WHERE id = ? AND used = 0',
-          [matchedRecoveryId],
-        );
-      }
-
-      // Successful verification: destroy ephemeral ticket cookie and issue session cookie
-      res.clearCookie(MFA_COOKIE_NAME);
-
-      const sessionToken = jwt.sign(
-        {
-          userId: user.id,
-          uid: user.id,
-          email: user.email,
-          role: (user.role || 'CLIENT').toUpperCase(),
-          name: user.full_name,
-        },
-        getJwtSecret(),
-        { algorithm: 'HS512', expiresIn: '24h' },
-      );
-
-      res.cookie(COOKIE_NAME, sessionToken, {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
-        sameSite: 'lax',
-        maxAge: 7 * 24 * 60 * 60 * 1000,
+  try {
+    const ticket = req.cookies?.[MFA_COOKIE_NAME];
+    if (!ticket) {
+      res.status(401).json({
+        status: 'error',
+        message:
+          'Ticket de verificación 2FA no encontrado o expirado. Por favor inicie sesión nuevamente.',
       });
-
-      await logSecurityEvent(req, {
-        eventType: 'MFA_VERIFY_SUCCESS',
-        userId: user.id,
-        status: 'SUCCESS',
-        details: `2FA verification completed via method ${method}`,
-      });
-
-      res.json({
-        status: 'success',
-        message: 'Autenticación de dos pasos completada exitosamente.',
-        user: {
-          id: user.id,
-          email: user.email,
-          role: user.role,
-          full_name: user.full_name,
-        },
-      });
-    } catch {
-      res.status(500).json({ status: 'error', message: 'Error en la verificación 2FA.' });
+      return;
     }
+
+    let payload: any;
+    try {
+      payload = jwt.verify(ticket, getJwtSecret(), { algorithms: ['HS512'] });
+    } catch {
+      res.status(401).json({
+        status: 'error',
+        message:
+          'Ticket de verificación 2FA expirado o inválido. Por favor inicie sesión nuevamente.',
+      });
+      return;
+    }
+
+    if (payload.type !== 'MFA_TICKET' || payload.stage !== 'MFA_PENDING') {
+      res.status(401).json({
+        status: 'error',
+        message: 'Ticket de autorización inválido para verificación 2FA.',
+      });
+      return;
+    }
+
+    const userId = payload.userId ?? payload.uid;
+    const users = await query<any[]>(
+      'SELECT id, email, role, full_name, is_2fa_enabled, totp_secret_encrypted, last_totp_timestep FROM users WHERE id = ? LIMIT 1',
+      [userId],
+    );
+    const user = users[0];
+
+    if (!user || !user.is_2fa_enabled) {
+      res.status(400).json({ status: 'error', message: 'Usuario no válido o 2FA no habilitado.' });
+      return;
+    }
+
+    const { code, method } = req.body;
+
+    if (payload.challengeId && method !== 'EMAIL') {
+      const challengeResult = await verifyMfaChallengeAttempt(
+        payload.challengeId,
+        user.id,
+        code,
+        method,
+      );
+      if (!challengeResult.success) {
+        res.status(400).json({
+          status: 'error',
+          message: challengeResult.error!,
+        });
+        return;
+      }
+    } else if (method === 'TOTP') {
+      if (!user.totp_secret_encrypted) {
+        res.status(400).json({
+          status: 'error',
+          message: 'Método TOTP no configurado en este usuario.',
+        });
+        return;
+      }
+
+      const secretBase32 = decryptTotpSecret(user.totp_secret_encrypted);
+      const verifyResult = verifyTotpCode(secretBase32, code, {
+        lastTimestep: user.last_totp_timestep,
+      });
+
+      if (!verifyResult.valid) {
+        if (verifyResult.error === 'CODE_REPLAYED') {
+          res.status(400).json({
+            status: 'error',
+            message:
+              'Código ya utilizado. Espere al siguiente ciclo en su aplicación autenticadora.',
+          });
+          return;
+        }
+        res.status(400).json({
+          status: 'error',
+          message: 'Código de autenticación inválido o expirado.',
+        });
+        return;
+      }
+
+      // Persist last used timestep for anti-replay (C-047.5)
+      await query('UPDATE users SET last_totp_timestep = ? WHERE id = ?', [
+        verifyResult.matchedTimestep,
+        user.id,
+      ]);
+    } else if (method === 'EMAIL') {
+      const otps = await query<any[]>(
+        'SELECT id, code_hash, attempts, max_attempts, expires_at FROM user_mfa_email_otps WHERE user_id = ? AND used = 0 AND expires_at > NOW() ORDER BY id DESC LIMIT 1',
+        [user.id],
+      );
+      const otp = otps[0];
+
+      if (!otp) {
+        res.status(400).json({
+          status: 'error',
+          message: 'No hay código de verificación activo por correo o ha expirado.',
+        });
+        return;
+      }
+
+      if (otp.attempts >= otp.max_attempts) {
+        res.status(400).json({
+          status: 'error',
+          message: 'Número máximo de intentos excedido para este código. Solicite un nuevo código.',
+        });
+        return;
+      }
+
+      const isValid = verifyEmailOtpHash(code, otp.code_hash);
+      if (!isValid) {
+        await query('UPDATE user_mfa_email_otps SET attempts = attempts + 1 WHERE id = ?', [
+          otp.id,
+        ]);
+        res.status(400).json({
+          status: 'error',
+          message: 'Código de verificación por correo incorrecto.',
+        });
+        return;
+      }
+
+      // Mark OTP as used atomically
+      await query('UPDATE user_mfa_email_otps SET used = 1 WHERE id = ?', [otp.id]);
+    } else {
+      const recoveryCodes = await query<any[]>(
+        'SELECT id, code_hash FROM user_mfa_recovery_codes WHERE user_id = ? AND used = 0',
+        [user.id],
+      );
+
+      let matchedRecoveryId: number | null = null;
+      for (const item of recoveryCodes) {
+        if (verifyRecoveryCodeHash(code, item.code_hash)) {
+          matchedRecoveryId = item.id;
+          break;
+        }
+      }
+
+      if (!matchedRecoveryId) {
+        res.status(400).json({
+          status: 'error',
+          message: 'Código de recuperación inválido o ya utilizado.',
+        });
+        return;
+      }
+
+      // Consume one-time recovery code atomically (C-047.6)
+      await query(
+        'UPDATE user_mfa_recovery_codes SET used = 1, used_at = NOW() WHERE id = ? AND used = 0',
+        [matchedRecoveryId],
+      );
+    }
+
+    // Successful verification: destroy ephemeral ticket cookie and issue session cookie
+    res.clearCookie(MFA_COOKIE_NAME);
+
+    const sessionToken = jwt.sign(
+      {
+        userId: user.id,
+        uid: user.id,
+        email: user.email,
+        role: (user.role || 'CLIENT').toUpperCase(),
+        name: user.full_name,
+      },
+      getJwtSecret(),
+      { algorithm: 'HS512', expiresIn: '24h' },
+    );
+
+    res.cookie(COOKIE_NAME, sessionToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      maxAge: 7 * 24 * 60 * 60 * 1000,
+    });
+
+    await logSecurityEvent(req, {
+      eventType: 'MFA_VERIFY_SUCCESS',
+      userId: user.id,
+      status: 'SUCCESS',
+      details: `2FA verification completed via method ${method}`,
+    });
+
+    res.json({
+      status: 'success',
+      message: 'Autenticación de dos pasos completada exitosamente.',
+      user: {
+        id: user.id,
+        email: user.email,
+        role: user.role,
+        full_name: user.full_name,
+      },
+    });
+  } catch {
+    res.status(500).json({ status: 'error', message: 'Error en la verificación 2FA.' });
+  }
 };
 authRouter.post('/2fa/verify', validate(mfaVerifySchema), handleMfaVerify);
 authRouter.post('/mfa/verify', validate(mfaVerifySchema), handleMfaVerify);
@@ -1121,8 +1121,6 @@ const handleMfaDisable = async (req: Request, res: Response): Promise<void> => {
 authRouter.post('/2fa/disable', validate(mfaDisableSchema), handleMfaDisable);
 authRouter.post('/mfa/disable', validate(mfaDisableSchema), handleMfaDisable);
 
-
-
 /**
  * POST /api/v1/auth/mfa/reset
  * Administratively resets MFA for a user (Exclusive Ω / ADMIN - Condition C-052.9)
@@ -1337,4 +1335,34 @@ authRouter.post('/activate', async (req: Request, res: Response): Promise<void> 
   } catch (err: any) {
     res.status(500).json({ status: 'error', message: err.message || 'Error al activar cuenta.' });
   }
+});
+
+/**
+ * GET /api/v1/auth/proxy-debug
+ * Ephemeral diagnostic endpoint for proxy trust calibration (FC 055 / Condition C-055.1)
+ * Disabled by default. Enabled strictly when ANTI_BOT_PROXY_DEBUG=1.
+ * Never reflects authorization headers, cookies, or secrets.
+ * Must be removed or disabled before closing FC 055 EN_FIRME.
+ */
+authRouter.get('/proxy-debug', (req: Request, res: Response): void => {
+  if (process.env.ANTI_BOT_PROXY_DEBUG !== '1') {
+    res.status(404).json({ status: 'error', message: 'Not found' });
+    return;
+  }
+
+  res.json({
+    status: 'success',
+    ip: req.ip,
+    ips: req.ips,
+    headers: {
+      'x-forwarded-for': req.headers['x-forwarded-for'] || null,
+      'x-real-ip': req.headers['x-real-ip'] || null,
+      'cf-connecting-ip': req.headers['cf-connecting-ip'] || null,
+      'true-client-ip': req.headers['true-client-ip'] || null,
+      'x-forwarded-proto': req.headers['x-forwarded-proto'] || null,
+      'x-forwarded-host': req.headers['x-forwarded-host'] || null,
+      host: req.headers['host'] || null,
+    },
+    socket_remote_address: req.socket?.remoteAddress || null,
+  });
 });

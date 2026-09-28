@@ -47,8 +47,8 @@ function getPort() {
 const PORT = getPort();
 // Register Telemetry Middleware first
 app.use(metrics_js_1.metricsMiddleware);
-// Condition C-H3: Configure trust proxy for Hostinger/Cloudflare reverse proxies
-app.set('trust proxy', 1);
+// Condition C-H3 & C-055.2: Configure trust proxy for Hostinger/Cloudflare reverse proxies (loopback calibration)
+app.set('trust proxy', 'loopback');
 // Security Headers via Helmet (OWASP A05)
 app.use((0, helmet_1.default)({
     contentSecurityPolicy: {
