@@ -478,8 +478,8 @@ exports.authRouter.post('/login', (0, validate_js_1.validate)(auth_schema_js_1.l
         });
     }
     catch (err) {
-        console.error('[AUTH_LOGIN_ERROR]', err);
-        res.status(500).json({ status: 'error', message: 'Error interno de autenticación.', detail: err?.message });
+        console.error('[AUTH_LOGIN_ERROR]', err?.message);
+        res.status(500).json({ status: 'error', message: 'Error interno de autenticación.' });
     }
 });
 /**
