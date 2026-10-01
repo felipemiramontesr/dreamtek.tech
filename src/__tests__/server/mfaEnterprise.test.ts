@@ -43,6 +43,13 @@ import {
   disableMfaSecurity,
 } from '../../../server/src/services/mfa.service';
 
+vi.mock('../../../server/src/services/authThrottleService', () => ({
+  checkLoginThrottle: vi.fn().mockResolvedValue({ throttled: false, retryAfterSeconds: 0 }),
+  recordFailedLoginAttempt: vi.fn().mockResolvedValue(undefined),
+  clearLoginThrottle: vi.fn().mockResolvedValue(undefined),
+  computeThrottleKey: vi.fn().mockReturnValue('mock_throttle_key'),
+}));
+
 vi.mock('../../../server/src/db', () => {
   const mockQuery = vi.fn();
   return {

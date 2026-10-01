@@ -5,6 +5,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.app = exports.initialize = exports.setupSignalHandlers = exports.gracefulShutdown = exports.server = exports.createServerInstance = exports.startServer = exports.corsOriginHandler = exports.getCorsOrigins = void 0;
 exports.getPort = getPort;
+exports.validateBootEnvironment = validateBootEnvironment;
 const express_1 = __importDefault(require("express"));
 const cors_1 = __importDefault(require("cors"));
 const helmet_1 = __importDefault(require("helmet"));
@@ -159,8 +160,19 @@ app.use('/api/v1/analytics', rateLimiter_js_1.analyticsRateLimiter, analytics_js
 app.use('/api/v1/portals', portals_js_1.portalsRouter);
 app.use('/api/v1/public/portals', portals_js_1.publicPortalsRouter);
 app.use('/api/v1', events_js_1.eventsRouter);
+/**
+ * Condition C-055.3 (Enmienda O / Archon FC199 Parity):
+ * Boot-time fail-closed validation of core environment secrets.
+ * Throw at startup in production if JWT_SECRET is missing; zero 500s per-request.
+ */
+function validateBootEnvironment() {
+    if (process.env.NODE_ENV === 'production') {
+        (0, auth_js_1.getJwtSecret)();
+    }
+}
 // Start HTTP Server
 const startServer = (port = PORT) => {
+    validateBootEnvironment();
     return app.listen(port, () => {
         console.log(`🚀 Dreamtek Node.js API Server running on port ${port}`);
     });
@@ -209,6 +221,7 @@ const setupSignalHandlers = () => {
 exports.setupSignalHandlers = setupSignalHandlers;
 const initialize = () => {
     if (process.env.NODE_ENV !== 'test') {
+        validateBootEnvironment();
         (0, exports.setupSignalHandlers)();
     }
 };

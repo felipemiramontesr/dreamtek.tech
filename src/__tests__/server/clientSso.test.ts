@@ -8,6 +8,13 @@ import * as db from '../../../server/src/db';
 import { authRouter } from '../../../server/src/routes/auth';
 import { clientRouter, getArchonSsoSecret } from '../../../server/src/routes/client';
 
+vi.mock('../../../server/src/services/authThrottleService', () => ({
+  checkLoginThrottle: vi.fn().mockResolvedValue({ throttled: false, retryAfterSeconds: 0 }),
+  recordFailedLoginAttempt: vi.fn().mockResolvedValue(undefined),
+  clearLoginThrottle: vi.fn().mockResolvedValue(undefined),
+  computeThrottleKey: vi.fn().mockReturnValue('mock_throttle_key'),
+}));
+
 vi.mock('../../../server/src/db', () => ({
   query: vi.fn(),
   withTransaction: vi.fn(),

@@ -2,13 +2,13 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import * as db from '../../../server/src/db';
 import {
-  getThrottleSecret,
   computeThrottleKey,
   checkLoginThrottle,
   recordFailedLoginAttempt,
   clearLoginThrottle,
 } from '../../../server/src/services/authThrottleService';
 import { checkUserEmailVerificationQuota } from '../../../server/src/services/mailerQuotaService';
+import { validateBootEnvironment } from '../../../server/src/index';
 
 vi.mock('../../../server/src/db', () => ({
   query: vi.fn(),
@@ -27,27 +27,9 @@ describe('FC 055 — Fase 2: Auth Throttle & Mailer Quota Services (100% Coverag
     process.env = { ...originalEnv };
   });
 
-  describe('authThrottleService — Secrets & Hashing', () => {
-    it('debe devolver BOT_THROTTLE_SECRET si está configurado', () => {
-      process.env.BOT_THROTTLE_SECRET = 'custom_secret_key_123';
-      expect(getThrottleSecret()).toBe('custom_secret_key_123');
-    });
-
-    it('debe hacer fallback al secreto de desarrollo cuando no está en producción', () => {
-      delete process.env.BOT_THROTTLE_SECRET;
-      process.env.NODE_ENV = 'development';
-      expect(getThrottleSecret()).toBe('dreamtek_dev_bot_throttle_secret_2026');
-    });
-
-    it('debe lanzar error fatal en producción si BOT_THROTTLE_SECRET falta (C-055.3 fail-closed)', () => {
-      delete process.env.BOT_THROTTLE_SECRET;
-      process.env.NODE_ENV = 'production';
-      expect(() => getThrottleSecret()).toThrow(
-        'FATAL SECURITY ERROR: BOT_THROTTLE_SECRET environment variable is missing in production.',
-      );
-    });
-
-    it('computeThrottleKey debe normalizar correos e IPs con hashing HMAC-SHA256 determinista', () => {
+  describe('authThrottleService — Derived Keys & Domain Separation (Enmienda O)', () => {
+    it('computeThrottleKey debe normalizar correos e IPs con hashing HMAC-SHA256 determinista derivado de JWT_SECRET', () => {
+      process.env.JWT_SECRET = 'test_jwt_secret_key_fixed';
       const key1 = computeThrottleKey('  User@Example.COM ', ' 203.0.113.1 ');
       const key2 = computeThrottleKey('user@example.com', '203.0.113.1');
       expect(key1).toBe(key2);
@@ -56,6 +38,39 @@ describe('FC 055 — Fase 2: Auth Throttle & Mailer Quota Services (100% Coverag
       // Handles empty/null gracefully
       const keyEmpty = computeThrottleKey('', '');
       expect(keyEmpty).toHaveLength(64);
+    });
+
+    it('la rotación de JWT_SECRET debe alterar determinísticamente la clave derivada', () => {
+      process.env.JWT_SECRET = 'secret_version_1';
+      const keyV1 = computeThrottleKey('user@example.com', '203.0.113.1');
+
+      process.env.JWT_SECRET = 'secret_version_2';
+      const keyV2 = computeThrottleKey('user@example.com', '203.0.113.1');
+
+      expect(keyV1).not.toBe(keyV2);
+      expect(keyV1).toHaveLength(64);
+      expect(keyV2).toHaveLength(64);
+    });
+
+    it('debe respetar el scope de dominio especificado', () => {
+      process.env.JWT_SECRET = 'test_jwt_secret';
+      const loginKey = computeThrottleKey('user@example.com', '203.0.113.1', 'login');
+      const customKey = computeThrottleKey('user@example.com', '203.0.113.1', 'custom-scope');
+      expect(loginKey).not.toBe(customKey);
+    });
+
+    it('validateBootEnvironment debe fallar en el arranque (throw) en producción si JWT_SECRET no existe', () => {
+      delete process.env.JWT_SECRET;
+      process.env.NODE_ENV = 'production';
+      expect(() => validateBootEnvironment()).toThrow(
+        'FATAL SECURITY ERROR: JWT_SECRET environment variable is missing in production.',
+      );
+    });
+
+    it('validateBootEnvironment no debe fallar cuando JWT_SECRET está presente en producción', () => {
+      process.env.JWT_SECRET = 'valid_production_secret';
+      process.env.NODE_ENV = 'production';
+      expect(() => validateBootEnvironment()).not.toThrow();
     });
   });
 
@@ -119,6 +134,19 @@ describe('FC 055 — Fase 2: Auth Throttle & Mailer Quota Services (100% Coverag
       const result = await checkLoginThrottle('alice@example.com', '198.51.100.1');
       expect(result.throttled).toBe(true);
       expect(result.retryAfterSeconds).toBeLessThanOrEqual(60);
+    });
+
+    it('debe garantizar matemáticamente el techo Retry-After <= 60s para contadores arbitrariamente altos (11, 25, 50, 100)', async () => {
+      const justNow = new Date(Date.now() - 50).toISOString();
+      for (const count of [11, 25, 50, 100]) {
+        vi.mocked(db.query).mockResolvedValueOnce([
+          { counter: count, window_start: justNow, last_attempt_at: justNow },
+        ]);
+        const result = await checkLoginThrottle('attacker@example.com', '198.51.100.99');
+        expect(result.throttled).toBe(true);
+        expect(result.retryAfterSeconds).toBeLessThanOrEqual(60);
+        expect(result.retryAfterSeconds).toBeGreaterThanOrEqual(1);
+      }
     });
   });
 

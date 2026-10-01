@@ -1,26 +1,21 @@
 import crypto from 'node:crypto';
 import { query } from '../db.js';
-
-export function getThrottleSecret(): string {
-  if (process.env.NODE_ENV === 'production' && !process.env.BOT_THROTTLE_SECRET) {
-    throw new Error(
-      'FATAL SECURITY ERROR: BOT_THROTTLE_SECRET environment variable is missing in production.',
-    );
-  }
-  return process.env.BOT_THROTTLE_SECRET || 'dreamtek_dev_bot_throttle_secret_2026';
-}
+import { getJwtSecret } from '../routes/auth.js';
 
 /**
- * Computes deterministic HMAC-SHA256 key hash for throttle tracking
+ * Computes deterministic HMAC-SHA256 key hash for throttle tracking.
+ * Key derived from JWT_SECRET with strict domain separation (FC 055 Enmienda O / Archon FC199 parity).
+ * Zero new environment variables required.
  */
-export function computeThrottleKey(identifier: string, ip: string): string {
+export function computeThrottleKey(identifier: string, ip: string, scope = 'login'): string {
   const cleanId = String(identifier || '')
     .trim()
     .toLowerCase();
   const cleanIp = String(ip || '').trim();
+  const domainTag = `dreamtek-auth-throttle|${scope}:${cleanId}|${cleanIp}`;
   return crypto
-    .createHmac('sha256', getThrottleSecret())
-    .update(`login:${cleanId}|${cleanIp}`)
+    .createHmac('sha256', getJwtSecret())
+    .update(domainTag)
     .digest('hex');
 }
 
@@ -68,7 +63,7 @@ export async function checkLoginThrottle(
   const elapsedSeconds = (now - lastAttemptTime) / 1000;
 
   if (elapsedSeconds < delaySeconds) {
-    const retryAfterSeconds = Math.max(1, Math.ceil(delaySeconds - elapsedSeconds));
+    const retryAfterSeconds = Math.min(60, Math.max(1, Math.ceil(delaySeconds - elapsedSeconds)));
     return { throttled: true, retryAfterSeconds };
   }
 

@@ -19,7 +19,7 @@ import {
 import { metricsMiddleware } from './middleware/metrics.js';
 import { metricsRouter } from './routes/metrics.js';
 import { healthRouter, setShuttingDownState } from './routes/health.js';
-import { authRouter } from './routes/auth.js';
+import { authRouter, getJwtSecret } from './routes/auth.js';
 import { onboardingRouter } from './routes/onboarding.js';
 import { checkoutRouter } from './routes/checkout.js';
 import { clientRouter } from './routes/client.js';
@@ -185,8 +185,20 @@ app.use('/api/v1/portals', portalsRouter);
 app.use('/api/v1/public/portals', publicPortalsRouter);
 app.use('/api/v1', eventsRouter);
 
+/**
+ * Condition C-055.3 (Enmienda O / Archon FC199 Parity):
+ * Boot-time fail-closed validation of core environment secrets.
+ * Throw at startup in production if JWT_SECRET is missing; zero 500s per-request.
+ */
+export function validateBootEnvironment(): void {
+  if (process.env.NODE_ENV === 'production') {
+    getJwtSecret();
+  }
+}
+
 // Start HTTP Server
 export const startServer = (port = PORT) => {
+  validateBootEnvironment();
   return app.listen(port, () => {
     console.log(`🚀 Dreamtek Node.js API Server running on port ${port}`);
   });
@@ -240,6 +252,7 @@ export const setupSignalHandlers = () => {
 
 export const initialize = () => {
   if (process.env.NODE_ENV !== 'test') {
+    validateBootEnvironment();
     setupSignalHandlers();
   }
 };
