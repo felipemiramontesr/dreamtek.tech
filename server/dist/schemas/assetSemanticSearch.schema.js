@@ -1,0 +1,50 @@
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.similarAssetsQuerySchema = exports.semanticSearchBodySchema = exports.generateEmbeddingBodySchema = void 0;
+const zod_1 = require("zod");
+exports.generateEmbeddingBodySchema = zod_1.z.object({
+    model_name: zod_1.z
+        .string()
+        .trim()
+        .min(2, 'El nombre del modelo debe tener al menos 2 caracteres.')
+        .max(64, 'El nombre del modelo no puede exceder 64 caracteres.')
+        .optional()
+        .default('dreamtek-multimodal-v1'),
+    force_refresh: zod_1.z.boolean().optional().default(false),
+});
+exports.semanticSearchBodySchema = zod_1.z.object({
+    query: zod_1.z
+        .string()
+        .trim()
+        .min(2, 'La consulta de búsqueda semántica debe tener al menos 2 caracteres.')
+        .max(500, 'La consulta no puede exceder 500 caracteres.'),
+    min_score: zod_1.z
+        .number()
+        .min(0, 'El umbral de similitud mínimo no puede ser menor a 0.0')
+        .max(1, 'El umbral de similitud mínimo no puede ser mayor a 1.0')
+        .optional()
+        .default(0.55),
+    limit: zod_1.z
+        .number()
+        .int()
+        .min(1, 'El límite mínimo es 1.')
+        .max(50, 'El límite máximo es 50.')
+        .optional()
+        .default(10),
+});
+exports.similarAssetsQuerySchema = zod_1.z.object({
+    min_score: zod_1.z
+        .string()
+        .optional()
+        .transform((val) => (val !== undefined ? parseFloat(val) : 0.55))
+        .refine((val) => !isNaN(val) && val >= 0 && val <= 1, {
+        message: 'min_score debe ser un número decimal entre 0.0 y 1.0',
+    }),
+    limit: zod_1.z
+        .string()
+        .optional()
+        .transform((val) => (val !== undefined ? parseInt(val, 10) : 10))
+        .refine((val) => !isNaN(val) && val >= 1 && val <= 50, {
+        message: 'limit debe ser un entero entre 1 y 50',
+    }),
+});
