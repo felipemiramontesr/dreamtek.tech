@@ -1399,6 +1399,6 @@ authRouter.get('/proxy-debug', (req: Request, res: Response): void => {
       'x-forwarded-host': req.headers['x-forwarded-host'] || null,
       host: req.headers['host'] || null,
     },
-    socket_remote_address: req.socket?.remoteAddress || null,
+    socket_remote_address: req.socket.remoteAddress || null,
   });
 });

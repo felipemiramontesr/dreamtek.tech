@@ -170,6 +170,7 @@ describe('FC 055 — Fase 1 (Proxy & Real IP Calibration Suite)', () => {
       testRouterApp.use(
         '/api/v1/auth',
         (req, _res, next) => {
+          delete req.headers.host;
           if (req.socket) {
             Object.defineProperty(req.socket, 'remoteAddress', {
               value: undefined,
@@ -189,6 +190,7 @@ describe('FC 055 — Fase 1 (Proxy & Real IP Calibration Suite)', () => {
       expect(res.body.headers['true-client-ip']).toBeNull();
       expect(res.body.headers['x-forwarded-proto']).toBeNull();
       expect(res.body.headers['x-forwarded-host']).toBeNull();
+      expect(res.body.headers.host).toBeNull();
       expect(res.body.socket_remote_address).toBeNull();
     });
   });
