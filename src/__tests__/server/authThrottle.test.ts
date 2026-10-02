@@ -88,6 +88,16 @@ describe('FC 055 — Fase 2: Auth Throttle & Mailer Quota Services (100% Coverag
         else delete process.env.JWT_SECRET;
       }
     });
+
+    it('validateBootEnvironment no debe ejecutar validación si no está en modo producción (rama false)', () => {
+      const origEnv = process.env.NODE_ENV;
+      try {
+        process.env.NODE_ENV = 'test';
+        expect(() => validateBootEnvironment()).not.toThrow();
+      } finally {
+        process.env.NODE_ENV = origEnv;
+      }
+    });
   });
 
   describe('authThrottleService — checkLoginThrottle', () => {
