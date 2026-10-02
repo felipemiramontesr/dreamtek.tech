@@ -440,7 +440,7 @@ authRouter.post(
       }
 
       // Progressive throttle check before bcrypt computation (FC 055 / Condition C-055.5)
-      const clientIp = req.ip || '127.0.0.1';
+      const clientIp = String(req.ip);
       const throttleDecision = await checkLoginThrottle(identifier, clientIp);
       if (throttleDecision.throttled) {
         res.status(429).set('Retry-After', String(throttleDecision.retryAfterSeconds)).json({
@@ -783,7 +783,7 @@ const handleMfaVerify = async (req: Request, res: Response): Promise<void> => {
 
     // Successful verification: destroy ephemeral ticket cookie and issue session cookie
     res.clearCookie(MFA_COOKIE_NAME);
-    await clearLoginThrottle(user.email, req.ip || '127.0.0.1');
+    await clearLoginThrottle(user.email, String(req.ip));
 
     const sessionToken = jwt.sign(
       {
