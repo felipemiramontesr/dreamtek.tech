@@ -1,6 +1,6 @@
 {
   "name": "dreamtek.tech",
-  "version": "0.1.124",
+  "version": "0.1.125",
   "private": true,
   "engines": {
     "node": ">=20.0.0"
@@ -20,6 +20,7 @@
     "test:coverage": "vitest run --coverage --fileParallelism=false --maxWorkers=1",
     "test:e2e": "playwright test",
     "test:scripts": "vitest run src/__tests__/scripts/ --pool=threads",
+    "test:governance": "vitest run --config scripts/vitest.governance.config.mjs --pool=threads",
     "test:all": "npm run test:coverage && npm run test:scripts",
     "migrations:verify": "node scripts/verifyMigrations.mjs",
     "h:post": "node scripts/hPost.mjs",

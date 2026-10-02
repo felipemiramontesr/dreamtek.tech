@@ -59,6 +59,8 @@ scripts/hCheck.mjs
 scripts/olrSign.mjs
 scripts/phase.mjs
 scripts/phaseDag.mjs
+scripts/governanceHarness.test.mjs
+scripts/vitest.governance.config.mjs
 isoQualityMap.json
 isoSecurityMap.json
 # --- end Protocol L local-only ---

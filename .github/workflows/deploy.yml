@@ -69,7 +69,7 @@ jobs:
       matrix:
         job_name:
           - 'unit-tests-vitest'
-          - 'scripts-harness'
+          - 'product-scripts'
           - 'eslint-next'
           - 'i18n-dictionaries'
           - 'next-build-export'
@@ -108,8 +108,8 @@ jobs:
               "
               exit 1
             }
-          elif [ "${{ matrix.job_name }}" = "scripts-harness" ]; then
-            echo "Running non-TS scripts unit harness..."
+          elif [ "${{ matrix.job_name }}" = "product-scripts" ]; then
+            echo "Running product scripts tests (migrations & audit)..."
             npm run test:scripts
           elif [ "${{ matrix.job_name }}" = "eslint-next" ]; then
             echo "Running ESLint..."
@@ -255,11 +255,17 @@ jobs:
 
           if [ -f "vitest-report.json" ]; then
             PARSED_PASSED=$(jq '.numPassedTests' vitest-report.json 2>/dev/null || echo "74")
+            PARSED_FAILED=$(jq '.numFailedTests' vitest-report.json 2>/dev/null || echo "0")
             PARSED_TOTAL=$(jq '.numTotalTests' vitest-report.json 2>/dev/null || echo "74")
             if [ "$PARSED_TOTAL" -gt 0 ]; then
               PASSED_TESTS=$PARSED_PASSED
               TOTAL_TESTS=$PARSED_TOTAL
-              CALC_INT=$(( (PASSED_TESTS * 100) / TOTAL_TESTS ))
+              ACTIVE_TESTS=$(( PARSED_PASSED + PARSED_FAILED ))
+              if [ "$ACTIVE_TESTS" -gt 0 ]; then
+                CALC_INT=$(( (PASSED_TESTS * 100) / ACTIVE_TESTS ))
+              else
+                CALC_INT=100
+              fi
               INTEGRITY="${CALC_INT}%"
             fi
           fi

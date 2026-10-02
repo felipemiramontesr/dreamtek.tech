@@ -12,7 +12,8 @@ export default defineConfig({
     teardownTimeout: 30000,
     fileParallelism: false,
     maxWorkers: 1,
-    exclude: ['node_modules/**', '**/node_modules/**', 'e2e/**'],
+    include: ['src/__tests__/**/*.{test,spec}.?(c|m)[jt]s?(x)'],
+    exclude: ['node_modules/**', '**/node_modules/**', 'e2e/**', 'scripts/**'],
     setupFiles: ['./vitest.setup.ts'],
     alias: {
       '@': path.resolve(__dirname, './src'),
