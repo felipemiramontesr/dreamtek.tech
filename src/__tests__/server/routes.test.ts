@@ -618,38 +618,54 @@ describe('Server Express Routes 100% Comprehensive Suite', () => {
     expect(resNoPass.status).toBe(400);
 
     // Login in production mode
-    process.env.NODE_ENV = 'production';
-    process.env.JWT_SECRET = 'prod_secret_key_12345';
+    const origEnv = process.env.NODE_ENV;
+    const origSecret = process.env.JWT_SECRET;
+    try {
+      process.env.NODE_ENV = 'production';
+      process.env.JWT_SECRET = 'prod_secret_key_12345';
 
-    vi.mocked(db.query).mockReset();
-    vi.mocked(db.query)
-      .mockResolvedValueOnce([
-        {
-          id: 1,
-          email: 'admin@dreamtek.tech',
-          password_hash: await bcrypt.hash('SuperPassword123!', 1),
-          role: null,
-          full_name: 'Admin Prod',
-        },
-      ])
-      .mockResolvedValueOnce([]); // findMfaCredential query -> no MFA enrolled
+      vi.mocked(db.query).mockReset();
+      vi.mocked(db.query)
+        .mockResolvedValueOnce([
+          {
+            id: 1,
+            email: 'admin@dreamtek.tech',
+            password_hash: await bcrypt.hash('SuperPassword123!', 1),
+            role: null,
+            full_name: 'Admin Prod',
+          },
+        ])
+        .mockResolvedValueOnce([]); // findMfaCredential query -> no MFA enrolled
 
-    const resProdLogin = await supertest(rawAuthApp).post('/raw-auth/login').send({
-      email: 'admin@dreamtek.tech',
-      password: 'SuperPassword123!',
-    });
-    expect(resProdLogin.status).toBe(200);
+      const resProdLogin = await supertest(rawAuthApp).post('/raw-auth/login').send({
+        email: 'admin@dreamtek.tech',
+        password: 'SuperPassword123!',
+      });
+      expect(resProdLogin.status).toBe(200);
+    } finally {
+      process.env.NODE_ENV = origEnv;
+      if (origSecret !== undefined) process.env.JWT_SECRET = origSecret;
+      else delete process.env.JWT_SECRET;
+    }
   });
 
   it('auth.ts debe responder con 500 si falta JWT_SECRET en producción durante login', async () => {
-    process.env.NODE_ENV = 'production';
-    delete process.env.JWT_SECRET;
+    const origEnv = process.env.NODE_ENV;
+    const origSecret = process.env.JWT_SECRET;
+    try {
+      process.env.NODE_ENV = 'production';
+      delete process.env.JWT_SECRET;
 
-    const resProdAuth = await supertest(app).post('/auth/login').send({
-      email: 'admin@dreamtek.tech',
-      password: 'SuperPassword123!',
-    });
-    expect(resProdAuth.status).toBe(500);
+      const resProdAuth = await supertest(app).post('/auth/login').send({
+        email: 'admin@dreamtek.tech',
+        password: 'SuperPassword123!',
+      });
+      expect(resProdAuth.status).toBe(500);
+    } finally {
+      process.env.NODE_ENV = origEnv;
+      if (origSecret !== undefined) process.env.JWT_SECRET = origSecret;
+      else delete process.env.JWT_SECRET;
+    }
   });
 
   it('checkout.ts debe procesar sesiones de Stripe o manejar errores cuando STRIPE_SECRET_KEY está configurada', async () => {
@@ -727,16 +743,21 @@ describe('Server Express Routes 100% Comprehensive Suite', () => {
     expect(resNoCode.status).toBe(400);
 
     // Production SMTP error branch
-    process.env.NODE_ENV = 'production';
-    process.env.SMTP_PASS = 'secret_pass';
-    setTransporterForTest({
-      sendMail: vi.fn().mockRejectedValueOnce(new Error('SMTP Transport Error')),
-    });
+    const origEnv = process.env.NODE_ENV;
+    try {
+      process.env.NODE_ENV = 'production';
+      process.env.SMTP_PASS = 'secret_pass';
+      setTransporterForTest({
+        sendMail: vi.fn().mockRejectedValueOnce(new Error('SMTP Transport Error')),
+      });
 
-    const resSmtpErr = await supertest(rawContactApp)
-      .post('/raw-contact/send-code')
-      .send({ email: 'test@example.com' });
-    expect(resSmtpErr.status).toBe(500);
+      const resSmtpErr = await supertest(rawContactApp)
+        .post('/raw-contact/send-code')
+        .send({ email: 'test@example.com' });
+      expect(resSmtpErr.status).toBe(500);
+    } finally {
+      process.env.NODE_ENV = origEnv;
+    }
   });
 
   it('events.ts debe manejar desconexión de cliente y envío de eventos', async () => {

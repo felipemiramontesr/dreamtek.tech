@@ -60,17 +60,33 @@ describe('FC 055 — Fase 2: Auth Throttle & Mailer Quota Services (100% Coverag
     });
 
     it('validateBootEnvironment debe fallar en el arranque (throw) en producción si JWT_SECRET no existe', () => {
-      delete process.env.JWT_SECRET;
-      process.env.NODE_ENV = 'production';
-      expect(() => validateBootEnvironment()).toThrow(
-        'FATAL SECURITY ERROR: JWT_SECRET environment variable is missing in production.',
-      );
+      const origEnv = process.env.NODE_ENV;
+      const origSecret = process.env.JWT_SECRET;
+      try {
+        delete process.env.JWT_SECRET;
+        process.env.NODE_ENV = 'production';
+        expect(() => validateBootEnvironment()).toThrow(
+          'FATAL SECURITY ERROR: JWT_SECRET environment variable is missing in production.',
+        );
+      } finally {
+        process.env.NODE_ENV = origEnv;
+        if (origSecret !== undefined) process.env.JWT_SECRET = origSecret;
+        else delete process.env.JWT_SECRET;
+      }
     });
 
     it('validateBootEnvironment no debe fallar cuando JWT_SECRET está presente en producción', () => {
-      process.env.JWT_SECRET = 'valid_production_secret';
-      process.env.NODE_ENV = 'production';
-      expect(() => validateBootEnvironment()).not.toThrow();
+      const origEnv = process.env.NODE_ENV;
+      const origSecret = process.env.JWT_SECRET;
+      try {
+        process.env.JWT_SECRET = 'valid_production_secret';
+        process.env.NODE_ENV = 'production';
+        expect(() => validateBootEnvironment()).not.toThrow();
+      } finally {
+        process.env.NODE_ENV = origEnv;
+        if (origSecret !== undefined) process.env.JWT_SECRET = origSecret;
+        else delete process.env.JWT_SECRET;
+      }
     });
   });
 

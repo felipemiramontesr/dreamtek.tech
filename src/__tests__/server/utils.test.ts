@@ -46,18 +46,34 @@ describe('Server Utils & Middleware 100% Comprehensive Suite', () => {
   });
 
   it('crypto.ts getJwtSecret debe lanzar fatal error en producción si falta JWT_SECRET', () => {
-    process.env.NODE_ENV = 'production';
-    delete process.env.JWT_SECRET;
-    expect(() => getJwtSecret()).toThrow(/FATAL SECURITY ERROR: JWT_SECRET/);
+    const origEnv = process.env.NODE_ENV;
+    const origSecret = process.env.JWT_SECRET;
+    try {
+      process.env.NODE_ENV = 'production';
+      delete process.env.JWT_SECRET;
+      expect(() => getJwtSecret()).toThrow(/FATAL SECURITY ERROR: JWT_SECRET/);
 
-    process.env.JWT_SECRET = 'prod_secret_123';
-    expect(getJwtSecret()).toBe('prod_secret_123');
+      process.env.JWT_SECRET = 'prod_secret_123';
+      expect(getJwtSecret()).toBe('prod_secret_123');
+    } finally {
+      process.env.NODE_ENV = origEnv;
+      if (origSecret !== undefined) process.env.JWT_SECRET = origSecret;
+      else delete process.env.JWT_SECRET;
+    }
   });
 
   it('crypto.ts encriptación debe lanzar fatal error en producción si falta DB_ENCRYPTION_KEY', () => {
-    process.env.NODE_ENV = 'production';
-    delete process.env.DB_ENCRYPTION_KEY;
-    expect(() => encryptField('test')).toThrow(/FATAL SECURITY ERROR: DB_ENCRYPTION_KEY/);
+    const origEnv = process.env.NODE_ENV;
+    const origKey = process.env.DB_ENCRYPTION_KEY;
+    try {
+      process.env.NODE_ENV = 'production';
+      delete process.env.DB_ENCRYPTION_KEY;
+      expect(() => encryptField('test')).toThrow(/FATAL SECURITY ERROR: DB_ENCRYPTION_KEY/);
+    } finally {
+      process.env.NODE_ENV = origEnv;
+      if (origKey !== undefined) process.env.DB_ENCRYPTION_KEY = origKey;
+      else delete process.env.DB_ENCRYPTION_KEY;
+    }
   });
 
   it('validate middleware debe permitir datos válidos y rechazar esquemas Zod inválidos con HTTP 400', () => {

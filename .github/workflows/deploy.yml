@@ -109,7 +109,7 @@ jobs:
           fi
 
       - name: '📤 Upload Vitest Report Artifact'
-        if: matrix.job_name == 'unit-tests-vitest'
+        if: always() && matrix.job_name == 'unit-tests-vitest'
         uses: actions/upload-artifact@main
         with:
           name: vitest-report
