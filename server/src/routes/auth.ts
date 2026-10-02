@@ -610,8 +610,7 @@ authRouter.post(
           full_name: user.full_name,
         },
       });
-    } catch (err: any) {
-      console.error('[AUTH_LOGIN_ERROR]', err?.message);
+    } catch {
       res.status(500).json({ status: 'error', message: 'Error interno de autenticación.' });
     }
   },

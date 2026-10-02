@@ -92,7 +92,22 @@ jobs:
         run: |
           if [ "${{ matrix.job_name }}" = "unit-tests-vitest" ]; then
             echo "Running Vitest test suite with Coverage v8 and generating JSON report..."
-            npx vitest run --coverage --reporter=default --reporter=github-actions --reporter=json --outputFile=vitest-report.json --fileParallelism=false
+            npx vitest run --coverage --reporter=default --reporter=github-actions --reporter=json --outputFile=vitest-report.json --fileParallelism=false || {
+              node -e "
+                try {
+                  const sum = JSON.parse(require('fs').readFileSync('coverage/coverage-summary.json', 'utf8'));
+                  for (const [file, metrics] of Object.entries(sum)) {
+                    if (file === 'total') continue;
+                    for (const [m, data] of Object.entries(metrics)) {
+                      if (data.pct < 100) {
+                        console.log('::error file=' + file + ',title=Coverage Under 100% (' + m + ')::' + m + ' is ' + data.pct + '% (' + data.covered + '/' + data.total + ')');
+                      }
+                    }
+                  }
+                } catch(e) { console.error('Coverage summary note:', e.message); }
+              "
+              exit 1
+            }
           elif [ "${{ matrix.job_name }}" = "scripts-harness" ]; then
             echo "Running non-TS scripts unit harness..."
             npm run test:scripts
