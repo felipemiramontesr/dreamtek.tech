@@ -16,7 +16,7 @@ on:
 jobs:
   matrix-backend-validation:
     name: '🛡️ Matrix: backend-validation (${{ matrix.job_name }})'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     strategy:
       fail-fast: false
       matrix:
@@ -63,7 +63,7 @@ jobs:
 
   matrix-frontend-validation:
     name: '🎨 Matrix: frontend-validation (${{ matrix.job_name }})'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     strategy:
       fail-fast: false
       matrix:
@@ -118,7 +118,7 @@ jobs:
 
   db-verification:
     name: '🏛️ Database (SQL) Verification'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - name: '📥 Checkout Code'
         uses: actions/checkout@v5
@@ -145,7 +145,7 @@ jobs:
 
   secret-scan:
     name: '🔍 Secret Scan (TruffleHog / GitLeaks)'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - name: '📥 Checkout Code'
         uses: actions/checkout@v5
@@ -160,7 +160,7 @@ jobs:
 
   quality-gate:
     name: '🏷️ Quality Gate & Code Analysis'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - name: '📥 Checkout Code'
         uses: actions/checkout@v5
@@ -185,7 +185,7 @@ jobs:
   e2e-verification:
     name: '🧪 E2E (Playwright) Verification'
     needs: [matrix-backend-validation, matrix-frontend-validation, db-verification]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - name: '📥 Checkout Code'
         uses: actions/checkout@v5
@@ -221,7 +221,7 @@ jobs:
         quality-gate,
         e2e-verification,
       ]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - name: '📥 Checkout Code'
         uses: actions/checkout@v5
@@ -292,7 +292,7 @@ jobs:
   deploy:
     name: '🚀 Deployment to Hostinger'
     needs: [archon-global-certification]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     steps:
       - name: '📥 Checkout Code'

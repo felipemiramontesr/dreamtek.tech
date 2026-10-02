@@ -225,10 +225,13 @@ describe('Server Index Core (100% Coverage Suite)', () => {
 
     // Mode production
     const origEnv = process.env.NODE_ENV;
+    const origSecret = process.env.JWT_SECRET;
     process.env.NODE_ENV = 'production';
+    process.env.JWT_SECRET = 'test_jwt_secret_for_index_boot';
     initialize();
     expect(processOnSpy).toHaveBeenCalled();
     process.env.NODE_ENV = origEnv;
+    process.env.JWT_SECRET = origSecret;
   });
 
   it('gracefulShutdown debe salir inmediatamente si no hay servidor activo (modo test)', () => {
